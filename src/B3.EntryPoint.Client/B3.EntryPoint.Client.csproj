@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>B3.EntryPoint.Client</RootNamespace>
+    <AssemblyName>B3.EntryPoint.Client</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>B3.EntryPoint.Client</PackageId>
+    <Description>Wire-puro client library for the B3 EntryPoint (SBE/FIXP 8.4.2) order-entry protocol.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\B3.EntryPoint.Sbe\B3.EntryPoint.Sbe.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/B3.EntryPoint.Sbe/B3.EntryPoint.Sbe.csproj" />
+    <Project Path="src/B3.EntryPoint.Client/B3.EntryPoint.Client.csproj" />
+    <Project Path="src/B3.EntryPoint.Cli/B3.EntryPoint.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/B3.EntryPoint.Client.Tests/B3.EntryPoint.Client.Tests.csproj" />
+    <Project Path="tests/B3.EntryPoint.Conformance/B3.EntryPoint.Conformance.csproj" />
+  </Folder>
+</Solution>
