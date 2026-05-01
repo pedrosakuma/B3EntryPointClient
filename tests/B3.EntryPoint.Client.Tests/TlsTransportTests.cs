@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
-using B3.EntryPoint.TestPeer;
+using B3.EntryPoint.Client.TestPeer;
 
 namespace B3.EntryPoint.Client.Tests;
 
@@ -52,7 +52,7 @@ public class TlsTransportTests
     public async Task ConnectAsync_OverTls_PerformsHandshakeAndEstablishes()
     {
         using var serverCert = CreateSelfSigned("localhost");
-        await using var peer = new InMemoryFixpPeer(serverCert);
+        await using var peer = new InProcessFixpTestPeer(serverCert);
         peer.Start();
 
         var opts = Options(peer.Endpoint, tls =>
@@ -71,7 +71,7 @@ public class TlsTransportTests
     [Fact]
     public async Task ConnectAsync_TlsDisabled_StillConnectsToPlainPeer()
     {
-        await using var peer = new InMemoryFixpPeer();
+        await using var peer = new InProcessFixpTestPeer();
         peer.Start();
 
         var opts = Options(peer.Endpoint);

@@ -49,6 +49,8 @@ wire-puro is so the same code can drive the simulator or B3 UAT.
 dotnet add package B3.EntryPoint.Client
 # Optional: only the SBE 8.4.2 codecs (no FIXP session layer)
 dotnet add package B3.EntryPoint.Sbe
+# Optional: in-process FIXP test peer for integration tests
+dotnet add package B3.EntryPoint.Client.TestPeer
 ```
 
 Targets `net10.0`. Symbols are published as `.snupkg` to nuget.org (sourcelink-enabled).
@@ -60,6 +62,13 @@ dotnet run --project samples/B3.EntryPoint.Quickstart
 ```
 
 Full walkthrough: [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+## Testing without a real B3 endpoint
+
+The companion `B3.EntryPoint.Client.TestPeer` package gives downstream
+projects a drop-in in-process FIXP peer for `Mode=Real` integration tests.
+See [docs/TEST-PEER.md](docs/TEST-PEER.md) for configuration, scenarios,
+and observability.
 
 ## Build & test
 

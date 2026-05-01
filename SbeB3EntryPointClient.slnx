@@ -2,12 +2,13 @@
   <Folder Name="/src/">
     <Project Path="src/B3.EntryPoint.Sbe/B3.EntryPoint.Sbe.csproj" />
     <Project Path="src/B3.EntryPoint.Client/B3.EntryPoint.Client.csproj" />
+    <Project Path="src/B3.EntryPoint.Client.TestPeer/B3.EntryPoint.Client.TestPeer.csproj" />
     <Project Path="src/B3.EntryPoint.Cli/B3.EntryPoint.Cli.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/B3.EntryPoint.Client.Tests/B3.EntryPoint.Client.Tests.csproj" />
     <Project Path="tests/B3.EntryPoint.Conformance/B3.EntryPoint.Conformance.csproj" />
-    <Project Path="tests/B3.EntryPoint.TestPeer/B3.EntryPoint.TestPeer.csproj" />
+    <Project Path="tests/Samples/B3.EntryPoint.Client.TestPeer.Sample/B3.EntryPoint.Client.TestPeer.Sample.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/B3.EntryPoint.Benchmarks/B3.EntryPoint.Benchmarks.csproj" />

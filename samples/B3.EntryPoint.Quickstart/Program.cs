@@ -5,9 +5,9 @@
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Models;
-using B3.EntryPoint.TestPeer;
+using B3.EntryPoint.Client.TestPeer;
 
-await using var peer = new InMemoryFixpPeer();
+await using var peer = new InProcessFixpTestPeer();
 peer.Start();
 
 var options = new EntryPointClientOptions

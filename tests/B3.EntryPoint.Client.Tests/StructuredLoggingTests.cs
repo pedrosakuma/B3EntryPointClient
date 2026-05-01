@@ -2,7 +2,7 @@ using System.Linq;
 using System.Net;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
-using B3.EntryPoint.TestPeer;
+using B3.EntryPoint.Client.TestPeer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 
@@ -33,7 +33,7 @@ public class StructuredLoggingTests
     [Fact]
     public async Task ConnectAsync_EmitsLifecycleLogs()
     {
-        await using var peer = new InMemoryFixpPeer();
+        await using var peer = new InProcessFixpTestPeer();
         peer.Start();
         var fake = new FakeLogger();
         var opts = Options(peer.Endpoint, fake);
@@ -58,7 +58,7 @@ public class StructuredLoggingTests
     [Fact]
     public async Task InboundFrame_EmittedAtTraceLevel_WhenEnabled()
     {
-        await using var peer = new InMemoryFixpPeer();
+        await using var peer = new InProcessFixpTestPeer();
         peer.Start();
         var fake = new FakeLogger();
         fake.ControlLevel(LogLevel.Trace, enabled: true);

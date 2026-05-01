@@ -1,0 +1,94 @@
+#nullable enable
+B3.EntryPoint.Client.TestPeer.ITestPeerScenario
+B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnNewOrder(B3.EntryPoint.Client.TestPeer.NewOrderContext context) -> B3.EntryPoint.Client.TestPeer.NewOrderResponse!
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.Endpoint.get -> System.Net.IPEndPoint!
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer() -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer(B3.EntryPoint.Client.TestPeer.TestPeerOptions! options) -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer(System.Security.Cryptography.X509Certificates.X509Certificate2? serverCertificate) -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.LocalEndpoint.get -> System.Net.IPEndPoint!
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.MessageReceived -> System.EventHandler<B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs!>?
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.Options.get -> B3.EntryPoint.Client.TestPeer.TestPeerOptions!
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.Start() -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.StopAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.TestPeer.NewOrderContext
+B3.EntryPoint.Client.TestPeer.NewOrderContext.ClOrdId.get -> string!
+B3.EntryPoint.Client.TestPeer.NewOrderContext.ClOrdId.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Deconstruct(out uint SessionId, out uint EnteringFirm, out ulong SecurityId, out string! ClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.EnteringFirm.get -> uint
+B3.EntryPoint.Client.TestPeer.NewOrderContext.EnteringFirm.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Equals(B3.EntryPoint.Client.TestPeer.NewOrderContext other) -> bool
+B3.EntryPoint.Client.TestPeer.NewOrderContext.NewOrderContext() -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.NewOrderContext(uint SessionId, uint EnteringFirm, ulong SecurityId, string! ClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.SecurityId.get -> ulong
+B3.EntryPoint.Client.TestPeer.NewOrderContext.SecurityId.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.SessionId.get -> uint
+B3.EntryPoint.Client.TestPeer.NewOrderContext.SessionId.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.AcceptAndFill() -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill? other) -> bool
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.AcceptAsNew() -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew? other) -> bool
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.NewOrderResponse(B3.EntryPoint.Client.TestPeer.NewOrderResponse! original) -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Deconstruct(out string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? other) -> bool
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Reason.get -> string!
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Reason.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejectBusiness(string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs
+B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.Payload.get -> System.ReadOnlyMemory<byte>
+B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.TemplateId.get -> ushort
+B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.TestPeerMessageEventArgs(ushort templateId, System.ReadOnlyMemory<byte> payload) -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.Credentials.get -> System.Collections.Generic.IReadOnlyDictionary<uint, byte[]!>?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.Credentials.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ResponseLatency.get -> System.TimeSpan
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ResponseLatency.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.Scenario.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.Scenario.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ServerCertificate.get -> System.Security.Cryptography.X509Certificates.X509Certificate2?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ServerCertificate.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.TestPeerOptions() -> void
+B3.EntryPoint.Client.TestPeer.TestPeerScenarios
+abstract B3.EntryPoint.Client.TestPeer.NewOrderResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.NewOrderResponse!
+override B3.EntryPoint.Client.TestPeer.NewOrderContext.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.<Clone>$() -> B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.<Clone>$() -> B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.<Clone>$() -> B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.NewOrderResponse.ToString() -> string!
+override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderContext.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderContext left, B3.EntryPoint.Client.TestPeer.NewOrderContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderContext.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderContext left, B3.EntryPoint.Client.TestPeer.NewOrderContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderResponse? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.NewOrderResponse.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.AcceptAll.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
+static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.FillImmediately.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
+static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.RejectAll(string! reason = "rejected by test peer") -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
+virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
+virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override B3.EntryPoint.Client.TestPeer.NewOrderContext.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.TestPeer.NewOrderContext.ToString() -> string
