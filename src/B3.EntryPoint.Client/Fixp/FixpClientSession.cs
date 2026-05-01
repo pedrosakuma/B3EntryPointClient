@@ -149,7 +149,17 @@ internal sealed class FixpClientSession : IAsyncDisposable
                 {
                     await _eventWriter!.WriteAsync(evt, ct).ConfigureAwait(false);
                 }
-                // else: session-layer (Sequence/NotApplied/Terminate/...) — handled in #24-#26.
+                else
+                {
+                    var templateId = InboundDecoder.ReadTemplateId(frame);
+                    if (templateId == SequenceData.MESSAGE_ID && OnInboundSequence is not null)
+                    {
+                        var payload = frame.AsSpan(SofhSize + SbeHeaderSize);
+                        var seq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload);
+                        OnInboundSequence(seq);
+                    }
+                    // else: NotApplied/Retransmission/Terminate — handled in #25/#26.
+                }
             }
         }
         catch (OperationCanceledException) { /* shutdown */ }
@@ -175,6 +185,27 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// <summary>Returns the next outbound MsgSeqNum and increments the counter.</summary>
     public ulong NextOutboundSeqNum() =>
         (ulong)System.Threading.Interlocked.Increment(ref _outboundSeqNum);
+
+    /// <summary>Sends a single FIXP <c>Sequence</c> frame announcing <paramref name="nextSeqNo"/>.</summary>
+    public async Task SendSequenceAsync(ulong nextSeqNo, CancellationToken ct)
+    {
+        var totalSize = SofhSize + SbeHeaderSize + SequenceData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        SequenceData.WriteHeader(buffer.AsSpan(SofhSize));
+        var payload = new SequenceData
+        {
+            NextSeqNo = new SeqNum(checked((uint)nextSeqNo)),
+        };
+        if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
+            throw new InvalidOperationException("Failed to encode Sequence payload.");
+
+        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+        await _stream.FlushAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Optional hook: invoked by the inbound loop when a peer Sequence frame arrives.</summary>
+    internal Action<ulong>? OnInboundSequence { get; set; }
 
     public async ValueTask DisposeAsync()
     {

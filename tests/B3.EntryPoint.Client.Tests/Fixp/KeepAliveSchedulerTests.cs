@@ -21,11 +21,11 @@ public class KeepAliveSchedulerTests
     }
 
     [Fact]
-    public void Start_ThrowsNotImplemented_PerIssue3()
+    public void Start_WithoutBoundTransport_Throws()
     {
         var s = new KeepAliveScheduler(TimeSpan.FromSeconds(1));
-        var ex = Assert.Throws<NotImplementedException>(s.Start);
-        Assert.Contains("issue #3", ex.Message);
+        var ex = Assert.Throws<InvalidOperationException>(s.Start);
+        Assert.Contains("transport", ex.Message);
     }
 
     [Fact]
@@ -65,5 +65,34 @@ public class KeepAliveSchedulerTests
     {
         IKeepAliveScheduler s = new KeepAliveScheduler(TimeSpan.FromMilliseconds(500));
         Assert.Equal(TimeSpan.FromMilliseconds(500), s.KeepAliveInterval);
+    }
+}
+
+public class KeepAliveSchedulerPeriodicTests
+{
+    [Fact]
+    public async Task Start_WithBoundTransport_InvokesSendCallbackPeriodically()
+    {
+        var ticks = new List<ulong>();
+        ulong nextSeq = 0;
+        Task SendAsync(ulong seq, CancellationToken ct)
+        {
+            lock (ticks) ticks.Add(seq);
+            return Task.CompletedTask;
+        }
+        var ctorInfo = typeof(B3.EntryPoint.Client.Fixp.KeepAliveScheduler).GetConstructors(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 3);
+        var scheduler = (B3.EntryPoint.Client.Fixp.KeepAliveScheduler)ctorInfo.Invoke(new object?[]
+        {
+            TimeSpan.FromMilliseconds(40),
+            (Func<ulong, CancellationToken, Task>)SendAsync,
+            (Func<ulong>)(() => System.Threading.Interlocked.Increment(ref nextSeq)),
+        });
+        scheduler.Start();
+        await Task.Delay(180);
+        scheduler.Stop();
+        scheduler.Dispose();
+        Assert.True(ticks.Count >= 2, $"expected >=2 ticks, got {ticks.Count}");
     }
 }
