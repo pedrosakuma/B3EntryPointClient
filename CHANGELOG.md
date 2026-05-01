@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-01
+
 ### Added
 - DI helpers `AddEntryPointClient` and `AddDropCopyClient` (`B3.EntryPoint.Client.DependencyInjection`).
 - Inbound decoders for `AllocationReport` (template 602) and `PositionMaintenanceReport` (template 503).
