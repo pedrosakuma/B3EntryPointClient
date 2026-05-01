@@ -1,7 +1,10 @@
 # B3EntryPointClient
 
+[![CI](https://github.com/pedrosakuma/B3EntryPointClient/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pedrosakuma/B3EntryPointClient/actions/workflows/ci.yml)
 [![NuGet — Client](https://img.shields.io/nuget/v/B3.EntryPoint.Client?label=B3.EntryPoint.Client)](https://www.nuget.org/packages/B3.EntryPoint.Client)
 [![NuGet — Sbe](https://img.shields.io/nuget/v/B3.EntryPoint.Sbe?label=B3.EntryPoint.Sbe)](https://www.nuget.org/packages/B3.EntryPoint.Sbe)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 Wire-puro **client** library for the B3 EntryPoint (SBE/FIXP 8.4.2) order-entry
 protocol. Symmetric counterpart of [`B3MarketDataPlatform`][md] (UMDF consumer):
@@ -39,6 +42,16 @@ wire-puro is so the same code can drive the simulator or B3 UAT.
   (`connect` only in the bootstrap).
 - **`samples/B3.EntryPoint.Quickstart`** — end-to-end console demo against
   the in-memory FIXP peer. See [Quickstart](docs/QUICKSTART.md).
+
+## Install
+
+```bash
+dotnet add package B3.EntryPoint.Client
+# Optional: only the SBE 8.4.2 codecs (no FIXP session layer)
+dotnet add package B3.EntryPoint.Sbe
+```
+
+Targets `net10.0`. Symbols are published as `.snupkg` to nuget.org (sourcelink-enabled).
 
 ## Quickstart
 
