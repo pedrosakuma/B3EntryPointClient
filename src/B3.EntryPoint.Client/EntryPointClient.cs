@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
@@ -17,6 +18,12 @@ namespace B3.EntryPoint.Client;
 public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder, ICancelOrder
 {
     private readonly EntryPointClientOptions _options;
+    private readonly Channel<EntryPointEvent> _events =
+        Channel.CreateUnbounded<EntryPointEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = false,
+            SingleWriter = true,
+        });
     private TcpClient? _tcp;
     private FixpClientSession? _session;
 
@@ -60,6 +67,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
         await _session.NegotiateAsync(ct).ConfigureAwait(false);
         await _session.EstablishAsync(ct).ConfigureAwait(false);
+        _session.StartInboundLoop(_events.Writer);
     }
 
     /// <inheritdoc />
@@ -184,8 +192,8 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     public async IAsyncEnumerable<EntryPointEvent> Events([EnumeratorCancellation] CancellationToken ct = default)
     {
         EnsureEstablished();
-        await Task.CompletedTask.ConfigureAwait(false);
-        yield break;
+        await foreach (var evt in _events.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            yield return evt;
     }
 
     public async ValueTask DisposeAsync()
