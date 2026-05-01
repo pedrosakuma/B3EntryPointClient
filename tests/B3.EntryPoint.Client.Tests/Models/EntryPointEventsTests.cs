@@ -11,7 +11,7 @@ public class EntryPointEventsTests
         {
             SeqNum = 1,
             SendingTime = DateTimeOffset.UnixEpoch,
-            ClOrdID = new ClOrdID("X"),
+            ClOrdID = new ClOrdID(2UL),
             OrderId = 100,
             OrderStatus = OrderStatus.New,
             SecurityId = 1,
@@ -27,7 +27,7 @@ public class EntryPointEventsTests
         {
             SeqNum = 2,
             SendingTime = DateTimeOffset.UnixEpoch,
-            ClOrdID = new ClOrdID("X"),
+            ClOrdID = new ClOrdID(3UL),
             OrderId = 100,
             TradeId = 200,
             OrderStatus = OrderStatus.PartiallyFilled,
@@ -58,8 +58,8 @@ public class EntryPointEventsTests
         {
             SeqNum = 4,
             SendingTime = DateTimeOffset.UnixEpoch,
-            ClOrdID = new ClOrdID("X"),
-            OrigClOrdID = new ClOrdID("O"),
+            ClOrdID = new ClOrdID(4UL),
+            OrigClOrdID = new ClOrdID(5UL),
             OrderId = 1,
             OrderStatus = OrderStatus.Cancelled,
             RestatementReason = ExecRestatementReason.CancelOnTerminate,

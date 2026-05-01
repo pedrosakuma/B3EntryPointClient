@@ -12,16 +12,16 @@ public class ReplaceOrderTests
     {
         var req = new ReplaceOrderRequest
         {
-            ClOrdID = new ClOrdID("R1"),
-            OrigClOrdID = new ClOrdID("O1"),
+            ClOrdID = new ClOrdID(2UL),
+            OrigClOrdID = new ClOrdID(3UL),
             SecurityId = 1,
             Side = Side.Buy,
             OrderType = OrderType.Limit,
             OrderQty = 10,
             Price = 5.0m,
         };
-        Assert.Equal("R1", req.ClOrdID.Value);
-        Assert.Equal("O1", req.OrigClOrdID.Value);
+        Assert.Equal(2UL, req.ClOrdID.Value);
+        Assert.Equal(3UL, req.OrigClOrdID.Value);
     }
 
     [Fact]
@@ -29,8 +29,8 @@ public class ReplaceOrderTests
     {
         var req = new SimpleModifyRequest
         {
-            ClOrdID = new ClOrdID("R1"),
-            OrigClOrdID = new ClOrdID("O1"),
+            ClOrdID = new ClOrdID(4UL),
+            OrigClOrdID = new ClOrdID(5UL),
             SecurityId = 1,
             Side = Side.Sell,
             OrderType = SimpleOrderType.Limit,
@@ -55,8 +55,8 @@ public class ReplaceOrderTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             client.ReplaceAsync(new ReplaceOrderRequest
             {
-                ClOrdID = new ClOrdID("R"),
-                OrigClOrdID = new ClOrdID("O"),
+                ClOrdID = new ClOrdID(6UL),
+                OrigClOrdID = new ClOrdID(7UL),
                 SecurityId = 1,
                 Side = Side.Buy,
                 OrderType = OrderType.Limit,

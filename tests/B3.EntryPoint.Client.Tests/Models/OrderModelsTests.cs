@@ -6,20 +6,23 @@ namespace B3.EntryPoint.Client.Tests.Models;
 public class OrderModelsTests
 {
     [Fact]
-    public void ClOrdID_RejectsEmpty() =>
-        Assert.Throws<ArgumentException>(() => new ClOrdID(""));
+    public void ClOrdID_RejectsZero() =>
+        Assert.Throws<ArgumentException>(() => new ClOrdID(0UL));
 
     [Fact]
-    public void ClOrdID_RejectsTooLong() =>
-        Assert.Throws<ArgumentException>(() => new ClOrdID(new string('A', 21)));
-
-    [Fact]
-    public void ClOrdID_AcceptsUpToMax()
+    public void ClOrdID_Parse_RoundTrips()
     {
-        var id = new ClOrdID(new string('A', 20));
-        Assert.Equal(20, id.Value.Length);
-        string s = id;
-        Assert.Equal(id.Value, s);
+        var id = ClOrdID.Parse("12345");
+        Assert.Equal(12345UL, id.Value);
+        Assert.Equal("12345", id.ToString());
+    }
+
+    [Fact]
+    public void ClOrdID_AcceptsArbitraryUlong()
+    {
+        var id = new ClOrdID(ulong.MaxValue);
+        ulong raw = id;
+        Assert.Equal(ulong.MaxValue, raw);
     }
 
     [Fact]
@@ -27,14 +30,14 @@ public class OrderModelsTests
     {
         var req = new NewOrderRequest
         {
-            ClOrdID = new ClOrdID("ORD-1"),
+            ClOrdID = new ClOrdID(3UL),
             SecurityId = 12345,
             Side = Side.Buy,
             OrderType = OrderType.Limit,
             OrderQty = 100,
             Price = 12.34m,
         };
-        Assert.Equal("ORD-1", req.ClOrdID.Value);
+        Assert.Equal(3UL, req.ClOrdID.Value);
         Assert.Equal(TimeInForce.Day, req.TimeInForce);
         Assert.Equal(AccountType.RegularAccount, req.AccountType);
     }
@@ -44,7 +47,7 @@ public class OrderModelsTests
     {
         var req = new SimpleNewOrderRequest
         {
-            ClOrdID = new ClOrdID("S1"),
+            ClOrdID = new ClOrdID(4UL),
             SecurityId = 1,
             Side = Side.Sell,
             OrderType = SimpleOrderType.Market,
@@ -60,7 +63,7 @@ public class OrderModelsTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             client.SubmitAsync(new NewOrderRequest
             {
-                ClOrdID = new ClOrdID("X"),
+                ClOrdID = new ClOrdID(5UL),
                 SecurityId = 1,
                 Side = Side.Buy,
                 OrderType = OrderType.Market,

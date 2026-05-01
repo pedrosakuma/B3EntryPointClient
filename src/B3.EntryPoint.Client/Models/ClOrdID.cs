@@ -1,26 +1,30 @@
 namespace B3.EntryPoint.Client.Models;
 
 /// <summary>
-/// Client order ID (FIX <c>ClOrdID</c>). Strongly-typed wrapper to keep the
-/// public API distinct from arbitrary strings. Max 20 characters per spec.
+/// Client order ID (FIX <c>ClOrdID</c>). Wraps the wire <c>uint64</c>
+/// (per schema <c>&lt;type name="ClOrdID" primitiveType="uint64"/&gt;</c>).
 /// </summary>
 public readonly record struct ClOrdID
 {
-    public const int MaxLength = 20;
-
-    public ClOrdID(string value)
+    public ClOrdID(ulong value)
     {
-        ArgumentException.ThrowIfNullOrEmpty(value);
-        if (value.Length > MaxLength)
-            throw new ArgumentException(
-                $"ClOrdID must be at most {MaxLength} characters (got {value.Length}).",
-                nameof(value));
+        if (value == 0)
+            throw new ArgumentException("ClOrdID cannot be zero (reserved as null sentinel).", nameof(value));
         Value = value;
     }
 
-    public string Value { get; }
+    public ulong Value { get; }
 
-    public override string ToString() => Value;
+    /// <summary>Parses a numeric string into a ClOrdID.</summary>
+    public static ClOrdID Parse(string value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(value);
+        return new ClOrdID(ulong.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
+    }
 
-    public static implicit operator string(ClOrdID id) => id.Value;
+    public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public static implicit operator ulong(ClOrdID id) => id.Value;
+    public static explicit operator ClOrdID(ulong value) => new(value);
 }
+

@@ -12,12 +12,13 @@ public class CancelOrderTests
     {
         var req = new CancelOrderRequest
         {
-            ClOrdID = new ClOrdID("C1"),
-            OrigClOrdID = new ClOrdID("O1"),
+            ClOrdID = new ClOrdID(2UL),
+            OrigClOrdID = new ClOrdID(3UL),
             SecurityId = 1,
             Side = Side.Buy,
         };
-        Assert.Equal("C1", req.ClOrdID.Value);
+        Assert.Equal(2UL, req.ClOrdID.Value);
+        Assert.Equal(3UL, req.OrigClOrdID.Value);
     }
 
     [Fact]
@@ -25,7 +26,7 @@ public class CancelOrderTests
     {
         var req = new MassActionRequest
         {
-            ClOrdID = new ClOrdID("M1"),
+            ClOrdID = new ClOrdID(4UL),
             ActionType = MassActionType.CancelOrders,
         };
         Assert.Equal(MassActionScope.AllOrdersForATradingSession, req.Scope);
@@ -36,7 +37,7 @@ public class CancelOrderTests
     {
         var rpt = new MassActionReport
         {
-            ClOrdID = new ClOrdID("M1"),
+            ClOrdID = new ClOrdID(5UL),
             Response = MassActionResponse.Accepted,
             ActionType = MassActionType.CancelOrders,
             Scope = MassActionScope.AllOrdersForATradingSession,
@@ -60,8 +61,8 @@ public class CancelOrderTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             client.CancelAsync(new CancelOrderRequest
             {
-                ClOrdID = new ClOrdID("C"),
-                OrigClOrdID = new ClOrdID("O"),
+                ClOrdID = new ClOrdID(6UL),
+                OrigClOrdID = new ClOrdID(7UL),
                 SecurityId = 1,
                 Side = Side.Buy,
             }));

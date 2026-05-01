@@ -24,8 +24,8 @@ public class ReplaceHappyPathTests
         await client.ConnectAsync();
         await client.ReplaceAsync(new ReplaceOrderRequest
         {
-            ClOrdID = new ClOrdID($"R-{Guid.NewGuid():N}".Substring(0, 20)),
-            OrigClOrdID = new ClOrdID("ORIG"),
+            ClOrdID = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL),
+            OrigClOrdID = new ClOrdID(2UL),
             SecurityId = 1,
             Side = Side.Buy,
             OrderType = OrderType.Limit,

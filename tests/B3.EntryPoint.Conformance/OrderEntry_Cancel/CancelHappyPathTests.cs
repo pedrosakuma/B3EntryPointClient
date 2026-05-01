@@ -24,8 +24,8 @@ public class CancelHappyPathTests
         await client.ConnectAsync();
         await client.CancelAsync(new CancelOrderRequest
         {
-            ClOrdID = new ClOrdID($"C-{Guid.NewGuid():N}".Substring(0, 20)),
-            OrigClOrdID = new ClOrdID("ORIG"),
+            ClOrdID = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL),
+            OrigClOrdID = new ClOrdID(2UL),
             SecurityId = 1,
             Side = Side.Buy,
         });

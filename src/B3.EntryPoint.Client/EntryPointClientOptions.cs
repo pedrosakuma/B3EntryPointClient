@@ -28,6 +28,24 @@ public sealed class EntryPointClientOptions
     public TimeSpan KeepAliveInterval => TimeSpan.FromMilliseconds(KeepAliveIntervalMs);
 
     /// <summary>
+    /// Identifies the original location for routing orders (FIX <c>SenderLocation</c>,
+    /// max 10 chars). Required on every order entry message.
+    /// </summary>
+    public string SenderLocation { get; init; } = "";
+
+    /// <summary>
+    /// Identifier of the trader entering the orders (FIX <c>EnteringTrader</c>,
+    /// max 5 chars). Required on every order entry message.
+    /// </summary>
+    public string EnteringTrader { get; init; } = "";
+
+    /// <summary>
+    /// Default <c>MarketSegmentID</c> stamped on the inbound business header
+    /// when a request does not specify one. Defaults to 1 (single-segment).
+    /// </summary>
+    public byte DefaultMarketSegmentId { get; init; } = 1;
+
+    /// <summary>
     /// Cancel-on-disconnect behaviour requested at <c>Negotiate</c>. Defaults
     /// to <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/>
     /// — the safest choice for a participant that must not leave open orders
