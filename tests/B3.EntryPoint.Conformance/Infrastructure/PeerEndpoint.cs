@@ -1,4 +1,5 @@
 using System.Net;
+using B3.EntryPoint.TestPeer;
 
 namespace B3.EntryPoint.Conformance.Infrastructure;
 
@@ -8,10 +9,17 @@ namespace B3.EntryPoint.Conformance.Infrastructure;
 /// <c>B3MatchingPlatform</c> instance or B3 UAT — only env values change.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Scenarios that require a peer must call <see cref="TryResolve"/> and
 /// <c>Skip</c> when <c>null</c>, so CI is green even without a peer
 /// configured. This is the "expected to fail until B3MatchingPlatform#42 lands"
 /// behavior described in the bootstrap issue.
+/// </para>
+/// <para>
+/// Set <c>ENTRYPOINT_TESTPEER=1</c> to spin up an in-process
+/// <see cref="InMemoryFixpPeer"/> instead. This makes the conformance suite
+/// runnable in CI without an external endpoint.
+/// </para>
 /// </remarks>
 public sealed record PeerEndpoint(IPEndPoint Endpoint, uint SessionId, uint SessionVerId, uint EnteringFirm, string AccessKey)
 {
@@ -20,9 +28,31 @@ public sealed record PeerEndpoint(IPEndPoint Endpoint, uint SessionId, uint Sess
     public const string EnvSessionVerId = "B3EP_SESSION_VER_ID";
     public const string EnvFirm = "B3EP_FIRM";
     public const string EnvAccessKey = "B3EP_ACCESS_KEY";
+    public const string EnvUseTestPeer = "ENTRYPOINT_TESTPEER";
+
+    private static readonly Lazy<InMemoryFixpPeer?> SharedTestPeer = new(() =>
+    {
+        if (!IsTestPeerEnabled()) return null;
+        var peer = new InMemoryFixpPeer();
+        peer.Start();
+        AppDomain.CurrentDomain.ProcessExit += async (_, _) => await peer.DisposeAsync();
+        return peer;
+    });
+
+    public static bool IsTestPeerEnabled()
+    {
+        var v = Environment.GetEnvironmentVariable(EnvUseTestPeer);
+        return string.Equals(v, "1", StringComparison.Ordinal)
+            || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static PeerEndpoint? TryResolve()
     {
+        if (IsTestPeerEnabled() && SharedTestPeer.Value is { } peer)
+        {
+            return new PeerEndpoint(peer.Endpoint, SessionId: 1u, SessionVerId: 1u, EnteringFirm: 1u, AccessKey: "TESTPEER");
+        }
+
         var endpoint = Environment.GetEnvironmentVariable(EnvEndpoint);
         var sessionId = Environment.GetEnvironmentVariable(EnvSessionId);
         var sessionVerId = Environment.GetEnvironmentVariable(EnvSessionVerId);
@@ -48,5 +78,5 @@ public sealed record PeerEndpoint(IPEndPoint Endpoint, uint SessionId, uint Sess
     }
 
     public const string SkipReason =
-        "Conformance peer not configured. Set B3EP_PEER, B3EP_SESSION_ID, B3EP_SESSION_VER_ID, B3EP_FIRM, B3EP_ACCESS_KEY to run.";
+        "Conformance peer not configured. Set ENTRYPOINT_TESTPEER=1 for the in-process peer, or B3EP_PEER + credentials for an external one.";
 }

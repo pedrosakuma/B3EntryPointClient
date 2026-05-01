@@ -51,6 +51,16 @@ jobs:
           --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
 
+      - name: Conformance (in-process FIXP peer)
+        env:
+          ENTRYPOINT_TESTPEER: "1"
+        run: >
+          dotnet test tests/B3.EntryPoint.Conformance/B3.EntryPoint.Conformance.csproj
+          --no-build -c Release
+          --logger "trx;LogFileName=conformance-results.trx"
+          --logger "console;verbosity=normal"
+          --results-directory ./TestResults
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
