@@ -25,10 +25,11 @@ public class DropCopyClientTests
     }
 
     [Fact]
-    public async Task ConnectAsync_Throws_With_Issue_Citation()
+    public async Task ConnectAsync_AttemptsTcpConnect()
     {
         await using var c = new DropCopyClient(Opts(SessionProfile.DropCopy));
-        var ex = await Assert.ThrowsAsync<NotImplementedException>(() => c.ConnectAsync());
-        Assert.Contains("issue #10", ex.Message);
+        // No socket listening on port 9999 → TCP connect must fail. Confirms the
+        // delegating wire-up to EntryPointClient.ConnectAsync is in place.
+        await Assert.ThrowsAnyAsync<System.Net.Sockets.SocketException>(() => c.ConnectAsync());
     }
 }
