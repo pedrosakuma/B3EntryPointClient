@@ -3,16 +3,18 @@ using System.Runtime.CompilerServices;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
+using ClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client;
 
 /// <summary>
-/// High-level B3 EntryPoint client. Bootstrap scope: <see cref="ConnectAsync"/>
-/// performs TCP connect + Negotiate + Establish; <see cref="DisposeAsync"/>
-/// sends Terminate. Order submission and event streaming are stubbed and will
-/// be wired in subsequent PRs (see <c>docs/CONFORMANCE.md</c>).
+/// High-level B3 EntryPoint client. <see cref="ConnectAsync"/> performs TCP
+/// connect + Negotiate + Establish; <see cref="DisposeAsync"/> sends Terminate.
+/// Order submission, replace, cancel and event streaming are exposed as the
+/// public API surface; their wire-level implementations land incrementally
+/// (see <c>docs/CONFORMANCE.md</c> and the issues tagged <c>area/api-surface</c>).
 /// </summary>
-public sealed class EntryPointClient : IAsyncDisposable
+public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder
 {
     private readonly EntryPointClientOptions _options;
     private TcpClient? _tcp;
@@ -52,28 +54,32 @@ public sealed class EntryPointClient : IAsyncDisposable
         await _session.EstablishAsync(ct).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Submit an order and await its terminal Execution/Reject event.
-    /// Not yet implemented in the bootstrap — tracked by the order-entry milestone.
-    /// </summary>
-    public Task<EntryPointEvent> SubmitOrderAsync(SubmitOrderRequest request, CancellationToken ct = default)
+    /// <inheritdoc />
+    public Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
         throw new NotImplementedException(
-            "SubmitOrderAsync is not yet implemented. Tracked in the order-entry milestone.");
+            "SubmitAsync is not yet wired to the FIXP transport. Tracked by issue #4.");
+    }
+
+    /// <inheritdoc />
+    public Task<ClOrdID> SubmitSimpleAsync(SimpleNewOrderRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "SubmitSimpleAsync is not yet wired to the FIXP transport. Tracked by issue #4.");
     }
 
     /// <summary>
-    /// Async stream of unsolicited events (ER/Reject/BusinessReject). Not yet
-    /// implemented in the bootstrap — emits no events and completes when the
-    /// session is closed.
+    /// Async stream of unsolicited events (ER/Reject/BusinessReject). The
+    /// typed event family lands with issue #9; today the stream completes
+    /// immediately.
     /// </summary>
     public async IAsyncEnumerable<EntryPointEvent> Events([EnumeratorCancellation] CancellationToken ct = default)
     {
         EnsureEstablished();
-        // Bootstrap stub: no events surfaced. Real implementation lands with the
-        // ExecutionReport handling milestone.
         await Task.CompletedTask.ConfigureAwait(false);
         yield break;
     }
