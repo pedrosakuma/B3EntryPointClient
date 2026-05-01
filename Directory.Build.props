@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <!-- NuGet metadata shared by all packable projects. -->
-    <Version>0.7.0</Version>
+    <Version>0.8.0</Version>
     <Authors>pedrosakuma</Authors>
     <Company>pedrosakuma</Company>
     <Copyright>Copyright (c) pedrosakuma</Copyright>
