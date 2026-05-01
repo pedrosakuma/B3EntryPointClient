@@ -5,7 +5,9 @@ using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Framing;
+using B3.EntryPoint.Client.Logging;
 using B3.EntryPoint.Client.Models;
+using Microsoft.Extensions.Logging;
 using SbeTerminationCode = B3.Entrypoint.Fixp.Sbe.V6.TerminationCode;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -36,7 +38,15 @@ internal sealed class FixpClientSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         _stream = stream;
         _options = options;
-        _machine.Fire(FixpClientTrigger.TcpConnected);
+        Fire(FixpClientTrigger.TcpConnected);
+    }
+
+    private void Fire(FixpClientTrigger trigger)
+    {
+        var from = _machine.State;
+        _machine.Fire(trigger);
+        if (_machine.State != from)
+            _options.Logger.StateTransition(from, _machine.State, trigger);
     }
 
     public FixpClientState State => _machine.State;
@@ -47,26 +57,28 @@ internal sealed class FixpClientSession : IAsyncDisposable
             throw new InvalidOperationException($"Cannot Negotiate from state {_machine.State}.");
 
         await SendNegotiateAsync(ct).ConfigureAwait(false);
-        _machine.Fire(FixpClientTrigger.SendNegotiate);
+        Fire(FixpClientTrigger.SendNegotiate);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(_options.HandshakeTimeout);
 
         var frame = await SofhFrameReader.ReadFrameAsync(_stream, timeout.Token).ConfigureAwait(false);
         var templateId = ReadTemplateId(frame);
+        if (_options.Logger.IsEnabled(LogLevel.Trace))
+            _options.Logger.InboundFrame(templateId, frame.Length);
 
         if (templateId == NegotiateResponseData.MESSAGE_ID)
         {
-            _machine.Fire(FixpClientTrigger.NegotiateResponseReceived);
+            Fire(FixpClientTrigger.NegotiateResponseReceived);
         }
         else if (templateId == NegotiateRejectData.MESSAGE_ID)
         {
-            _machine.Fire(FixpClientTrigger.NegotiateRejectReceived);
+            Fire(FixpClientTrigger.NegotiateRejectReceived);
             throw new FixpRejectedException("Negotiate rejected by peer.");
         }
         else
         {
-            _machine.Fire(FixpClientTrigger.ProtocolError);
+            Fire(FixpClientTrigger.ProtocolError);
             throw new InvalidDataException($"Unexpected templateId {templateId} during Negotiate handshake.");
         }
     }
@@ -77,26 +89,28 @@ internal sealed class FixpClientSession : IAsyncDisposable
             throw new InvalidOperationException($"Cannot Establish from state {_machine.State}.");
 
         await SendEstablishAsync(ct).ConfigureAwait(false);
-        _machine.Fire(FixpClientTrigger.SendEstablish);
+        Fire(FixpClientTrigger.SendEstablish);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(_options.HandshakeTimeout);
 
         var frame = await SofhFrameReader.ReadFrameAsync(_stream, timeout.Token).ConfigureAwait(false);
         var templateId = ReadTemplateId(frame);
+        if (_options.Logger.IsEnabled(LogLevel.Trace))
+            _options.Logger.InboundFrame(templateId, frame.Length);
 
         if (templateId == EstablishAckData.MESSAGE_ID)
         {
-            _machine.Fire(FixpClientTrigger.EstablishAckReceived);
+            Fire(FixpClientTrigger.EstablishAckReceived);
         }
         else if (templateId == EstablishRejectData.MESSAGE_ID)
         {
-            _machine.Fire(FixpClientTrigger.EstablishRejectReceived);
+            Fire(FixpClientTrigger.EstablishRejectReceived);
             throw new FixpRejectedException("Establish rejected by peer.");
         }
         else
         {
-            _machine.Fire(FixpClientTrigger.ProtocolError);
+            Fire(FixpClientTrigger.ProtocolError);
             throw new InvalidDataException($"Unexpected templateId {templateId} during Establish handshake.");
         }
     }
@@ -114,7 +128,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         catch (ObjectDisposedException) { /* stream already closed */ }
 
         if (_machine.CanFire(FixpClientTrigger.SendTerminate))
-            _machine.Fire(FixpClientTrigger.SendTerminate);
+            Fire(FixpClientTrigger.SendTerminate);
     }
 
     private long _outboundSeqNum;
@@ -156,6 +170,8 @@ internal sealed class FixpClientSession : IAsyncDisposable
             {
                 var frame = await SofhFrameReader.ReadFrameAsync(_stream, ct).ConfigureAwait(false);
                 if (frame.Length < SofhSize + SbeHeaderSize) continue;
+                if (_options.Logger.IsEnabled(LogLevel.Trace))
+                    _options.Logger.InboundFrame(InboundDecoder.ReadTemplateId(frame), frame.Length);
                 if (InboundDecoder.TryDecode(frame, out var evt) && evt is not null)
                 {
                     try { OnInboundEvent?.Invoke(evt); } catch { /* swallow — telemetry/persistence must not break the loop */ }
@@ -217,6 +233,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         catch (IOException) { /* peer closed */ }
         catch (Exception ex)
         {
+            _options.Logger.InboundLoopFaulted(ex);
             _eventWriter?.TryComplete(ex);
             return;
         }
@@ -228,6 +245,8 @@ internal sealed class FixpClientSession : IAsyncDisposable
     {
         if (_machine.State != FixpClientState.Established)
             throw new InvalidOperationException($"Cannot send application frame from state {_machine.State}.");
+        if (_options.Logger.IsEnabled(LogLevel.Trace) && length >= SofhSize + SbeHeaderSize)
+            _options.Logger.OutboundFrame(BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(SofhSize, 2)), length);
         await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
         await _stream.FlushAsync(ct).ConfigureAwait(false);
     }

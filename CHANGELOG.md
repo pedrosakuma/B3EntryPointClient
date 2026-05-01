@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - TLS transport support via `EntryPointClientOptions.Tls` (`TlsOptions`). Opt-in (`Tls.Enabled = false` by default to preserve back-compat with the in-process simulator and plain-TCP UAT). Configurable target host, certificate validation callback, optional client certificates and `EnabledSslProtocols` (defaults to `SslProtocols.None` so the OS negotiates TLS 1.2/1.3). The handshake is layered transparently under `FixpClientSession` and tagged on the `entrypoint.connect` activity (`net.transport = tls|tcp`).
 - `InMemoryFixpPeer` now accepts an optional `X509Certificate2` to wrap accepted connections in `SslStream`, enabling end-to-end TLS integration tests.
+- Structured logging across the client at all five `LogLevel`s. New `B3.EntryPoint.Client.Logging.LogMessages` source-generated helpers carry stable `EventId`s by level (1xxx Trace, 2xxx Debug, 3xxx Information, 4xxx Warning, 5xxx Error). Trace logs every inbound/outbound frame (template + length, guarded by `IsEnabled(Trace)`); Debug logs FIXP state transitions and Negotiated/Established; Information logs Connect success and TLS handshake; Warning logs connect retries, idle watchdog, risk decisions, NotApplied/BusinessReject; Error logs `ConnectAsync` retry exhaustion and unhandled inbound-loop faults. Tests assert against `EventId` (not message text) so wording stays free to evolve.
 
 ## [0.6.0] - 2026-05-01
 

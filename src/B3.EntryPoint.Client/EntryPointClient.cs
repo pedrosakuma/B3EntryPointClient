@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
+using B3.EntryPoint.Client.Logging;
 using B3.EntryPoint.Client.Models;
 using B3.EntryPoint.Client.Risk;
 using B3.EntryPoint.Client.State;
@@ -100,8 +101,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             try
             {
                 await ConnectOnceAsync(ct).ConfigureAwait(false);
-                _options.Logger.LogInformation("EntryPointClient connected on attempt {Attempt}/{Max} to {Endpoint}",
-                    attempt, attempts, _options.Endpoint);
+                _options.Logger.Connected(attempt, attempts, _options.Endpoint);
                 StartIdleWatchdog();
                 return;
             }
@@ -109,11 +109,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             {
                 lastError = ex;
                 var delay = ComputeBackoff(attempt);
-                _options.Logger.LogWarning(ex, "ConnectAsync attempt {Attempt}/{Max} failed; retrying in {DelayMs} ms",
-                    attempt, attempts, (int)delay.TotalMilliseconds);
+                _options.Logger.ConnectRetry(ex, attempt, attempts, (int)delay.TotalMilliseconds);
                 await Task.Delay(delay, ct).ConfigureAwait(false);
             }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                lastError = ex;
+                _options.Logger.ConnectExhausted(ex, attempts, _options.Endpoint);
+                throw;
+            }
         }
+        if (lastError is not null)
+            _options.Logger.ConnectExhausted(lastError, attempts, _options.Endpoint);
         throw lastError ?? new InvalidOperationException("ConnectAsync failed without exception.");
     }
 
@@ -144,12 +151,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         using (var negotiate = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.negotiate", ActivityKind.Client))
         {
             await _session.NegotiateAsync(ct).ConfigureAwait(false);
-            _options.Logger.LogDebug("FIXP Negotiated with {Endpoint}", _options.Endpoint);
+            _options.Logger.Negotiated(_options.Endpoint);
         }
         using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish", ActivityKind.Client))
         {
             await _session.EstablishAsync(ct).ConfigureAwait(false);
-            _options.Logger.LogDebug("FIXP Established with {Endpoint}", _options.Endpoint);
+            _options.Logger.Established(_options.Endpoint);
         }
 
         await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
@@ -189,7 +196,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         _session.OnInboundTerminate = code =>
         {
             _lastInboundUtc = DateTime.UtcNow;
-            _options.Logger.LogInformation("Inbound Terminate received: code={Code}", code);
+            _options.Logger.InboundTerminate(code);
             EntryPointTelemetry.Terminations.Add(1,
                 new KeyValuePair<string, object?>("direction", "inbound"),
                 new KeyValuePair<string, object?>("code", code.ToString()));
@@ -215,8 +222,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 ClientCertificates = _options.Tls.ClientCertificates,
             };
             await ssl.AuthenticateAsClientAsync(auth, ct).ConfigureAwait(false);
-            _options.Logger.LogInformation("TLS handshake completed with {Endpoint} (target host {TargetHost}, protocol {Protocol})",
-                _options.Endpoint, targetHost, ssl.SslProtocol);
+            _options.Logger.TlsHandshakeCompleted(_options.Endpoint, targetHost, ssl.SslProtocol.ToString());
             return ssl;
         }
         catch
@@ -249,8 +255,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 var idleFor = DateTime.UtcNow - _lastInboundUtc;
                 if (idleFor > _options.IdleTimeout)
                 {
-                    _options.Logger.LogWarning("Idle timeout exceeded ({Idle} > {Threshold}); closing session",
-                        idleFor, _options.IdleTimeout);
+                    _options.Logger.IdleTimeoutExceeded(idleFor, _options.IdleTimeout);
                     try { await TerminateAsync(TerminationCode.KeepaliveIntervalLapsed, CancellationToken.None).ConfigureAwait(false); }
                     catch { /* best-effort */ }
                     return;
@@ -272,7 +277,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             var decision = await gate.EvaluateAsync(snapshot, ct).ConfigureAwait(false);
             if (decision.Kind != RiskDecisionKind.Allow)
             {
-                _options.Logger.LogWarning("Risk gate {Gate} {Kind}: {Reason}", gate.GetType().Name, decision.Kind, decision.Reason);
+                _options.Logger.RiskGateDecision(gate.GetType().Name, decision.Kind.ToString(), decision.Reason);
                 EntryPointTelemetry.RiskRejections.Add(1,
                     new KeyValuePair<string, object?>("kind", kind.ToString()),
                     new KeyValuePair<string, object?>("decision", decision.Kind.ToString()));
@@ -307,8 +312,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         if (snapshot is null) return;
         if (snapshot.SessionId != _options.SessionId)
         {
-            _options.Logger.LogInformation("Persisted snapshot SessionID={Persisted} != current {Current}; ignoring.",
-                snapshot.SessionId, _options.SessionId);
+            _options.Logger.StaleSnapshotIgnored(snapshot.SessionId, _options.SessionId);
             return;
         }
         _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
@@ -316,9 +320,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         _outstandingOrders.Clear();
         foreach (var (clordid, secId) in snapshot.OutstandingOrders)
             _outstandingOrders[clordid] = secId;
-        _options.Logger.LogInformation(
-            "Hydrated from snapshot: outboundSeq={Out} inboundSeq={In} outstanding={Count}",
-            snapshot.LastOutboundSeqNum, snapshot.LastInboundSeqNum, _outstandingOrders.Count);
+        _options.Logger.SnapshotRecovered((uint)snapshot.LastOutboundSeqNum, _outstandingOrders.Count);
     }
 
     private async ValueTask AppendOutboundDeltaAsync(ulong seq, string clordid, ulong securityId, CancellationToken ct)
@@ -333,7 +335,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         catch (Exception ex)
         {
-            _options.Logger.LogWarning(ex, "Failed to append OutboundDelta for ClOrdID={ClOrdID}", clordid);
+            _options.Logger.AppendDeltaFailed(ex, clordid);
         }
     }
 
@@ -350,7 +352,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         catch (Exception ex)
         {
-            _options.Logger.LogWarning(ex, "Failed periodic snapshot compaction");
+            _options.Logger.SnapshotCompactionFailed(ex);
         }
     }
 
@@ -392,7 +394,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             }
             catch (Exception ex)
             {
-                _options.Logger.LogWarning(ex, "Failed to persist OrderClosedDelta for {ClOrdID}", closedClOrdId);
+                _options.Logger.OrderClosedPersistFailed(ex, closedClOrdId);
             }
         });
     }
