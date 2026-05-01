@@ -1,0 +1,48 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore SbeB3EntryPointClient.slnx
+
+      - name: Build (Release)
+        run: dotnet build SbeB3EntryPointClient.slnx -c Release --no-restore
+
+      - name: Test (Release)
+        run: dotnet test SbeB3EntryPointClient.slnx -c Release --no-build --nologo
+
+      - name: Pack
+        run: dotnet pack SbeB3EntryPointClient.slnx -c Release --no-build -o ./nupkgs
+
+      - name: Push to NuGet.org
+        if: ${{ env.NUGET_API_KEY != '' }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for pkg in ./nupkgs/*.nupkg; do
+            dotnet nuget push "$pkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: ./nupkgs/*

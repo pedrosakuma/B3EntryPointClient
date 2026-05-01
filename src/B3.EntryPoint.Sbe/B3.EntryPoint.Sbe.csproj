@@ -5,6 +5,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>generated</CompilerGeneratedFilesOutputPath>
+    <IsPackable>true</IsPackable>
+    <PackageId>B3.EntryPoint.Sbe</PackageId>
+    <Description>Source-generated SBE codecs for the B3 EntryPoint (FIXP 8.4.2) wire protocol.</Description>
+    <!-- Generated SBE code emits cref/typeparam comments that cannot be resolved.
+         Disable doc generation (and tighten NoWarn) for this project only. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1574;CS1735;CS1591;CS1572;CS1573</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
