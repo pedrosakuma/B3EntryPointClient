@@ -21,7 +21,7 @@ namespace B3.EntryPoint.Client;
 /// public API surface; their wire-level implementations land incrementally
 /// (see <c>docs/CONFORMANCE.md</c> and the issues tagged <c>area/api-surface</c>).
 /// </summary>
-public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder, ICancelOrder
+public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder, ICancelOrder, ISubmitCross, IQuoteFlow
 {
     private readonly EntryPointClientOptions _options;
     private readonly Channel<EntryPointEvent> _events =
@@ -474,6 +474,42 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
                 TotalAffectedOrders = 0,
             };
         }
+    }
+
+    /// <inheritdoc />
+    public Task<string> SubmitCrossAsync(NewOrderCrossRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "NewOrderCross wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+    }
+
+    /// <inheritdoc />
+    public Task SendQuoteRequestAsync(QuoteRequestMessage request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "QuoteRequest wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+    }
+
+    /// <inheritdoc />
+    public Task SendQuoteAsync(QuoteMessage quote, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(quote);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "Quote wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+    }
+
+    /// <inheritdoc />
+    public Task CancelQuoteAsync(string quoteId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(quoteId);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "QuoteCancel wire-up pending — tracked by issue #51 (interface exposed for early integration).");
     }
 
     /// <summary>

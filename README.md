@@ -111,8 +111,10 @@ integração com `B3MatchingPlatform` antes da fiação SBE/FIXP completa.
 | Drop Copy session profile | [#10](https://github.com/pedrosakuma/B3EntryPointClient/issues/10) |
 | Conformance §4.5..§4.8 + Order Entry + Drop Copy | [#11](https://github.com/pedrosakuma/B3EntryPointClient/issues/11) |
 
-Cross / Quote / Position / Allocation / SecurityDefinition messages estão fora
-de escopo nesta fase.
+Position / Allocation / SecurityDefinition messages estão fora de escopo
+nesta fase (não constam do schema atual). Cross / Quote possuem **interface
+estável** (`ISubmitCross`, `IQuoteFlow`) — wire-up SBE rastreado pela issue
+[#51](https://github.com/pedrosakuma/B3EntryPointClient/issues/51).
 
 ## Benchmarks
 
