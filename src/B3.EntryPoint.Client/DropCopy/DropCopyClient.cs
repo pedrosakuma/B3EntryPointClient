@@ -25,10 +25,11 @@ public sealed class DropCopyClient : IAsyncDisposable
         _inner = new EntryPointClient(options);
     }
 
-    /// <summary>Establishes the Drop Copy FIXP session.</summary>
+    /// <summary>Establishes the Drop Copy FIXP session (TCP + Negotiate + Establish, reusing
+    /// the underlying <see cref="EntryPointClient"/>). The Drop Copy entitlement is enforced
+    /// by the gateway against the firm; this client does not encode any submission frames.</summary>
     public Task ConnectAsync(CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(
-            "Drop Copy session establishment is part of the wire-up. Tracked by issue #10.");
+        => _inner.ConnectAsync(cancellationToken);
 
     /// <summary>Read-only event stream — same shape as <see cref="EntryPointClient.Events"/>.</summary>
     public IAsyncEnumerable<EntryPointEvent> Events(CancellationToken cancellationToken = default)
