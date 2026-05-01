@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
+using B3.EntryPoint.Client.Risk;
 using Microsoft.Extensions.Logging;
 using ClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
@@ -38,6 +39,13 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
     /// <summary>Retransmit handler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IRetransmitRequestHandler? Retransmit => _retransmit;
+
+    /// <summary>
+    /// Pre-trade risk gates. Evaluated in registration order before any order
+    /// entry frame leaves the client. The first non-Allow decision throws
+    /// <see cref="RiskRejectedException"/>.
+    /// </summary>
+    public IList<IPreTradeGate> RiskGates { get; } = new List<IPreTradeGate>();
 
     public EntryPointClient(EntryPointClientOptions options)
     {
@@ -184,11 +192,27 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         unixNanos == 0UL ? DateTimeOffset.MinValue
                          : DateTimeOffset.UnixEpoch.AddTicks((long)(unixNanos / 100UL));
 
+    private async ValueTask EvaluateRiskAsync(OutboundRequestKind kind, object req, ulong securityId, string clordid, CancellationToken ct)
+    {
+        if (RiskGates.Count == 0) return;
+        var snapshot = new OutboundRequest(kind, req, securityId, clordid);
+        foreach (var gate in RiskGates)
+        {
+            var decision = await gate.EvaluateAsync(snapshot, ct).ConfigureAwait(false);
+            if (decision.Kind != RiskDecisionKind.Allow)
+            {
+                _options.Logger.LogWarning("Risk gate {Gate} {Kind}: {Reason}", gate.GetType().Name, decision.Kind, decision.Reason);
+                throw new RiskRejectedException(decision);
+            }
+        }
+    }
+
     /// <inheritdoc />
     public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
+        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
@@ -201,6 +225,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
+        await EvaluateRiskAsync(OutboundRequestKind.SimpleNewOrder, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
@@ -213,6 +238,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
+        await EvaluateRiskAsync(OutboundRequestKind.Replace, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
@@ -225,6 +251,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
+        await EvaluateRiskAsync(OutboundRequestKind.SimpleReplace, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
@@ -237,6 +264,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
+        await EvaluateRiskAsync(OutboundRequestKind.Cancel, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
@@ -248,17 +276,15 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
-        var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, request, _options, seq);
-        // Fire-and-forget the request; the matching MassActionReport will be
-        // surfaced through the inbound dispatcher (issue #23) — until then,
-        // we encode+send and return a synthetic Acknowledged report.
-        return SendMassActionAsync(buffer, len, request, ct);
+        return SendMassActionWithRiskAsync(request, ct);
 
-        async Task<MassActionReport> SendMassActionAsync(byte[] buf, int length, MassActionRequest req, CancellationToken token)
+        async Task<MassActionReport> SendMassActionWithRiskAsync(MassActionRequest req, CancellationToken token)
         {
-            await _session.SendApplicationFrameAsync(buf, length, token).ConfigureAwait(false);
+            await EvaluateRiskAsync(OutboundRequestKind.MassAction, req, req.SecurityId ?? 0UL, req.ClOrdID.Value.ToString(), token).ConfigureAwait(false);
+            var seq = _session!.NextOutboundSeqNum();
+            var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
+            var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, seq);
+            await _session.SendApplicationFrameAsync(buffer, len, token).ConfigureAwait(false);
             return new MassActionReport
             {
                 ClOrdID = req.ClOrdID,
