@@ -1,9 +1,11 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Text;
+using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Framing;
+using B3.EntryPoint.Client.Models;
 using SbeTerminationCode = B3.Entrypoint.Fixp.Sbe.V6.TerminationCode;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -116,11 +118,52 @@ internal sealed class FixpClientSession : IAsyncDisposable
     }
 
     private long _outboundSeqNum;
+    private Task? _inboundLoop;
+    private CancellationTokenSource? _inboundCts;
+    private ChannelWriter<EntryPointEvent>? _eventWriter;
 
     /// <summary>
-    /// Sends an Order Entry application frame previously encoded into <paramref name="buffer"/>
-    /// via <see cref="OrderEntryEncoder"/>. The first <paramref name="length"/> bytes are flushed.
+    /// Starts the inbound dispatch loop. Decoded application events are written to
+    /// <paramref name="writer"/>; session-layer messages (Sequence/NotApplied/etc.)
+    /// are silently consumed for now (#24/#25 will surface them).
+    /// Must be called after <see cref="EstablishAsync"/>.
     /// </summary>
+    public void StartInboundLoop(ChannelWriter<EntryPointEvent> writer)
+    {
+        if (_inboundLoop is not null)
+            throw new InvalidOperationException("Inbound loop already running.");
+        _eventWriter = writer;
+        _inboundCts = new CancellationTokenSource();
+        _inboundLoop = Task.Run(() => RunInboundLoopAsync(_inboundCts.Token));
+    }
+
+    private async Task RunInboundLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var frame = await SofhFrameReader.ReadFrameAsync(_stream, ct).ConfigureAwait(false);
+                if (frame.Length < SofhSize + SbeHeaderSize) continue;
+                if (InboundDecoder.TryDecode(frame, out var evt) && evt is not null)
+                {
+                    await _eventWriter!.WriteAsync(evt, ct).ConfigureAwait(false);
+                }
+                // else: session-layer (Sequence/NotApplied/Terminate/...) — handled in #24-#26.
+            }
+        }
+        catch (OperationCanceledException) { /* shutdown */ }
+        catch (EndOfStreamException) { /* peer closed */ }
+        catch (IOException) { /* peer closed */ }
+        catch (Exception ex)
+        {
+            _eventWriter?.TryComplete(ex);
+            return;
+        }
+        _eventWriter?.TryComplete();
+    }
+
+    /// <summary>Sends an Order Entry application frame previously encoded via <see cref="OrderEntryEncoder"/>.</summary>
     public async Task SendApplicationFrameAsync(byte[] buffer, int length, CancellationToken ct)
     {
         if (_machine.State != FixpClientState.Established)
@@ -135,6 +178,12 @@ internal sealed class FixpClientSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        try { _inboundCts?.Cancel(); } catch { /* ignore */ }
+        if (_inboundLoop is not null)
+        {
+            try { await _inboundLoop.ConfigureAwait(false); } catch { /* ignore */ }
+        }
+        _inboundCts?.Dispose();
         try { await TerminateAsync(SbeTerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }
         catch { /* best-effort */ }
         await _stream.DisposeAsync().ConfigureAwait(false);
