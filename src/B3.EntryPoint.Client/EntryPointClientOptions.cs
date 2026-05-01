@@ -11,7 +11,7 @@ public sealed class EntryPointClientOptions
     public required uint SessionId { get; init; }
 
     /// <summary>Session version identification — must increase on each new Negotiate.</summary>
-    public required uint SessionVerId { get; init; }
+    public required uint SessionVerId { get; set; }
 
     /// <summary>Identifies the broker firm that will enter orders.</summary>
     public required uint EnteringFirm { get; init; }

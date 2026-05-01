@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 
@@ -25,12 +26,12 @@ public class TerminateApiTests
     }
 
     [Fact]
-    public async Task ReconnectAsync_AcceptsIncreasingVerId_ButNotImplemented()
+    public async Task ReconnectAsync_AcceptsIncreasingVerId_AttemptsTcpConnect()
     {
         await using var c = MakeClient(sessionVerId: 5);
-        var ex = await Assert.ThrowsAsync<NotImplementedException>(() =>
-            c.ReconnectAsync(6));
-        Assert.Contains("issue #6", ex.Message);
+        // No socket listening on port 9999 → TCP connect must fail. The point is
+        // that the version check passes and ReconnectAsync proceeds to ConnectAsync.
+        await Assert.ThrowsAnyAsync<SocketException>(() => c.ReconnectAsync(6));
     }
 
     [Fact]

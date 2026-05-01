@@ -92,6 +92,8 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             _retransmit.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
         _session.OnInboundNotApplied = (from, count) =>
             _retransmit.RaiseNotAppliedReceived(from, count);
+        _session.OnInboundTerminate = code =>
+            RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
     }
 
     private static DateTimeOffset NanosToOffset(ulong unixNanos) =>
@@ -188,12 +190,12 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     /// Send a graceful <c>Terminate</c> to the peer and tear down the session.
     /// API surface only — the wire-level encode lands in a follow-up PR (issue #6).
     /// </summary>
-    public Task TerminateAsync(TerminationCode code, CancellationToken ct = default)
+    public async Task TerminateAsync(TerminationCode code, CancellationToken ct = default)
     {
         if (_session is null)
             throw new InvalidOperationException("Client is not connected.");
-        throw new NotImplementedException(
-            "TerminateAsync(code) is not yet wired to the FIXP transport. Tracked by issue #6.");
+        await _session.TerminateAsync((B3.Entrypoint.Fixp.Sbe.V6.TerminationCode)(byte)code, ct).ConfigureAwait(false);
+        RaiseTerminated(code, reason: null, initiatedByClient: true);
     }
 
     /// <summary>
@@ -203,13 +205,30 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     /// otherwise the gateway terminates with
     /// <see cref="TerminationCode.InvalidSessionVerId"/>.
     /// </summary>
-    public Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default)
+    public async Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default)
     {
         if (nextSessionVerId <= _options.SessionVerId)
             throw new ArgumentOutOfRangeException(nameof(nextSessionVerId),
                 "Next SessionVerID must be strictly greater than the current one.");
-        throw new NotImplementedException(
-            "ReconnectAsync is not yet implemented. Tracked by issue #6.");
+
+        // Tear down current session/socket if any, then bump SessionVerID and re-handshake.
+        try
+        {
+            if (_session is not null)
+                await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
+        }
+        catch { /* best-effort */ }
+        _keepAlive?.Dispose();
+        _keepAlive = null;
+        _retransmit = null;
+        if (_session is not null)
+            await _session.DisposeAsync().ConfigureAwait(false);
+        _tcp?.Dispose();
+        _session = null;
+        _tcp = null;
+
+        _options.SessionVerId = nextSessionVerId;
+        await ConnectAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>
