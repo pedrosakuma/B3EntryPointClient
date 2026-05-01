@@ -20,7 +20,7 @@ public class CrossQuoteApiSurfaceTests
         {
             CrossId = "X-1",
             SecurityId = 5,
-            CrossType = CrossType.Default,
+            CrossType = CrossType.AllOrNone,
             Prioritization = CrossPrioritization.None,
             Price = 12.34m,
             Legs = new[]
