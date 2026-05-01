@@ -477,12 +477,23 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     }
 
     /// <inheritdoc />
-    public Task<string> SubmitCrossAsync(NewOrderCrossRequest request, CancellationToken ct = default)
+    public async Task<string> SubmitCrossAsync(NewOrderCrossRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "NewOrderCross wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+        var clordid = request.CrossId;
+        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.submit_cross", OutboundRequestKind.NewOrder, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
+        var seq = _session!.NextOutboundSeqNum();
+        var legBytes = (request.Legs?.Count ?? 0) * B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.NoSidesData.MESSAGE_SIZE;
+        var buffer = new byte[B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.MESSAGE_SIZE + legBytes + 256];
+        var len = OrderEntryEncoder.EncodeNewOrderCross(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrderCross"));
+        RecordLatency(startTs, OutboundRequestKind.NewOrder);
+        return request.CrossId;
     }
 
     /// <inheritdoc />

@@ -13,6 +13,8 @@ using SbeSimpleTimeInForce = B3.Entrypoint.Fixp.Sbe.V6.SimpleTimeInForce;
 using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
 using SbeMassActionType = B3.Entrypoint.Fixp.Sbe.V6.MassActionType;
 using SbeMassActionScope = B3.Entrypoint.Fixp.Sbe.V6.MassActionScope;
+using SbeCrossType = B3.Entrypoint.Fixp.Sbe.V6.CrossType;
+using SbeCrossPrioritization = B3.Entrypoint.Fixp.Sbe.V6.CrossPrioritization;
 
 namespace B3.EntryPoint.Client.Fixp;
 
@@ -284,6 +286,74 @@ internal static class OrderEntryEncoder
 
     private static ReadOnlySpan<byte> MemoBytes(string? memo) =>
         string.IsNullOrEmpty(memo) ? ReadOnlySpan<byte>.Empty : Encoding.UTF8.GetBytes(memo);
+
+    /// <summary>Encodes a NewOrderCross (template id 106). Returns total bytes written.</summary>
+    public static int EncodeNewOrderCross(
+        Span<byte> buffer,
+        NewOrderCrossRequest request,
+        EntryPointClientOptions options,
+        ulong msgSeqNum)
+    {
+        if (request.Legs is null || request.Legs.Count == 0)
+            throw new ArgumentException("NewOrderCross requires at least one leg.", nameof(request));
+
+        const int GroupSizeEncodingSize = 4; // BlockLength (ushort) + NumInGroup (ushort)
+        var noSidesPayloadSize = GroupSizeEncodingSize + (NewOrderCrossData.NoSidesData.MESSAGE_SIZE * request.Legs.Count);
+        // Variable-length data length encoding is 1 byte each (per existing pattern in EncodeNewOrderSingle).
+        var deskIdLen = 0;
+        var memoBytes = ReadOnlySpan<byte>.Empty;
+        var payloadSize = NewOrderCrossData.MESSAGE_SIZE + noSidesPayloadSize + 1 + deskIdLen + 1 + memoBytes.Length;
+        var totalSize = SofhSize + SbeHeaderSize + payloadSize;
+        WriteHeaders(buffer.Slice(0, totalSize), totalSize, p => NewOrderCrossData.WriteHeader(p));
+
+        var msg = default(NewOrderCrossData);
+        msg.BusinessHeader = BuildBusinessHeader(options, msgSeqNum);
+        msg.CrossID = new CrossID(ParseCrossId(request.CrossId));
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 28, 10), options.SenderLocation);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 38, 5), options.EnteringTrader);
+        msg.SecurityID = new SecurityID(request.SecurityId);
+        msg.OrderQty = new Quantity(SumLegQty(request.Legs));
+        BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 64, 8), PriceMantissa(request.Price));
+        msg.SetCrossType((SbeCrossType?)(byte)request.CrossType);
+        msg.SetCrossPrioritization((SbeCrossPrioritization?)(byte)request.Prioritization);
+
+        // Materialize legs into the wire NoSidesData layout.
+        var legs = new NewOrderCrossData.NoSidesData[request.Legs.Count];
+        for (int i = 0; i < request.Legs.Count; i++)
+        {
+            var leg = request.Legs[i];
+            ref var slot = ref legs[i];
+            slot = default;
+            slot.Side = (B3.Entrypoint.Fixp.Sbe.V6.Side)(byte)leg.Side;
+            if (leg.Account.HasValue)
+                BinaryPrimitives.WriteUInt32LittleEndian(MemoryMarshalAsBytes(ref slot, 2, 4), checked((uint)leg.Account.Value));
+            BinaryPrimitives.WriteUInt32LittleEndian(MemoryMarshalAsBytes(ref slot, 6, 4), options.EnteringFirm);
+            slot.ClOrdID = new SbeClOrdID(leg.ClOrdID.Value);
+        }
+
+        if (!NewOrderCrossData.TryEncode(msg, buffer.Slice(SofhSize + SbeHeaderSize), legs,
+                ReadOnlySpan<byte>.Empty, memoBytes, out _))
+            throw new InvalidOperationException("Failed to encode NewOrderCrossData.");
+        return totalSize;
+    }
+
+    private static ulong SumLegQty(IReadOnlyList<CrossLeg> legs)
+    {
+        ulong sum = 0;
+        for (int i = 0; i < legs.Count; i++) sum += legs[i].OrderQty;
+        return sum;
+    }
+
+    private static ulong ParseCrossId(string crossId)
+    {
+        if (string.IsNullOrEmpty(crossId))
+            throw new ArgumentException("CrossId is required.", nameof(crossId));
+        if (!ulong.TryParse(crossId, out var value))
+            throw new ArgumentException(
+                $"CrossId must be a numeric string parseable to ulong (was '{crossId}').", nameof(crossId));
+        return value;
+    }
+
 
     /// <summary>
     /// Hands out a <see cref="Span{Byte}"/> view over a fixed offset/length within a struct

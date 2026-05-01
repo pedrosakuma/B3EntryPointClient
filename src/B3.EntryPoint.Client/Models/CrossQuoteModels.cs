@@ -1,10 +1,12 @@
 namespace B3.EntryPoint.Client.Models;
 
-/// <summary>Cross trade type for <c>NewOrderCross</c> (FIX <c>CrossType</c>).</summary>
+/// <summary>Cross trade type for <c>NewOrderCross</c> (FIX <c>CrossType</c>, schema enum).</summary>
 public enum CrossType : byte
 {
     AllOrNone = 1,
-    Default = 2,
+    CrossExecutedAgainstBookFromClient = 4,
+    VwapCross = 7,
+    ClosingPriceCross = 8,
 }
 
 /// <summary>Cross prioritization (FIX <c>CrossPrioritization</c>).</summary>
