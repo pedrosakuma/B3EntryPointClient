@@ -37,6 +37,16 @@ wire-puro is so the same code can drive the simulator or B3 UAT.
   `Models/`, `EntryPointClient.cs` (high-level API).
 - **`B3.EntryPoint.Cli`** — thin CLI wrapper for manual smoke testing
   (`connect` only in the bootstrap).
+- **`samples/B3.EntryPoint.Quickstart`** — end-to-end console demo against
+  the in-memory FIXP peer. See [Quickstart](docs/QUICKSTART.md).
+
+## Quickstart
+
+```bash
+dotnet run --project samples/B3.EntryPoint.Quickstart
+```
+
+Full walkthrough: [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 ## Build & test
 
