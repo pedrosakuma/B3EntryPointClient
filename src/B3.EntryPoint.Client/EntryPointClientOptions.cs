@@ -24,6 +24,9 @@ public sealed class EntryPointClientOptions
     /// <summary>FIXP keep-alive interval requested by the client (ms).</summary>
     public uint KeepAliveIntervalMs { get; init; } = 1000;
 
+    /// <summary>FIXP keep-alive interval requested by the client.</summary>
+    public TimeSpan KeepAliveInterval => TimeSpan.FromMilliseconds(KeepAliveIntervalMs);
+
     /// <summary>Optional client metadata sent in <c>Negotiate.ClientAppName</c>.</summary>
     public string ClientAppName { get; init; } = "B3.EntryPoint.Client";
 
