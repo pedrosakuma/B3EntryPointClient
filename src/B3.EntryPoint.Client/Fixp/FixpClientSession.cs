@@ -152,13 +152,42 @@ internal sealed class FixpClientSession : IAsyncDisposable
                 else
                 {
                     var templateId = InboundDecoder.ReadTemplateId(frame);
-                    if (templateId == SequenceData.MESSAGE_ID && OnInboundSequence is not null)
+                    var payload = frame.AsSpan(SofhSize + SbeHeaderSize);
+                    switch (templateId)
                     {
-                        var payload = frame.AsSpan(SofhSize + SbeHeaderSize);
-                        var seq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload);
-                        OnInboundSequence(seq);
+                        case SequenceData.MESSAGE_ID:
+                            OnInboundSequence?.Invoke(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload));
+                            break;
+                        case RetransmissionData.MESSAGE_ID:
+                            // SessionID(8) + RequestTimestamp(8) + NextSeqNo(4) + Count(4) = 24 bytes
+                            if (payload.Length >= RetransmissionData.MESSAGE_SIZE)
+                            {
+                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(8, 8));
+                                var nextSeq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(16, 4));
+                                var cnt = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(20, 4));
+                                OnInboundRetransmission?.Invoke(nextSeq, cnt, reqTs);
+                            }
+                            break;
+                        case RetransmitRejectData.MESSAGE_ID:
+                            // SessionID(8) + RequestTimestamp(8) + Code(1)
+                            if (payload.Length >= RetransmitRejectData.MESSAGE_SIZE)
+                            {
+                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(8, 8));
+                                var code = (uint)payload[16];
+                                OnInboundRetransmitReject?.Invoke(code, reqTs);
+                            }
+                            break;
+                        case NotAppliedData.MESSAGE_ID:
+                            // FromSeqNo(4) + Count(4) = 8 bytes
+                            if (payload.Length >= NotAppliedData.MESSAGE_SIZE)
+                            {
+                                var fromSeq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(0, 4));
+                                var cnt = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(4, 4));
+                                OnInboundNotApplied?.Invoke(fromSeq, cnt);
+                            }
+                            break;
+                        // Terminate handled in #26.
                     }
-                    // else: NotApplied/Retransmission/Terminate — handled in #25/#26.
                 }
             }
         }
@@ -204,8 +233,37 @@ internal sealed class FixpClientSession : IAsyncDisposable
         await _stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>Sends a §4.7 RetransmitRequest covering [fromSeqNo, fromSeqNo+count).</summary>
+    public async Task SendRetransmitRequestAsync(ulong fromSeqNo, uint count, CancellationToken ct)
+    {
+        var totalSize = SofhSize + SbeHeaderSize + RetransmitRequestData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        RetransmitRequestData.WriteHeader(buffer.AsSpan(SofhSize));
+        var payload = new RetransmitRequestData
+        {
+            SessionID = _options.SessionId,
+            Timestamp = new UTCTimestampNanos { Time = (ulong)NowUnixNanos() },
+            FromSeqNo = new SeqNum(checked((uint)fromSeqNo)),
+            Count = new MessageCounter(count),
+        };
+        if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
+            throw new InvalidOperationException("Failed to encode RetransmitRequest payload.");
+        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+        await _stream.FlushAsync(ct).ConfigureAwait(false);
+    }
+
     /// <summary>Optional hook: invoked by the inbound loop when a peer Sequence frame arrives.</summary>
     internal Action<ulong>? OnInboundSequence { get; set; }
+
+    /// <summary>Optional hook: invoked when a Retransmission frame arrives. Args: (nextSeqNo, count, requestTimestampNanos).</summary>
+    internal Action<ulong, uint, ulong>? OnInboundRetransmission { get; set; }
+
+    /// <summary>Optional hook: invoked when a RetransmitReject frame arrives. Arg: rejectCode (uint).</summary>
+    internal Action<uint, ulong>? OnInboundRetransmitReject { get; set; }
+
+    /// <summary>Optional hook: invoked when a NotApplied frame arrives. Args: (fromSeqNo, count).</summary>
+    internal Action<ulong, uint>? OnInboundNotApplied { get; set; }
 
     public async ValueTask DisposeAsync()
     {
