@@ -1,5 +1,7 @@
 using System.Net;
 using B3.EntryPoint.Client.Auth;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace B3.EntryPoint.Client;
 
@@ -75,6 +77,25 @@ public sealed class EntryPointClientOptions
 
     /// <summary>Time to wait for <c>NegotiateResponse</c> / <c>EstablishmentAck</c>.</summary>
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Maximum number of <c>ConnectAsync</c> attempts (TCP+Negotiate+Establish) before
+    /// surfacing the underlying exception. <c>1</c> disables retry. Defaults to 1 to preserve
+    /// fail-fast semantics in the unit tests.</summary>
+    public int ConnectMaxAttempts { get; init; } = 1;
+
+    /// <summary>Base delay for exponential backoff between connect attempts.</summary>
+    public TimeSpan ConnectBaseDelay { get; init; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>Maximum delay between connect attempts (caps the exponential growth).</summary>
+    public TimeSpan ConnectMaxDelay { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Idle timeout — if no inbound frame is observed for this duration the client
+    /// closes the session. Defaults to <see cref="TimeSpan.Zero"/> (disabled).</summary>
+    public TimeSpan IdleTimeout { get; init; } = TimeSpan.Zero;
+
+    /// <summary>Optional <see cref="ILogger"/> used by the client for structured events.
+    /// Defaults to <see cref="NullLogger.Instance"/> so existing tests are unaffected.</summary>
+    public ILogger Logger { get; init; } = NullLogger.Instance;
 
     private static string ThisAssemblyVersion() =>
         typeof(EntryPointClientOptions).Assembly.GetName().Version?.ToString() ?? "0.0.0";
