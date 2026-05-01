@@ -38,29 +38,69 @@ public sealed record NewOrderCrossRequest
     public required IReadOnlyList<CrossLeg> Legs { get; init; }
 }
 
-/// <summary>Logical request shape for <c>QuoteRequest</c>.</summary>
+/// <summary>Indicates who in the contract has control over evoking settlement
+/// (B3 <c>SettlType</c>: BuyersDiscretion=<c>'0'</c>, SellersDiscretion=<c>'8'</c>, Mutual=<c>'X'</c>).</summary>
+public enum SettlementType : byte
+{
+    BuyersDiscretion = (byte)'0',
+    SellersDiscretion = (byte)'8',
+    Mutual = (byte)'X',
+}
+
+/// <summary>Indicates a simultaneous trade of the underlying when reporting Termo Vista forwards.</summary>
+public enum ExecuteUnderlyingTrade : byte
+{
+    NoUnderlyingTrade = (byte)'0',
+    UnderlyingOpposingTrade = (byte)'1',
+}
+
+/// <summary>
+/// Logical request shape for <c>QuoteRequest</c> (B3 Termo §10).
+/// Models a forward (Termo) quote request — required fields mirror the wire
+/// payload; <see cref="QuoteReqId"/> is exposed as a string for FIX semantics
+/// and parsed to <c>ulong</c> on encode.
+/// </summary>
 public sealed record QuoteRequestMessage
 {
     public required string QuoteReqId { get; init; }
     public required ulong SecurityId { get; init; }
-    public ulong? OrderQty { get; init; }
-    public Side? Side { get; init; }
+    public required Side Side { get; init; }
+    public required decimal Price { get; init; }
+    public required ulong OrderQty { get; init; }
+    public required SettlementType SettlType { get; init; }
+    public required ushort DaysToSettlement { get; init; }
+    public required uint ContraBroker { get; init; }
+    public decimal FixedRate { get; init; }
+    public string? QuoteId { get; init; }
+    public uint? TradeId { get; init; }
+    public ExecuteUnderlyingTrade? ExecuteUnderlyingTrade { get; init; }
 }
 
-/// <summary>Logical request shape for <c>Quote</c> (a market-maker quote).</summary>
+/// <summary>
+/// Logical request shape for <c>Quote</c> (B3 Termo §10).
+/// Models the response a Termo dealer sends back to a <see cref="QuoteRequestMessage"/>.
+/// One side per message — emit two messages to quote both bid and offer.
+/// </summary>
 public sealed record QuoteMessage
 {
     public required string QuoteId { get; init; }
     public required ulong SecurityId { get; init; }
-    public decimal? BidPrice { get; init; }
-    public decimal? OfferPrice { get; init; }
-    public ulong? BidSize { get; init; }
-    public ulong? OfferSize { get; init; }
+    public required Side Side { get; init; }
+    public required ulong OrderQty { get; init; }
+    public required SettlementType SettlType { get; init; }
+    public required ushort DaysToSettlement { get; init; }
+    public decimal? Price { get; init; }
+    public decimal FixedRate { get; init; }
     public string? QuoteReqId { get; init; }
+    public uint? Account { get; init; }
+    public uint? TradingSubAccount { get; init; }
+    public ExecuteUnderlyingTrade? ExecuteUnderlyingTrade { get; init; }
 }
 
-/// <summary>Reason carried by <c>QuoteRequestReject</c> (FIX <c>QuoteRequestRejectReason</c>).</summary>
-public enum QuoteRequestRejectReason : byte
+/// <summary>Reason carried by <c>QuoteRequestReject</c>. The wire field is a free-form
+/// <c>uint</c>; common FIX values are surfaced for convenience but the underlying
+/// integer is preserved on the inbound event.</summary>
+public enum QuoteRequestRejectReason : uint
 {
     UnknownSymbol = 1,
     ExchangeClosed = 2,
@@ -71,14 +111,14 @@ public enum QuoteRequestRejectReason : byte
     Other = 99,
 }
 
-/// <summary>Status of an outstanding quote (FIX <c>QuoteStatus</c> subset).</summary>
+/// <summary>Status of an outstanding quote (matches B3 <c>QuoteStatus</c> v8.4.2).</summary>
 public enum QuoteStatus : byte
 {
     Accepted = 0,
-    CanceledForSymbol = 1,
-    CanceledAll = 4,
     Rejected = 5,
-    RemovedFromMarket = 6,
     Expired = 7,
-    Active = 16,
+    QuoteNotFound = 9,
+    Pending = 10,
+    Pass = 11,
+    Canceled = 17,
 }

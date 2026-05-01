@@ -497,30 +497,54 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     }
 
     /// <inheritdoc />
-    public Task SendQuoteRequestAsync(QuoteRequestMessage request, CancellationToken ct = default)
+    public async Task SendQuoteRequestAsync(QuoteRequestMessage request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "QuoteRequest wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, request.QuoteReqId, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.quote_request", OutboundRequestKind.NewOrder, request.SecurityId, request.QuoteReqId);
+        var startTs = Stopwatch.GetTimestamp();
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[QuoteRequestData.MESSAGE_SIZE + 32];
+        var len = OrderEntryEncoder.EncodeQuoteRequest(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, request.QuoteReqId, request.SecurityId, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "QuoteRequest"));
+        RecordLatency(startTs, OutboundRequestKind.NewOrder);
     }
 
     /// <inheritdoc />
-    public Task SendQuoteAsync(QuoteMessage quote, CancellationToken ct = default)
+    public async Task SendQuoteAsync(QuoteMessage quote, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(quote);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "Quote wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, quote, quote.SecurityId, quote.QuoteId, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.quote", OutboundRequestKind.NewOrder, quote.SecurityId, quote.QuoteId);
+        var startTs = Stopwatch.GetTimestamp();
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[QuoteData.MESSAGE_SIZE + 32];
+        var len = OrderEntryEncoder.EncodeQuote(buffer, quote, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, quote.QuoteId, quote.SecurityId, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "Quote"));
+        RecordLatency(startTs, OutboundRequestKind.NewOrder);
     }
 
     /// <inheritdoc />
-    public Task CancelQuoteAsync(string quoteId, CancellationToken ct = default)
+    public async Task CancelQuoteAsync(string quoteId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(quoteId);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "QuoteCancel wire-up pending — tracked by issue #51 (interface exposed for early integration).");
+        await EvaluateRiskAsync(OutboundRequestKind.Cancel, quoteId, 0UL, quoteId, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.quote_cancel", OutboundRequestKind.Cancel, 0UL, quoteId);
+        var startTs = Stopwatch.GetTimestamp();
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[QuoteCancelData.MESSAGE_SIZE + 32];
+        var len = OrderEntryEncoder.EncodeQuoteCancel(buffer, quoteId, 0UL, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, quoteId, 0UL, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersCancelled.Add(1, new KeyValuePair<string, object?>("kind", "QuoteCancel"));
+        RecordLatency(startTs, OutboundRequestKind.Cancel);
     }
 
     /// <summary>

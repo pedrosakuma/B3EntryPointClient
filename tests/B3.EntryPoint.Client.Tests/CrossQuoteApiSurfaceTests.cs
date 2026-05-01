@@ -35,9 +35,28 @@ public class CrossQuoteApiSurfaceTests
     [Fact]
     public void QuoteAndQuoteRequest_AreConstructible()
     {
-        var qr = new QuoteRequestMessage { QuoteReqId = "QR-1", SecurityId = 1 };
-        var q = new QuoteMessage { QuoteId = "Q-1", SecurityId = 1, BidPrice = 1m, OfferPrice = 2m };
-        Assert.Equal("QR-1", qr.QuoteReqId);
-        Assert.Equal("Q-1", q.QuoteId);
+        var qr = new QuoteRequestMessage
+        {
+            QuoteReqId = "1001",
+            SecurityId = 1,
+            Side = Side.Buy,
+            Price = 1m,
+            OrderQty = 100,
+            SettlType = SettlementType.Mutual,
+            DaysToSettlement = 30,
+            ContraBroker = 7,
+        };
+        var q = new QuoteMessage
+        {
+            QuoteId = "2001",
+            SecurityId = 1,
+            Side = Side.Sell,
+            OrderQty = 100,
+            SettlType = SettlementType.Mutual,
+            DaysToSettlement = 30,
+            Price = 2m,
+        };
+        Assert.Equal("1001", qr.QuoteReqId);
+        Assert.Equal("2001", q.QuoteId);
     }
 }
