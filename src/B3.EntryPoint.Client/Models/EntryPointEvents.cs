@@ -131,3 +131,26 @@ public sealed record BusinessReject : EntryPointEvent
     public required ushort RejectReason { get; init; }
     public string? Text { get; init; }
 }
+
+/// <summary>Maps to <c>QuoteRequestReject</c> (template 405). The exchange rejected
+/// a previously submitted <see cref="QuoteRequestMessage"/>.</summary>
+public sealed record QuoteRequestRejected : EntryPointEvent
+{
+    public required string QuoteReqId { get; init; }
+    public required ulong SecurityId { get; init; }
+    public string? QuoteId { get; init; }
+    public uint? RejectReason { get; init; }
+    public DateTimeOffset? TransactTime { get; init; }
+}
+
+/// <summary>Maps to <c>QuoteStatusReport</c> (template 402). Carries the
+/// lifecycle status of a quote previously submitted via <see cref="QuoteMessage"/>.</summary>
+public sealed record QuoteStatusUpdated : EntryPointEvent
+{
+    public required string QuoteId { get; init; }
+    public required string QuoteReqId { get; init; }
+    public required ulong SecurityId { get; init; }
+    public required QuoteStatus Status { get; init; }
+    public uint? QuoteRejectReason { get; init; }
+    public DateTimeOffset? TransactTime { get; init; }
+}
