@@ -12,4 +12,8 @@
     <ProjectReference Include="..\B3.EntryPoint.Sbe\B3.EntryPoint.Sbe.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="B3.EntryPoint.Client.Tests" />
+  </ItemGroup>
+
 </Project>
