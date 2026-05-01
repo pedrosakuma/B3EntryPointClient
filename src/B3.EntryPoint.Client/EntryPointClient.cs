@@ -63,48 +63,62 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     }
 
     /// <inheritdoc />
-    public Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
+    public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "SubmitAsync is not yet wired to the FIXP transport. Tracked by issue #4.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
+        var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        return request.ClOrdID;
     }
 
     /// <inheritdoc />
-    public Task<ClOrdID> SubmitSimpleAsync(SimpleNewOrderRequest request, CancellationToken ct = default)
+    public async Task<ClOrdID> SubmitSimpleAsync(SimpleNewOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "SubmitSimpleAsync is not yet wired to the FIXP transport. Tracked by issue #4.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
+        var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        return request.ClOrdID;
     }
 
     /// <inheritdoc />
-    public Task<ClOrdID> ReplaceAsync(ReplaceOrderRequest request, CancellationToken ct = default)
+    public async Task<ClOrdID> ReplaceAsync(ReplaceOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "ReplaceAsync is not yet wired to the FIXP transport. Tracked by issue #7.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
+        var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        return request.ClOrdID;
     }
 
     /// <inheritdoc />
-    public Task<ClOrdID> ReplaceSimpleAsync(SimpleModifyRequest request, CancellationToken ct = default)
+    public async Task<ClOrdID> ReplaceSimpleAsync(SimpleModifyRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "ReplaceSimpleAsync is not yet wired to the FIXP transport. Tracked by issue #7.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
+        var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        return request.ClOrdID;
     }
 
     /// <inheritdoc />
-    public Task CancelAsync(CancelOrderRequest request, CancellationToken ct = default)
+    public async Task CancelAsync(CancelOrderRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "CancelAsync is not yet wired to the FIXP transport. Tracked by issue #8.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
+        var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
+        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -112,8 +126,26 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        throw new NotImplementedException(
-            "MassActionAsync is not yet wired to the FIXP transport. Tracked by issue #8.");
+        var seq = _session!.NextOutboundSeqNum();
+        var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
+        var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, request, _options, seq);
+        // Fire-and-forget the request; the matching MassActionReport will be
+        // surfaced through the inbound dispatcher (issue #23) — until then,
+        // we encode+send and return a synthetic Acknowledged report.
+        return SendMassActionAsync(buffer, len, request, ct);
+
+        async Task<MassActionReport> SendMassActionAsync(byte[] buf, int length, MassActionRequest req, CancellationToken token)
+        {
+            await _session.SendApplicationFrameAsync(buf, length, token).ConfigureAwait(false);
+            return new MassActionReport
+            {
+                ClOrdID = req.ClOrdID,
+                ActionType = req.ActionType,
+                Response = B3.EntryPoint.Client.Models.MassActionResponse.Accepted,
+                Scope = req.Scope,
+                TotalAffectedOrders = 0,
+            };
+        }
     }
 
     /// <summary>

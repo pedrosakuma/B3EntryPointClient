@@ -115,6 +115,24 @@ internal sealed class FixpClientSession : IAsyncDisposable
             _machine.Fire(FixpClientTrigger.SendTerminate);
     }
 
+    private long _outboundSeqNum;
+
+    /// <summary>
+    /// Sends an Order Entry application frame previously encoded into <paramref name="buffer"/>
+    /// via <see cref="OrderEntryEncoder"/>. The first <paramref name="length"/> bytes are flushed.
+    /// </summary>
+    public async Task SendApplicationFrameAsync(byte[] buffer, int length, CancellationToken ct)
+    {
+        if (_machine.State != FixpClientState.Established)
+            throw new InvalidOperationException($"Cannot send application frame from state {_machine.State}.");
+        await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
+        await _stream.FlushAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Returns the next outbound MsgSeqNum and increments the counter.</summary>
+    public ulong NextOutboundSeqNum() =>
+        (ulong)System.Threading.Interlocked.Increment(ref _outboundSeqNum);
+
     public async ValueTask DisposeAsync()
     {
         try { await TerminateAsync(SbeTerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }

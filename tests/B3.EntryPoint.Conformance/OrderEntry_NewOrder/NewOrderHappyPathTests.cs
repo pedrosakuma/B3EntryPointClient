@@ -24,7 +24,7 @@ public class NewOrderHappyPathTests
 
         await client.ConnectAsync();
 
-        var clOrdId = new ClOrdID($"CONF-{Guid.NewGuid():N}".Substring(0, 20));
+        var clOrdId = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL);
         await client.SubmitAsync(new NewOrderRequest
         {
             ClOrdID = clOrdId,
