@@ -204,4 +204,47 @@ public class InboundDecoderTests
         Assert.Equal(4242UL, report.SecurityId);
         Assert.Null(report.RejectReason);
     }
+
+    [Fact]
+    public void TryDecode_AllocationReport_ReturnsAllocationReceived()
+    {
+        var msg = new AllocationReportData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = 1,
+                MsgSeqNum = new SeqNum(321),
+            },
+            AllocID = new AllocID(7777UL),
+            SecurityID = new SecurityID(4242UL),
+            AllocReportID = new AllocReportID(99999UL),
+            AllocTransType = B3.Entrypoint.Fixp.Sbe.V6.AllocTransType.NEW,
+            AllocReportType = B3.Entrypoint.Fixp.Sbe.V6.AllocReportType.REQUEST_TO_INTERMEDIARY,
+            AllocNoOrdersType = B3.Entrypoint.Fixp.Sbe.V6.AllocNoOrdersType.NOT_SPECIFIED,
+            Quantity = new Quantity(10UL),
+            AllocStatus = B3.Entrypoint.Fixp.Sbe.V6.AllocStatus.ACCEPTED,
+            TransactTime = new UTCTimestampNanos { Time = 1_700_000_000_000_000_000UL },
+            Side = B3.Entrypoint.Fixp.Sbe.V6.Side.BUY,
+        };
+        msg.SetTradeDate((ushort)9876);
+
+        var frame = BuildFrame(AllocationReportData.MESSAGE_ID, AllocationReportData.MESSAGE_SIZE, span =>
+        {
+            if (!msg.TryEncode(span, out _))
+                throw new InvalidOperationException("encode failed");
+        });
+
+        Assert.True(InboundDecoder.TryDecode(frame, out var evt));
+        var alloc = Assert.IsType<AllocationReceived>(evt);
+        Assert.Equal(321UL, alloc.SeqNum);
+        Assert.Equal(7777UL, alloc.AllocId);
+        Assert.Equal(99999UL, alloc.AllocReportId);
+        Assert.Equal(4242UL, alloc.SecurityId);
+        Assert.Equal(B3.EntryPoint.Client.Models.AllocTransType.New, alloc.TransType);
+        Assert.Equal(B3.EntryPoint.Client.Models.AllocReportType.RequestToIntermediary, alloc.ReportType);
+        Assert.Equal(B3.EntryPoint.Client.Models.AllocStatus.Accepted, alloc.Status);
+        Assert.Equal(10UL, alloc.Quantity);
+        Assert.Equal(B3.EntryPoint.Client.Models.Side.Buy, alloc.Side);
+        Assert.Equal((ushort?)9876, alloc.TradeDate);
+    }
 }
