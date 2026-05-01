@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Stabilized two timing-sensitive tests (telemetry `ActivityListener` filters by operation name; keep-alive scheduler test polls with deadline instead of fixed `Task.Delay`).
+- README: replaced the outdated "Roadmap" issue table with a "Status" matrix reflecting that all wire-up issues (#3–#11, #51) are merged. Removed the stale `NotImplementedException` disclaimer; updated the `ICrossQuoteFlows` doc-comments accordingly.
 - `EntryPointClient` and `DropCopyClient` constructors now eagerly validate `EntryPointClientOptions` (non-null `Endpoint`/`Credentials`, non-zero `SessionId`/`EnteringFirm`) and throw `ArgumentException` instead of failing later with `NullReferenceException` inside `ConnectAsync`.
 
 ## [0.5.0] - 2026-05-01
