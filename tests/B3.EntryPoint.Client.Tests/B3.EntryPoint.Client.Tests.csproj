@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\B3.EntryPoint.Client\B3.EntryPoint.Client.csproj" />
+    <ProjectReference Include="..\B3.EntryPoint.TestPeer\B3.EntryPoint.TestPeer.csproj" />
   </ItemGroup>
 
 </Project>

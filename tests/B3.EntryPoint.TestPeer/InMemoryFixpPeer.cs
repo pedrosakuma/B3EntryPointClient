@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Framing;
 
@@ -21,11 +23,20 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _connections = new();
+    private readonly X509Certificate2? _serverCertificate;
     private Task? _acceptLoop;
 
-    public InMemoryFixpPeer()
+    public InMemoryFixpPeer() : this(serverCertificate: null) { }
+
+    /// <summary>
+    /// Creates a peer that wraps every accepted TCP connection in an
+    /// <see cref="SslStream"/> using <paramref name="serverCertificate"/>
+    /// for the TLS handshake. Pass <c>null</c> for plain TCP.
+    /// </summary>
+    public InMemoryFixpPeer(X509Certificate2? serverCertificate)
     {
         _listener = new TcpListener(IPAddress.Loopback, 0);
+        _serverCertificate = serverCertificate;
     }
 
     public IPEndPoint Endpoint => (IPEndPoint)_listener.LocalEndpoint;
@@ -44,7 +55,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             {
                 var tcp = await _listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
                 lock (_connections)
-                    _connections.Add(HandleConnectionAsync(tcp, ct));
+                    _connections.Add(HandleConnectionAsync(tcp, _serverCertificate, ct));
             }
         }
         catch (OperationCanceledException) { }
@@ -58,14 +69,27 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         public CancellationTokenSource? KeepAliveCts;
     }
 
-    private static async Task HandleConnectionAsync(TcpClient tcp, CancellationToken ct)
+    private static async Task HandleConnectionAsync(TcpClient tcp, X509Certificate2? serverCertificate, CancellationToken ct)
     {
         var state = new ConnectionState();
         try
         {
             using (tcp)
-            await using (var stream = tcp.GetStream())
             {
+                System.IO.Stream stream = tcp.GetStream();
+                SslStream? ssl = null;
+                if (serverCertificate is not null)
+                {
+                    ssl = new SslStream(stream, leaveInnerStreamOpen: false);
+                    await ssl.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
+                    {
+                        ServerCertificate = serverCertificate,
+                        ClientCertificateRequired = false,
+                    }, ct).ConfigureAwait(false);
+                    stream = ssl;
+                }
+                await using var _ssl = ssl;
+                await using var _stream = stream;
                 while (!ct.IsCancellationRequested)
                 {
                     byte[] frame;

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -72,6 +73,8 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             throw new ArgumentException($"{nameof(EntryPointClientOptions.SessionId)} must be non-zero.", nameof(options));
         if (options.EnteringFirm == 0u)
             throw new ArgumentException($"{nameof(EntryPointClientOptions.EnteringFirm)} must be non-zero.", nameof(options));
+        if (options.Tls is { Enabled: false, ClientCertificates: { Count: > 0 } })
+            throw new ArgumentException($"{nameof(EntryPointClientOptions.Tls)}.{nameof(TlsOptions.ClientCertificates)} requires {nameof(TlsOptions)}.{nameof(TlsOptions.Enabled)} = true.", nameof(options));
     }
 
     public FixpClientState State => _session?.State ?? FixpClientState.Disconnected;
@@ -119,6 +122,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.connect", ActivityKind.Client);
         activity?.SetTag("net.peer.name", _options.Endpoint.Address.ToString());
         activity?.SetTag("net.peer.port", _options.Endpoint.Port);
+        activity?.SetTag("net.transport", _options.Tls.Enabled ? "tls" : "tcp");
         var tcp = new TcpClient();
         try
         {
@@ -134,7 +138,8 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
 
         _tcp = tcp;
-        _session = new FixpClientSession(tcp.GetStream(), _options);
+        var transportStream = await EstablishTransportStreamAsync(tcp, ct).ConfigureAwait(false);
+        _session = new FixpClientSession(transportStream, _options);
 
         using (var negotiate = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.negotiate", ActivityKind.Client))
         {
@@ -191,6 +196,34 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
         };
         _lastInboundUtc = DateTime.UtcNow;
+    }
+
+    private async Task<System.IO.Stream> EstablishTransportStreamAsync(TcpClient tcp, CancellationToken ct)
+    {
+        var raw = tcp.GetStream();
+        if (!_options.Tls.Enabled)
+            return raw;
+
+        var ssl = new SslStream(raw, leaveInnerStreamOpen: false, _options.Tls.RemoteCertificateValidationCallback);
+        try
+        {
+            var targetHost = _options.Tls.TargetHost ?? _options.Endpoint.Address.ToString();
+            var auth = new SslClientAuthenticationOptions
+            {
+                TargetHost = targetHost,
+                EnabledSslProtocols = _options.Tls.EnabledSslProtocols,
+                ClientCertificates = _options.Tls.ClientCertificates,
+            };
+            await ssl.AuthenticateAsClientAsync(auth, ct).ConfigureAwait(false);
+            _options.Logger.LogInformation("TLS handshake completed with {Endpoint} (target host {TargetHost}, protocol {Protocol})",
+                _options.Endpoint, targetHost, ssl.SslProtocol);
+            return ssl;
+        }
+        catch
+        {
+            await ssl.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private TimeSpan ComputeBackoff(int attempt)
