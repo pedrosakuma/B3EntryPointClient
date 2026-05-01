@@ -97,6 +97,20 @@ public sealed class EntryPointClientOptions
     /// Defaults to <see cref="NullLogger.Instance"/> so existing tests are unaffected.</summary>
     public ILogger Logger { get; init; } = NullLogger.Instance;
 
+    /// <summary>
+    /// Optional persistence for warm-restart. When provided, the client hydrates
+    /// outbound/inbound sequence numbers and outstanding orders from the snapshot
+    /// after Establish, appends an <see cref="State.OutboundDelta"/> per outbound
+    /// frame, an <see cref="State.OrderClosedDelta"/> per terminal ExecutionReport,
+    /// and triggers a snapshot+truncate after every
+    /// <see cref="StateCompactEveryDeltas"/> appends.
+    /// </summary>
+    public State.ISessionStateStore? SessionStateStore { get; init; }
+
+    /// <summary>How many appended deltas trigger a <see cref="State.ISessionStateStore.CompactAsync"/>.
+    /// Set to <c>0</c> to disable automatic compaction. Defaults to 1024.</summary>
+    public int StateCompactEveryDeltas { get; init; } = 1024;
+
     private static string ThisAssemblyVersion() =>
         typeof(EntryPointClientOptions).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 }

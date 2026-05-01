@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -6,6 +7,7 @@ using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
 using B3.EntryPoint.Client.Risk;
+using B3.EntryPoint.Client.State;
 using B3.EntryPoint.Client.Telemetry;
 using Microsoft.Extensions.Logging;
 using ClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
@@ -35,6 +37,10 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     private DateTime _lastInboundUtc;
     private CancellationTokenSource? _idleCts;
     private Task? _idleWatchdog;
+
+    private readonly ConcurrentDictionary<string, ulong> _outstandingOrders = new(StringComparer.Ordinal);
+    private long _deltasSinceCompact;
+    private ulong _lastInboundSeqNum;
 
     /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IKeepAliveScheduler? KeepAlive => _keepAlive;
@@ -127,6 +133,11 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             await _session.EstablishAsync(ct).ConfigureAwait(false);
             _options.Logger.LogDebug("FIXP Established with {Endpoint}", _options.Endpoint);
         }
+
+        await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
+
+        _session.OnInboundEvent = OnInboundEventForPersistence;
+
         _session.StartInboundLoop(_events.Writer);
 
         _keepAlive = new KeepAliveScheduler(
@@ -243,6 +254,103 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             new KeyValuePair<string, object?>("kind", kind.ToString()));
     }
 
+    private async ValueTask HydrateFromSnapshotAsync(CancellationToken ct)
+    {
+        if (_options.SessionStateStore is null) return;
+        var snapshot = await _options.SessionStateStore.ReplayAsync(ct).ConfigureAwait(false);
+        if (snapshot is null) return;
+        if (snapshot.SessionId != _options.SessionId)
+        {
+            _options.Logger.LogInformation("Persisted snapshot SessionID={Persisted} != current {Current}; ignoring.",
+                snapshot.SessionId, _options.SessionId);
+            return;
+        }
+        _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
+        _lastInboundSeqNum = snapshot.LastInboundSeqNum;
+        _outstandingOrders.Clear();
+        foreach (var (clordid, secId) in snapshot.OutstandingOrders)
+            _outstandingOrders[clordid] = secId;
+        _options.Logger.LogInformation(
+            "Hydrated from snapshot: outboundSeq={Out} inboundSeq={In} outstanding={Count}",
+            snapshot.LastOutboundSeqNum, snapshot.LastInboundSeqNum, _outstandingOrders.Count);
+    }
+
+    private async ValueTask AppendOutboundDeltaAsync(ulong seq, string clordid, ulong securityId, CancellationToken ct)
+    {
+        var store = _options.SessionStateStore;
+        if (store is null) return;
+        _outstandingOrders[clordid] = securityId;
+        try
+        {
+            await store.AppendDeltaAsync(new OutboundDelta(seq, clordid, securityId), ct).ConfigureAwait(false);
+            await MaybeCompactAsync(store, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _options.Logger.LogWarning(ex, "Failed to append OutboundDelta for ClOrdID={ClOrdID}", clordid);
+        }
+    }
+
+    private async ValueTask MaybeCompactAsync(ISessionStateStore store, CancellationToken ct)
+    {
+        var threshold = _options.StateCompactEveryDeltas;
+        if (threshold <= 0) return;
+        if (System.Threading.Interlocked.Increment(ref _deltasSinceCompact) < threshold) return;
+        System.Threading.Interlocked.Exchange(ref _deltasSinceCompact, 0);
+        try
+        {
+            await store.SaveAsync(BuildSnapshot(), ct).ConfigureAwait(false);
+            await store.CompactAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _options.Logger.LogWarning(ex, "Failed periodic snapshot compaction");
+        }
+    }
+
+    private SessionSnapshot BuildSnapshot() => new()
+    {
+        SessionId = _options.SessionId,
+        SessionVerId = _options.SessionVerId,
+        LastOutboundSeqNum = _session is null ? 0UL : _session.NextOutboundSeqNum() - 1UL,
+        LastInboundSeqNum = _lastInboundSeqNum,
+        CapturedAt = DateTimeOffset.UtcNow,
+        OutstandingOrders = new Dictionary<string, ulong>(_outstandingOrders),
+    };
+
+    private void OnInboundEventForPersistence(EntryPointEvent evt)
+    {
+        if (evt.SeqNum > _lastInboundSeqNum) _lastInboundSeqNum = evt.SeqNum;
+        var store = _options.SessionStateStore;
+        if (store is null) return;
+
+        string? closedClOrdId = evt switch
+        {
+            OrderCancelled c => c.ClOrdID.Value.ToString(),
+            OrderRejected r => r.ClOrdID.Value.ToString(),
+            OrderTrade t when t.LeavesQty == 0UL => t.ClOrdID.Value.ToString(),
+            _ => null,
+        };
+
+        if (closedClOrdId is null) return;
+        _outstandingOrders.TryRemove(closedClOrdId, out _);
+
+        // Fire-and-forget so the inbound loop is never blocked by I/O.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await store.AppendDeltaAsync(new OrderClosedDelta(closedClOrdId)).ConfigureAwait(false);
+                await store.AppendDeltaAsync(new InboundDelta(evt.SeqNum)).ConfigureAwait(false);
+                await MaybeCompactAsync(store, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _options.Logger.LogWarning(ex, "Failed to persist OrderClosedDelta for {ClOrdID}", closedClOrdId);
+            }
+        });
+    }
+
     /// <inheritdoc />
     public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
@@ -256,6 +364,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrder"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
         return request.ClOrdID;
@@ -274,6 +383,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "SimpleNewOrder"));
         RecordLatency(startTs, OutboundRequestKind.SimpleNewOrder);
         return request.ClOrdID;
@@ -292,6 +402,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "Replace"));
         RecordLatency(startTs, OutboundRequestKind.Replace);
         return request.ClOrdID;
@@ -310,6 +421,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "SimpleReplace"));
         RecordLatency(startTs, OutboundRequestKind.SimpleReplace);
         return request.ClOrdID;
@@ -328,6 +440,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersCancelled.Add(1);
         RecordLatency(startTs, OutboundRequestKind.Cancel);
     }
@@ -349,6 +462,7 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
             var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, seq);
             await _session.SendApplicationFrameAsync(buffer, len, token).ConfigureAwait(false);
+            await AppendOutboundDeltaAsync(seq, clordid, req.SecurityId ?? 0UL, token).ConfigureAwait(false);
             EntryPointTelemetry.MassActions.Add(1);
             RecordLatency(startTs, OutboundRequestKind.MassAction);
             return new MassActionReport
