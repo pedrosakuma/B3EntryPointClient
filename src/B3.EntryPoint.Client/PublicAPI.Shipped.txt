@@ -1191,3 +1191,17 @@ virtual B3.EntryPoint.Client.State.SessionDelta.PrintMembers(System.Text.StringB
 ~override B3.EntryPoint.Client.Risk.OutboundRequest.ToString() -> string
 ~override B3.EntryPoint.Client.Telemetry.ClientHealth.Equals(object obj) -> bool
 ~override B3.EntryPoint.Client.Telemetry.ClientHealth.ToString() -> string
+B3.EntryPoint.Client.EntryPointClientOptions.Tls.get -> B3.EntryPoint.Client.TlsOptions!
+B3.EntryPoint.Client.EntryPointClientOptions.Tls.set -> void
+B3.EntryPoint.Client.TlsOptions
+B3.EntryPoint.Client.TlsOptions.ClientCertificates.get -> System.Security.Cryptography.X509Certificates.X509CertificateCollection?
+B3.EntryPoint.Client.TlsOptions.ClientCertificates.set -> void
+B3.EntryPoint.Client.TlsOptions.Enabled.get -> bool
+B3.EntryPoint.Client.TlsOptions.Enabled.set -> void
+B3.EntryPoint.Client.TlsOptions.EnabledSslProtocols.get -> System.Security.Authentication.SslProtocols
+B3.EntryPoint.Client.TlsOptions.EnabledSslProtocols.set -> void
+B3.EntryPoint.Client.TlsOptions.RemoteCertificateValidationCallback.get -> System.Net.Security.RemoteCertificateValidationCallback?
+B3.EntryPoint.Client.TlsOptions.RemoteCertificateValidationCallback.set -> void
+B3.EntryPoint.Client.TlsOptions.TargetHost.get -> string?
+B3.EntryPoint.Client.TlsOptions.TargetHost.set -> void
+B3.EntryPoint.Client.TlsOptions.TlsOptions() -> void

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-01
+
 ### Added
 - TLS transport support via `EntryPointClientOptions.Tls` (`TlsOptions`). Opt-in (`Tls.Enabled = false` by default to preserve back-compat with the in-process simulator and plain-TCP UAT). Configurable target host, certificate validation callback, optional client certificates and `EnabledSslProtocols` (defaults to `SslProtocols.None` so the OS negotiates TLS 1.2/1.3). The handshake is layered transparently under `FixpClientSession` and tagged on the `entrypoint.connect` activity (`net.transport = tls|tcp`).
 - `InMemoryFixpPeer` now accepts an optional `X509Certificate2` to wrap accepted connections in `SslStream`, enabling end-to-end TLS integration tests.
