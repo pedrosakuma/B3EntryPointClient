@@ -12,4 +12,7 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/B3.EntryPoint.Benchmarks/B3.EntryPoint.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/B3.EntryPoint.Quickstart/B3.EntryPoint.Quickstart.csproj" />
+  </Folder>
 </Solution>

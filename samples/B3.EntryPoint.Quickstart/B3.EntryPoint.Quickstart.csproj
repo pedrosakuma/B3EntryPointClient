@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>B3.EntryPoint.Quickstart</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\B3.EntryPoint.Client\B3.EntryPoint.Client.csproj" />
+    <ProjectReference Include="..\..\tests\B3.EntryPoint.TestPeer\B3.EntryPoint.TestPeer.csproj" />
+  </ItemGroup>
+
+</Project>
