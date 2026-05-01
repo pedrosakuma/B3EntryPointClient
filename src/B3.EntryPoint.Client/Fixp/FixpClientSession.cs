@@ -123,6 +123,17 @@ internal sealed class FixpClientSession : IAsyncDisposable
     private ChannelWriter<EntryPointEvent>? _eventWriter;
 
     /// <summary>
+    /// Resumes the outbound counter from a persisted snapshot. Must be called
+    /// before any frame is sent (i.e. immediately after Establish completes).
+    /// </summary>
+    public void ResumeOutboundSeqNum(ulong nextOutboundSeqNum)
+    {
+        if (nextOutboundSeqNum == 0UL) return;
+        // NextOutboundSeqNum returns the post-increment, so seed with (next - 1).
+        System.Threading.Interlocked.Exchange(ref _outboundSeqNum, (long)(nextOutboundSeqNum - 1UL));
+    }
+
+    /// <summary>
     /// Starts the inbound dispatch loop. Decoded application events are written to
     /// <paramref name="writer"/>; session-layer messages (Sequence/NotApplied/etc.)
     /// are silently consumed for now (#24/#25 will surface them).
@@ -147,6 +158,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
                 if (frame.Length < SofhSize + SbeHeaderSize) continue;
                 if (InboundDecoder.TryDecode(frame, out var evt) && evt is not null)
                 {
+                    try { OnInboundEvent?.Invoke(evt); } catch { /* swallow — telemetry/persistence must not break the loop */ }
                     await _eventWriter!.WriteAsync(evt, ct).ConfigureAwait(false);
                 }
                 else
@@ -264,6 +276,11 @@ internal sealed class FixpClientSession : IAsyncDisposable
 
     /// <summary>Optional hook: invoked by the inbound loop when a peer Sequence frame arrives.</summary>
     internal Action<ulong>? OnInboundSequence { get; set; }
+
+    /// <summary>Optional hook: invoked for every decoded application
+    /// <see cref="EntryPointEvent"/> before it is published to the user channel.
+    /// Used internally to drive <see cref="EntryPointClient"/> persistence.</summary>
+    internal Action<Models.EntryPointEvent>? OnInboundEvent { get; set; }
 
     /// <summary>Optional hook: invoked when a Retransmission frame arrives. Args: (nextSeqNo, count, requestTimestampNanos).</summary>
     internal Action<ulong, uint, ulong>? OnInboundRetransmission { get; set; }
