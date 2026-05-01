@@ -22,12 +22,22 @@ public class CancelHappyPathTests
         });
 
         await client.ConnectAsync();
+        var clOrdId = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL);
         await client.CancelAsync(new CancelOrderRequest
         {
-            ClOrdID = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL),
+            ClOrdID = clOrdId,
             OrigClOrdID = new ClOrdID(2UL),
             SecurityId = 1,
             Side = Side.Buy,
         });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await foreach (var evt in client.Events(cts.Token))
+        {
+            var cancelled = Assert.IsType<OrderCancelled>(evt);
+            Assert.Equal(clOrdId.Value, cancelled.ClOrdID.Value);
+            return;
+        }
+        throw new TimeoutException("No OrderCancelled received");
     }
 }

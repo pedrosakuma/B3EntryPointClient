@@ -36,5 +36,17 @@ public class NewOrderHappyPathTests
             TimeInForce = TimeInForce.Day,
             Account = 1,
         });
+
+        var evt = await ReadOneAsync(client, TimeSpan.FromSeconds(2));
+        var accepted = Assert.IsType<OrderAccepted>(evt);
+        Assert.Equal(clOrdId.Value, accepted.ClOrdID.Value);
+    }
+
+    private static async Task<EntryPointEvent> ReadOneAsync(EntryPointClient client, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        await foreach (var evt in client.Events(cts.Token))
+            return evt;
+        throw new TimeoutException("No event received");
     }
 }

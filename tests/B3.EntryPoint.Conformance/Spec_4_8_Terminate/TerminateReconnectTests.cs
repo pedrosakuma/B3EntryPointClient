@@ -1,5 +1,6 @@
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
+using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Conformance.Infrastructure;
 
 namespace B3.EntryPoint.Conformance.Spec_4_8_Terminate;
@@ -27,7 +28,10 @@ public class TerminateReconnectTests
         });
 
         await client.ConnectAsync();
+        Assert.Equal(FixpClientState.Established, client.State);
         await client.TerminateAsync(TerminationCode.Finished);
+        Assert.NotEqual(FixpClientState.Established, client.State);
         await client.ReconnectAsync(peer.SessionVerId + 1);
+        Assert.Equal(FixpClientState.Established, client.State);
     }
 }
