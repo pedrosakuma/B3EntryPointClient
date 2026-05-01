@@ -1,0 +1,28 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: "BenchmarkDotNet filter (e.g. *Risk*)"
+        required: false
+        default: "*"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Run benchmarks
+        run: dotnet run -c Release --project benchmarks/B3.EntryPoint.Benchmarks/B3.EntryPoint.Benchmarks.csproj -- --filter "${{ github.event.inputs.filter }}" --exporters json github
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BenchmarkDotNet.Artifacts
+          path: BenchmarkDotNet.Artifacts/**
+          if-no-files-found: warn
