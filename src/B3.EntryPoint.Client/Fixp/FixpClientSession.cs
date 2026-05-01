@@ -186,7 +186,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
                                 OnInboundNotApplied?.Invoke(fromSeq, cnt);
                             }
                             break;
-                        // Terminate handled in #26.
+                        case TerminateData.MESSAGE_ID:
+                            // SessionID(4) + SessionVerID(8) + TerminationCode(1) = 13 bytes
+                            if (payload.Length >= TerminateData.MESSAGE_SIZE)
+                            {
+                                var code = payload[12];
+                                OnInboundTerminate?.Invoke(code);
+                            }
+                            // peer is shutting us down — exit loop
+                            _eventWriter?.TryComplete();
+                            return;
                     }
                 }
             }
@@ -264,6 +273,9 @@ internal sealed class FixpClientSession : IAsyncDisposable
 
     /// <summary>Optional hook: invoked when a NotApplied frame arrives. Args: (fromSeqNo, count).</summary>
     internal Action<ulong, uint>? OnInboundNotApplied { get; set; }
+
+    /// <summary>Optional hook: invoked when a Terminate frame arrives. Arg: terminationCode (byte).</summary>
+    internal Action<byte>? OnInboundTerminate { get; set; }
 
     public async ValueTask DisposeAsync()
     {
