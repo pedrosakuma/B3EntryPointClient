@@ -101,6 +101,9 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
                         case OrderMassActionRequestData.MESSAGE_ID:
                             await SendOrderMassActionReportAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
+                        case RetransmitRequestData.MESSAGE_ID:
+                            await SendRetransmissionAsync(stream, frame, ct).ConfigureAwait(false);
+                            break;
                         default:
                             // Application or session-layer messages we don't model — swallow.
                             break;
@@ -338,6 +341,37 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         await SendAppFrameAsync(stream, OrderMassActionReportData.MESSAGE_ID, OrderMassActionReportData.MESSAGE_SIZE,
             (Span<byte> buf, out int bw) => msg.TryEncode(buf, out bw),
             ct).ConfigureAwait(false);
+    }
+
+    private static async Task SendRetransmissionAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    {
+        if (!RetransmitRequestData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return;
+        var sessionId = reader.Data.SessionID;
+        var requestTs = reader.Data.Timestamp;
+        var fromSeqNo = reader.Data.FromSeqNo;
+
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + RetransmissionData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        RetransmissionData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var msg = new RetransmissionData
+        {
+            SessionID = sessionId,
+            RequestTimestamp = requestTs,
+            NextSeqNo = fromSeqNo,
+            Count = new MessageCounter(0u),
+        };
+        if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+
+        try
+        {
+            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        catch (IOException) { }
     }
 
     private static long _orderIdSeq;
