@@ -41,8 +41,10 @@ public class FileSessionStateStoreTests
             var store = new FileSessionStateStore(dir);
             await store.SaveAsync(new SessionSnapshot
             {
-                SessionId = 1, SessionVerId = 1,
-                LastOutboundSeqNum = 10, LastInboundSeqNum = 5,
+                SessionId = 1,
+                SessionVerId = 1,
+                LastOutboundSeqNum = 10,
+                LastInboundSeqNum = 5,
                 OutstandingOrders = new() { ["X"] = 100 },
             });
             await store.AppendDeltaAsync(new OutboundDelta(11, "Y", 200));

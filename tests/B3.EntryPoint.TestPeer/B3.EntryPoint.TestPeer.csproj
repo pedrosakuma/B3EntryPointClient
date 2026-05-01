@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>B3.EntryPoint.TestPeer</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\B3.EntryPoint.Sbe\B3.EntryPoint.Sbe.csproj" />
+    <ProjectReference Include="..\..\src\B3.EntryPoint.Client\B3.EntryPoint.Client.csproj" />
+  </ItemGroup>
+
+</Project>

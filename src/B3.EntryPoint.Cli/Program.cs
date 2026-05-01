@@ -12,10 +12,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 
 return args[0] switch
 {
-    "connect"  => await ConnectAsync(args[1..]),
-    "submit"   => await SubmitAsync(args[1..]),
-    "replace"  => await ReplaceAsync(args[1..]),
-    "cancel"   => await CancelAsync(args[1..]),
+    "connect" => await ConnectAsync(args[1..]),
+    "submit" => await SubmitAsync(args[1..]),
+    "replace" => await ReplaceAsync(args[1..]),
+    "cancel" => await CancelAsync(args[1..]),
     "dropcopy" => await DropCopyAsync(args[1..]),
     _ => UnknownCommand(args[0]),
 };
