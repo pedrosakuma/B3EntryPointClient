@@ -111,6 +111,9 @@ public sealed class EntryPointClientOptions
     /// Set to <c>0</c> to disable automatic compaction. Defaults to 1024.</summary>
     public int StateCompactEveryDeltas { get; set; } = 1024;
 
+    /// <summary>TLS configuration for the FIXP transport. Disabled by default.</summary>
+    public TlsOptions Tls { get; set; } = new();
+
     private static string ThisAssemblyVersion() =>
         typeof(EntryPointClientOptions).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 }
