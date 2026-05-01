@@ -1,0 +1,36 @@
+using B3.EntryPoint.Client;
+using B3.EntryPoint.Client.Auth;
+using B3.EntryPoint.Client.Models;
+using B3.EntryPoint.Conformance.Infrastructure;
+
+namespace B3.EntryPoint.Conformance.OrderEntry_Replace;
+
+[Trait("Category", "Conformance")]
+public class ReplaceHappyPathTests
+{
+    [ConformanceFact]
+    public async Task Replace_OpenOrder_Receives_OrderModified()
+    {
+        var peer = PeerEndpoint.TryResolve()!;
+        await using var client = new EntryPointClient(new EntryPointClientOptions
+        {
+            Endpoint = peer.Endpoint,
+            SessionId = peer.SessionId,
+            SessionVerId = peer.SessionVerId,
+            EnteringFirm = peer.EnteringFirm,
+            Credentials = Credentials.FromUtf8(peer.AccessKey),
+        });
+
+        await client.ConnectAsync();
+        await client.ReplaceAsync(new ReplaceOrderRequest
+        {
+            ClOrdID = new ClOrdID($"R-{Guid.NewGuid():N}".Substring(0, 20)),
+            OrigClOrdID = new ClOrdID("ORIG"),
+            SecurityId = 1,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            OrderQty = 2,
+            Price = 0.02m,
+        });
+    }
+}
