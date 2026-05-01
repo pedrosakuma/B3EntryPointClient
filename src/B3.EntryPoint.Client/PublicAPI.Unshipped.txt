@@ -1,17 +1,1 @@
 #nullable enable
-B3.EntryPoint.Client.DropCopy.IDropCopyClient
-B3.EntryPoint.Client.DropCopy.IDropCopyClient.ConnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.DropCopy.IDropCopyClient.Events(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
-B3.EntryPoint.Client.DropCopy.IDropCopyClient.TerminateAsync(B3.EntryPoint.Client.TerminationCode code = B3.EntryPoint.Client.TerminationCode.Finished, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.DropCopy.IDropCopyClient.Terminated -> System.EventHandler<B3.EntryPoint.Client.TerminatedEventArgs!>?
-B3.EntryPoint.Client.IEntryPointClient
-B3.EntryPoint.Client.IEntryPointClient.ConnectAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.IEntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
-B3.EntryPoint.Client.IEntryPointClient.GetHealth() -> B3.EntryPoint.Client.Telemetry.ClientHealth
-B3.EntryPoint.Client.IEntryPointClient.KeepAlive.get -> B3.EntryPoint.Client.Fixp.IKeepAliveScheduler?
-B3.EntryPoint.Client.IEntryPointClient.ReconnectAsync(uint nextSessionVerId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.IEntryPointClient.Retransmit.get -> B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler?
-B3.EntryPoint.Client.IEntryPointClient.RiskGates.get -> System.Collections.Generic.IList<B3.EntryPoint.Client.Risk.IPreTradeGate!>!
-B3.EntryPoint.Client.IEntryPointClient.State.get -> B3.EntryPoint.Client.Fixp.FixpClientState
-B3.EntryPoint.Client.IEntryPointClient.TerminateAsync(B3.EntryPoint.Client.TerminationCode code, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.IEntryPointClient.Terminated -> System.EventHandler<B3.EntryPoint.Client.TerminatedEventArgs!>?
