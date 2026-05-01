@@ -171,3 +171,48 @@ public sealed record MassActionExecuted : EntryPointEvent
     public ulong? SecurityId { get; init; }
     public DateTimeOffset? TransactTime { get; init; }
 }
+
+/// <summary>Allocation transaction type (schema enum <c>AllocTransType</c>).</summary>
+public enum AllocTransType : byte
+{
+    New = (byte)'0',
+    Cancel = (byte)'2',
+}
+
+/// <summary>Allocation report purpose (schema enum <c>AllocReportType</c>).</summary>
+public enum AllocReportType : byte
+{
+    RequestToIntermediary = (byte)'8',
+}
+
+/// <summary>How orders are booked / allocated (schema enum <c>AllocNoOrdersType</c>).</summary>
+public enum AllocNoOrdersType : byte
+{
+    NotSpecified = (byte)'0',
+}
+
+/// <summary>Allocation lifecycle status (schema enum <c>AllocStatus</c>).</summary>
+public enum AllocStatus : byte
+{
+    Accepted = (byte)'0',
+    RejectedByIntermediary = (byte)'5',
+}
+
+/// <summary>Maps to <c>AllocationReport</c> (template 602). Post-trade
+/// allocation lifecycle event; surfaces on both Order Entry and Drop Copy
+/// sessions when an allocation is booked, accepted or rejected.</summary>
+public sealed record AllocationReceived : EntryPointEvent
+{
+    public required ulong AllocId { get; init; }
+    public required ulong AllocReportId { get; init; }
+    public required ulong SecurityId { get; init; }
+    public required AllocTransType TransType { get; init; }
+    public required AllocReportType ReportType { get; init; }
+    public required AllocStatus Status { get; init; }
+    public required ulong Quantity { get; init; }
+    public required Side Side { get; init; }
+    public AllocNoOrdersType? NoOrdersType { get; init; }
+    public uint? RejCode { get; init; }
+    public ushort? TradeDate { get; init; }
+    public DateTimeOffset? TransactTime { get; init; }
+}

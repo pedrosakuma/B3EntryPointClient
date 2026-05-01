@@ -21,7 +21,9 @@ using SbeErTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_TradeData;
 using SbeQuoteRequestReject = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestRejectData;
 using SbeQuoteStatusReport = B3.Entrypoint.Fixp.Sbe.V6.QuoteStatusReportData;
 using SbeMassActionReport = B3.Entrypoint.Fixp.Sbe.V6.OrderMassActionReportData;
+using SbeAllocationReport = B3.Entrypoint.Fixp.Sbe.V6.AllocationReportData;
 using ClientMassActionExecuted = B3.EntryPoint.Client.Models.MassActionExecuted;
+using ClientAllocationReceived = B3.EntryPoint.Client.Models.AllocationReceived;
 using ClientClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -84,6 +86,9 @@ internal static class InboundDecoder
                 return true;
             case SbeMassActionReport.MESSAGE_ID:
                 evt = DecodeMassActionReport(payload);
+                return true;
+            case SbeAllocationReport.MESSAGE_ID:
+                evt = DecodeAllocationReport(payload);
                 return true;
             default:
                 return false;
@@ -254,6 +259,28 @@ internal static class InboundDecoder
                 : null,
             Side = msg.Side.HasValue ? (Models.Side)(byte)msg.Side.Value : null,
             SecurityId = msg.SecurityID,
+            TransactTime = ToDateTime(msg.TransactTime.Time),
+        };
+    }
+
+    private static ClientAllocationReceived DecodeAllocationReport(ReadOnlySpan<byte> payload)
+    {
+        ref readonly var msg = ref MemoryMarshal.AsRef<SbeAllocationReport>(payload);
+        return new ClientAllocationReceived
+        {
+            SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
+            SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
+            AllocId = msg.AllocID.Value,
+            AllocReportId = msg.AllocReportID.Value,
+            SecurityId = msg.SecurityID.Value,
+            TransType = (Models.AllocTransType)(byte)msg.AllocTransType,
+            ReportType = (Models.AllocReportType)(byte)msg.AllocReportType,
+            Status = (Models.AllocStatus)(byte)msg.AllocStatus,
+            Quantity = msg.Quantity.Value,
+            Side = (Models.Side)(byte)msg.Side,
+            NoOrdersType = (Models.AllocNoOrdersType)(byte)msg.AllocNoOrdersType,
+            RejCode = msg.AllocRejCode,
+            TradeDate = msg.TradeDate,
             TransactTime = ToDateTime(msg.TransactTime.Time),
         };
     }
