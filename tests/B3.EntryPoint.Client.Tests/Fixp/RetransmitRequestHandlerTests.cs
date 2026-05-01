@@ -29,12 +29,38 @@ public class RetransmitRequestHandlerTests
     }
 
     [Fact]
-    public async Task Request_ValidRange_ThrowsNotImplemented()
+    public async Task Request_WithoutBoundTransport_Throws()
     {
         var h = new RetransmitRequestHandler();
-        var ex = await Assert.ThrowsAsync<NotImplementedException>(() =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             h.RequestRetransmitAsync(1, 1));
-        Assert.Contains("issue #5", ex.Message);
+        Assert.Contains("transport", ex.Message);
+    }
+
+    [Fact]
+    public async Task Request_BoundTransport_InvokesSendAndRaisesEvent()
+    {
+        var calls = new List<(ulong from, uint count)>();
+        Task SendAsync(ulong from, uint count, CancellationToken ct)
+        {
+            calls.Add((from, count));
+            return Task.CompletedTask;
+        }
+        var ctorInfo = typeof(RetransmitRequestHandler).GetConstructors(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 1);
+        var h = (RetransmitRequestHandler)ctorInfo.Invoke(new object?[]
+        {
+            (Func<ulong, uint, CancellationToken, Task>)SendAsync,
+        });
+        RetransmitRequestedEventArgs? raised = null;
+        h.RetransmitRequested += (_, e) => raised = e;
+        await h.RequestRetransmitAsync(7, 3);
+        Assert.Single(calls);
+        Assert.Equal(7UL, calls[0].from);
+        Assert.Equal(3u, calls[0].count);
+        Assert.NotNull(raised);
+        Assert.Equal(7UL, raised!.FromSeqNo);
     }
 
     [Fact]

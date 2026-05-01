@@ -27,9 +27,13 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     private TcpClient? _tcp;
     private FixpClientSession? _session;
     private KeepAliveScheduler? _keepAlive;
+    private RetransmitRequestHandler? _retransmit;
 
     /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IKeepAliveScheduler? KeepAlive => _keepAlive;
+
+    /// <summary>Retransmit handler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
+    public IRetransmitRequestHandler? Retransmit => _retransmit;
 
     public EntryPointClient(EntryPointClientOptions options)
     {
@@ -79,7 +83,20 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             nextSeqNo: () => _session.NextOutboundSeqNum());
         _session.OnInboundSequence = nextSeq => _keepAlive.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
         _keepAlive.Start();
+
+        _retransmit = new RetransmitRequestHandler(
+            sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
+        _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
+            _retransmit.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
+        _session.OnInboundRetransmitReject = (code, reqNanos) =>
+            _retransmit.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
+        _session.OnInboundNotApplied = (from, count) =>
+            _retransmit.RaiseNotAppliedReceived(from, count);
     }
+
+    private static DateTimeOffset NanosToOffset(ulong unixNanos) =>
+        unixNanos == 0UL ? DateTimeOffset.MinValue
+                         : DateTimeOffset.UnixEpoch.AddTicks((long)(unixNanos / 100UL));
 
     /// <inheritdoc />
     public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
