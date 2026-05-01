@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README badges (CI, license, .NET) and `dotnet add package` install snippets.
 - `Microsoft.CodeAnalysis.PublicApiAnalyzers` on `B3.EntryPoint.Client` with the v0.5.0 surface seeded into `PublicAPI.Shipped.txt`. New public API additions must be tracked in `PublicAPI.Unshipped.txt` (analyzer error `RS0016` on additions, `RS0017` on removals).
 - `IEntryPointClient` and `IDropCopyClient` interfaces aggregating the public surface of the corresponding clients. DI helpers now also register the interface forwarders, so consumers can depend on the abstractions for mocking.
+- CI gate: `sourcelink test` runs on every `.snupkg` to verify the embedded GitHub source URLs resolve and match the PDB content hashes (catches broken SourceLink before release).
 
 ### Changed
 - Stabilized two timing-sensitive tests (telemetry `ActivityListener` filters by operation name; keep-alive scheduler test polls with deadline instead of fixed `Task.Delay`).
