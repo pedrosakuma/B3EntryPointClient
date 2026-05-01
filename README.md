@@ -117,27 +117,34 @@ dotnet test tests/B3.EntryPoint.Conformance --filter "Category=Conformance"
 byte-identical with the copy in `B3MatchingPlatform`. Do not hand-edit;
 regenerate the bindings when upgrading and mirror the change there.
 
-## Roadmap
+## Status
 
-API-surface-first: stubs públicos lançam `NotImplementedException` para destravar
-integração com `B3MatchingPlatform` antes da fiação SBE/FIXP completa.
+The wire-puro client is **feature-complete for the schemas currently shipped**
+(SBE FIXP 8.4.2 order-entry + drop-copy). All session, order-flow and inbound
+decoder paths are implemented and exercised by the in-process conformance
+suite.
 
-| Área | Issue |
+| Área | Estado |
 | --- | --- |
-| Reliability §4.6 — Sequence / Heartbeat | [#3](https://github.com/pedrosakuma/B3EntryPointClient/issues/3) |
-| Reliability §4.7 — Retransmit / NotApplied | [#5](https://github.com/pedrosakuma/B3EntryPointClient/issues/5) |
-| Reliability §4.8 — Terminate / Reconnect / CancelOnDisconnect | [#6](https://github.com/pedrosakuma/B3EntryPointClient/issues/6) |
-| Order Entry — `ISubmitOrder` (NewOrderSingle / SimpleNewOrder) | [#4](https://github.com/pedrosakuma/B3EntryPointClient/issues/4) |
-| Order Entry — `IReplaceOrder` (OrderCancelReplace / SimpleModify) | [#7](https://github.com/pedrosakuma/B3EntryPointClient/issues/7) |
-| Order Entry — `ICancelOrder` + `OrderMassAction` | [#8](https://github.com/pedrosakuma/B3EntryPointClient/issues/8) |
-| ExecutionReport family + BusinessMessageReject (Events stream) | [#9](https://github.com/pedrosakuma/B3EntryPointClient/issues/9) |
-| Drop Copy session profile | [#10](https://github.com/pedrosakuma/B3EntryPointClient/issues/10) |
-| Conformance §4.5..§4.8 + Order Entry + Drop Copy | [#11](https://github.com/pedrosakuma/B3EntryPointClient/issues/11) |
+| Reliability §4.6 — Sequence / Heartbeat | ✅ wired |
+| Reliability §4.7 — Retransmit / NotApplied | ✅ wired |
+| Reliability §4.8 — Terminate / Reconnect / CancelOnDisconnect | ✅ wired |
+| Order Entry — `ISubmitOrder` (NewOrderSingle / SimpleNewOrder) | ✅ wired |
+| Order Entry — `IReplaceOrder` (OrderCancelReplace / SimpleModify) | ✅ wired |
+| Order Entry — `ICancelOrder` + `OrderMassAction` | ✅ wired |
+| ExecutionReport family + BusinessMessageReject (Events stream) | ✅ wired |
+| Cross / Quote (`ISubmitCross`, `IQuoteFlow`) | ✅ wired |
+| Drop Copy session profile (`DropCopyClient` + `IDropCopyClient`) | ✅ wired |
+| AllocationReport / PositionMaintenanceReport inbound decoders | ✅ wired |
+| Conformance §4.5..§4.8 + Order Entry + Drop Copy | ✅ in-process suite |
+| DI helpers (`AddEntryPointClient`, `AddDropCopyClient`) | ✅ shipped |
+| `IEntryPointClient` / `IDropCopyClient` interfaces for mocking | ✅ shipped |
+| PublicApiAnalyzers gating breaking changes | ✅ shipped |
+| SourceLink + `.snupkg` published to nuget.org | ✅ shipped |
 
-Position / Allocation / SecurityDefinition messages estão fora de escopo
-nesta fase (não constam do schema atual). Cross / Quote possuem **interface
-estável** (`ISubmitCross`, `IQuoteFlow`) — wire-up SBE rastreado pela issue
-[#51](https://github.com/pedrosakuma/B3EntryPointClient/issues/51).
+`SecurityDefinitionRequest` and outbound `AllocationInstruction` /
+`PositionMaintenanceRequest` are intentionally **out of scope** until they
+appear in the schema bundle.
 
 ## Benchmarks
 

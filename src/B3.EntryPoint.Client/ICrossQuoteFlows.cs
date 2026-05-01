@@ -3,9 +3,8 @@ using B3.EntryPoint.Client.Models;
 namespace B3.EntryPoint.Client;
 
 /// <summary>
-/// Submits a <c>NewOrderCross</c> message (schema §9). Wire-up is tracked by
-/// issue #51; the current implementation throws <see cref="NotImplementedException"/>
-/// so consumers can integrate against the typed contract today.
+/// Submits a <c>NewOrderCross</c> message (schema §9). Implemented by
+/// <see cref="EntryPointClient.SubmitCrossAsync"/>.
 /// </summary>
 public interface ISubmitCross
 {
@@ -14,9 +13,8 @@ public interface ISubmitCross
 }
 
 /// <summary>
-/// Quote-side messaging (QuoteRequest, Quote, QuoteCancel). Wire-up tracked
-/// by issue #51 — interfaces are exposed today so dependent services can
-/// integrate against them while wiring lands incrementally.
+/// Quote-side messaging (QuoteRequest, Quote, QuoteCancel). Implemented by
+/// <see cref="EntryPointClient"/>.
 /// </summary>
 public interface IQuoteFlow
 {
