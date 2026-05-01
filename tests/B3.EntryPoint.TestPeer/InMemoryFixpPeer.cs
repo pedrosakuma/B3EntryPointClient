@@ -55,6 +55,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
     private sealed class ConnectionState
     {
         public uint OutSeq = 1;
+        public CancellationTokenSource? KeepAliveCts;
     }
 
     private static async Task HandleConnectionAsync(TcpClient tcp, CancellationToken ct)
@@ -82,9 +83,10 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
                             await SendNegotiateResponseAsync(stream, frame, ct).ConfigureAwait(false);
                             break;
                         case EstablishData.MESSAGE_ID:
-                            await SendEstablishAckAsync(stream, frame, ct).ConfigureAwait(false);
+                            await SendEstablishAckAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case TerminateData.MESSAGE_ID:
+                            state.KeepAliveCts?.Cancel();
                             await SendTerminateEchoAsync(stream, frame, ct).ConfigureAwait(false);
                             return;
                         case NewOrderSingleData.MESSAGE_ID:
@@ -109,6 +111,11 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         catch (OperationCanceledException) { }
         catch (IOException) { }
         catch (ObjectDisposedException) { }
+        finally
+        {
+            try { state.KeepAliveCts?.Cancel(); } catch { }
+            state.KeepAliveCts?.Dispose();
+        }
     }
 
     private static async Task SendNegotiateResponseAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
@@ -136,7 +143,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    private static async Task SendEstablishAckAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private static async Task SendEstablishAckAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         if (!EstablishData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -156,11 +163,43 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             NextSeqNo = new SeqNum(1u),
             LastIncomingSeqNo = new SeqNum(req.NextSeqNo.Value > 0u ? req.NextSeqNo.Value - 1u : 0u),
         };
+        var keepAliveMs = req.KeepAliveInterval.Time;
         if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
         await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);
+
+        // Spec §4.6: peer-side keep-alive. Emit Sequence frames at the
+        // negotiated interval so the client can observe inbound heartbeats.
+        if (keepAliveMs > 0 && state.KeepAliveCts is null)
+        {
+            state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
+        }
+    }
+
+    private static async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(interval, ct).ConfigureAwait(false);
+                var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + SequenceData.MESSAGE_SIZE;
+                var buffer = new byte[totalSize];
+                SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+                SequenceData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+                var seq = new SequenceData { NextSeqNo = new SeqNum(state.OutSeq) };
+                if (!seq.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+                    return;
+                await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+                await stream.FlushAsync(ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
     private static async Task SendTerminateEchoAsync(Stream stream, byte[] requestFrame, CancellationToken ct)

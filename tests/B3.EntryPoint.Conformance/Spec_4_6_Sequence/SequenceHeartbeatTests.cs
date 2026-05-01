@@ -28,11 +28,14 @@ public class SequenceHeartbeatTests
 
         await client.ConnectAsync();
         var sentCount = 0;
+        var receivedCount = 0;
         if (client.KeepAlive is not null)
         {
             client.KeepAlive.SequenceFrameSent += (_, _) => Interlocked.Increment(ref sentCount);
+            client.KeepAlive.SequenceFrameReceived += (_, _) => Interlocked.Increment(ref receivedCount);
         }
         await Task.Delay(TimeSpan.FromSeconds(3));
         Assert.True(sentCount >= 1, $"Expected at least one Sequence frame sent, got {sentCount}");
+        Assert.True(receivedCount >= 1, $"Expected at least one Sequence frame received, got {receivedCount}");
     }
 }
