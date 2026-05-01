@@ -91,6 +91,26 @@ dotnet test tests/B3.EntryPoint.Conformance --filter "Category=Conformance"
 byte-identical with the copy in `B3MatchingPlatform`. Do not hand-edit;
 regenerate the bindings when upgrading and mirror the change there.
 
+## Roadmap
+
+API-surface-first: stubs públicos lançam `NotImplementedException` para destravar
+integração com `B3MatchingPlatform` antes da fiação SBE/FIXP completa.
+
+| Área | Issue |
+| --- | --- |
+| Reliability §4.6 — Sequence / Heartbeat | [#3](https://github.com/pedrosakuma/B3EntryPointClient/issues/3) |
+| Reliability §4.7 — Retransmit / NotApplied | [#5](https://github.com/pedrosakuma/B3EntryPointClient/issues/5) |
+| Reliability §4.8 — Terminate / Reconnect / CancelOnDisconnect | [#6](https://github.com/pedrosakuma/B3EntryPointClient/issues/6) |
+| Order Entry — `ISubmitOrder` (NewOrderSingle / SimpleNewOrder) | [#4](https://github.com/pedrosakuma/B3EntryPointClient/issues/4) |
+| Order Entry — `IReplaceOrder` (OrderCancelReplace / SimpleModify) | [#7](https://github.com/pedrosakuma/B3EntryPointClient/issues/7) |
+| Order Entry — `ICancelOrder` + `OrderMassAction` | [#8](https://github.com/pedrosakuma/B3EntryPointClient/issues/8) |
+| ExecutionReport family + BusinessMessageReject (Events stream) | [#9](https://github.com/pedrosakuma/B3EntryPointClient/issues/9) |
+| Drop Copy session profile | [#10](https://github.com/pedrosakuma/B3EntryPointClient/issues/10) |
+| Conformance §4.5..§4.8 + Order Entry + Drop Copy | [#11](https://github.com/pedrosakuma/B3EntryPointClient/issues/11) |
+
+Cross / Quote / Position / Allocation / SecurityDefinition messages estão fora
+de escopo nesta fase.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
