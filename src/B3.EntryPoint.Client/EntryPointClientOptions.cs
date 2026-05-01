@@ -36,6 +36,13 @@ public sealed class EntryPointClientOptions
     public CancelOnDisconnectType CancelOnDisconnect { get; init; } =
         CancelOnDisconnectType.CancelOnDisconnectOrTerminate;
 
+    /// <summary>
+    /// Profile of the FIXP session. <see cref="SessionProfile.OrderEntry"/> is
+    /// the default and allows order submission. <see cref="SessionProfile.DropCopy"/>
+    /// is read-only and used by <see cref="DropCopy.DropCopyClient"/>.
+    /// </summary>
+    public SessionProfile Profile { get; init; } = SessionProfile.OrderEntry;
+
     /// <summary>Optional client metadata sent in <c>Negotiate.ClientAppName</c>.</summary>
     public string ClientAppName { get; init; } = "B3.EntryPoint.Client";
 
