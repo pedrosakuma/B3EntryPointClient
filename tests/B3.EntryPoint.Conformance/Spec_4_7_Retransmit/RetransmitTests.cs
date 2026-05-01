@@ -1,5 +1,6 @@
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
+using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Conformance.Infrastructure;
 
 namespace B3.EntryPoint.Conformance.Spec_4_7_Retransmit;
@@ -27,7 +28,16 @@ public class RetransmitTests
 
         await client.ConnectAsync();
         Assert.NotNull(client.Retransmit);
-        // The in-memory peer doesn't model RetransmitRequest; just verify the
-        // client-side handler is wired and exposes the contract.
+
+        var received = new TaskCompletionSource<RetransmissionEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Retransmit!.RetransmissionReceived += (_, args) => received.TrySetResult(args);
+
+        await client.Retransmit.RequestRetransmitAsync(fromSeqNo: 1UL, count: 5U);
+
+        var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        Assert.Same(received.Task, completed);
+        var evt = await received.Task;
+        Assert.Equal(1UL, evt.NextSeqNo);
+        Assert.Equal(0u, evt.Count);
     }
 }

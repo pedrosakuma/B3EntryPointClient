@@ -171,21 +171,21 @@ internal sealed class FixpClientSession : IAsyncDisposable
                             OnInboundSequence?.Invoke(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload));
                             break;
                         case RetransmissionData.MESSAGE_ID:
-                            // SessionID(8) + RequestTimestamp(8) + NextSeqNo(4) + Count(4) = 24 bytes
+                            // SessionID(4) + RequestTimestamp(8) + NextSeqNo(4) + Count(4) = 20 bytes
                             if (payload.Length >= RetransmissionData.MESSAGE_SIZE)
                             {
-                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(8, 8));
-                                var nextSeq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(16, 4));
-                                var cnt = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(20, 4));
+                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(4, 8));
+                                var nextSeq = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(12, 4));
+                                var cnt = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(16, 4));
                                 OnInboundRetransmission?.Invoke(nextSeq, cnt, reqTs);
                             }
                             break;
                         case RetransmitRejectData.MESSAGE_ID:
-                            // SessionID(8) + RequestTimestamp(8) + Code(1)
+                            // SessionID(4) + RequestTimestamp(8) + Code(1)
                             if (payload.Length >= RetransmitRejectData.MESSAGE_SIZE)
                             {
-                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(8, 8));
-                                var code = (uint)payload[16];
+                                var reqTs = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(payload.Slice(4, 8));
+                                var code = (uint)payload[12];
                                 OnInboundRetransmitReject?.Invoke(code, reqTs);
                             }
                             break;
