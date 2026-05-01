@@ -247,4 +247,48 @@ public class InboundDecoderTests
         Assert.Equal(B3.EntryPoint.Client.Models.Side.Buy, alloc.Side);
         Assert.Equal((ushort?)9876, alloc.TradeDate);
     }
+
+    [Fact]
+    public void TryDecode_PositionMaintenanceReport_ReturnsPositionMaintenanceReceived()
+    {
+        var msg = new PositionMaintenanceReportData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = 1,
+                MsgSeqNum = new SeqNum(555),
+            },
+            SecurityID = new SecurityID(4242UL),
+            PosMaintRptID = new PosMaintRptID(123456UL),
+            PosTransType = B3.Entrypoint.Fixp.Sbe.V6.PosTransType.EXERCISE,
+            PosMaintAction = B3.Entrypoint.Fixp.Sbe.V6.PosMaintAction.NEW,
+            PosMaintStatus = B3.Entrypoint.Fixp.Sbe.V6.PosMaintStatus.ACCEPTED,
+            ClearingBusinessDate = new LocalMktDate((ushort)9876),
+            TransactTime = new UTCTimestampNanos { Time = 1_700_000_000_000_000_000UL },
+        };
+        msg.SetPosReqID(7777UL);
+        msg.SetTradeID(42u);
+        msg.SetAccountType(B3.Entrypoint.Fixp.Sbe.V6.AccountType.REGULAR_ACCOUNT);
+        msg.SetAccount(99u);
+        msg.SetPosMaintResult(0u); // 0 is the null value, so should map to null.
+
+        var frame = BuildFrame(PositionMaintenanceReportData.MESSAGE_ID, PositionMaintenanceReportData.MESSAGE_SIZE, span =>
+        {
+            if (!msg.TryEncode(span, out _))
+                throw new InvalidOperationException("encode failed");
+        });
+
+        Assert.True(InboundDecoder.TryDecode(frame, out var evt));
+        var pmr = Assert.IsType<PositionMaintenanceReceived>(evt);
+        Assert.Equal(555UL, pmr.SeqNum);
+        Assert.Equal(123456UL, pmr.PosMaintRptId);
+        Assert.Equal(4242UL, pmr.SecurityId);
+        Assert.Equal(B3.EntryPoint.Client.Models.PosTransType.Exercise, pmr.TransType);
+        Assert.Equal(B3.EntryPoint.Client.Models.PosMaintAction.New, pmr.Action);
+        Assert.Equal(B3.EntryPoint.Client.Models.PosMaintStatus.Accepted, pmr.Status);
+        Assert.Equal(7777UL, pmr.PosReqId);
+        Assert.Equal(42u, pmr.TradeId);
+        Assert.Equal(B3.EntryPoint.Client.Models.AccountType.RegularAccount, pmr.AccountType);
+        Assert.Equal(99u, pmr.Account);
+    }
 }

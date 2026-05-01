@@ -22,8 +22,10 @@ using SbeQuoteRequestReject = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestRejectData;
 using SbeQuoteStatusReport = B3.Entrypoint.Fixp.Sbe.V6.QuoteStatusReportData;
 using SbeMassActionReport = B3.Entrypoint.Fixp.Sbe.V6.OrderMassActionReportData;
 using SbeAllocationReport = B3.Entrypoint.Fixp.Sbe.V6.AllocationReportData;
+using SbePositionMaintenanceReport = B3.Entrypoint.Fixp.Sbe.V6.PositionMaintenanceReportData;
 using ClientMassActionExecuted = B3.EntryPoint.Client.Models.MassActionExecuted;
 using ClientAllocationReceived = B3.EntryPoint.Client.Models.AllocationReceived;
+using ClientPositionMaintenanceReceived = B3.EntryPoint.Client.Models.PositionMaintenanceReceived;
 using ClientClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -89,6 +91,9 @@ internal static class InboundDecoder
                 return true;
             case SbeAllocationReport.MESSAGE_ID:
                 evt = DecodeAllocationReport(payload);
+                return true;
+            case SbePositionMaintenanceReport.MESSAGE_ID:
+                evt = DecodePositionMaintenanceReport(payload);
                 return true;
             default:
                 return false;
@@ -281,6 +286,29 @@ internal static class InboundDecoder
             NoOrdersType = (Models.AllocNoOrdersType)(byte)msg.AllocNoOrdersType,
             RejCode = msg.AllocRejCode,
             TradeDate = msg.TradeDate,
+            TransactTime = ToDateTime(msg.TransactTime.Time),
+        };
+    }
+
+    private static ClientPositionMaintenanceReceived DecodePositionMaintenanceReport(ReadOnlySpan<byte> payload)
+    {
+        ref readonly var msg = ref MemoryMarshal.AsRef<SbePositionMaintenanceReport>(payload);
+        return new ClientPositionMaintenanceReceived
+        {
+            SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
+            SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
+            PosMaintRptId = msg.PosMaintRptID.Value,
+            SecurityId = msg.SecurityID.Value,
+            TransType = (Models.PosTransType)(byte)msg.PosTransType,
+            Action = (Models.PosMaintAction)(byte)msg.PosMaintAction,
+            Status = (Models.PosMaintStatus)(byte)msg.PosMaintStatus,
+            PosReqId = msg.PosReqID,
+            TradeId = msg.TradeID,
+            OrigPosReqRefId = msg.OrigPosReqRefID,
+            AccountType = msg.AccountType.HasValue ? (Models.AccountType)(byte)msg.AccountType.Value : null,
+            Account = msg.Account,
+            ClearingBusinessDate = msg.ClearingBusinessDate.Value,
+            PosMaintResult = msg.PosMaintResult,
             TransactTime = ToDateTime(msg.TransactTime.Time),
         };
     }

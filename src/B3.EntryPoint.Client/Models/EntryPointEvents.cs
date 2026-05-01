@@ -198,6 +198,30 @@ public enum AllocStatus : byte
     RejectedByIntermediary = (byte)'5',
 }
 
+/// <summary>Position transaction type (schema enum <c>PosTransType</c>).</summary>
+public enum PosTransType : byte
+{
+    Exercise = 1,
+    AutomaticExercise = 105,
+    ExerciseNotAutomatic = 106,
+}
+
+/// <summary>Position maintenance action (schema enum <c>PosMaintAction</c>).</summary>
+public enum PosMaintAction : byte
+{
+    New = (byte)'1',
+    Cancel = (byte)'3',
+}
+
+/// <summary>Position maintenance status (schema enum <c>PosMaintStatus</c>).</summary>
+public enum PosMaintStatus : byte
+{
+    Accepted = (byte)'0',
+    Rejected = (byte)'2',
+    Completed = (byte)'3',
+    NotExecuted = (byte)'9',
+}
+
 /// <summary>Maps to <c>AllocationReport</c> (template 602). Post-trade
 /// allocation lifecycle event; surfaces on both Order Entry and Drop Copy
 /// sessions when an allocation is booked, accepted or rejected.</summary>
@@ -214,5 +238,25 @@ public sealed record AllocationReceived : EntryPointEvent
     public AllocNoOrdersType? NoOrdersType { get; init; }
     public uint? RejCode { get; init; }
     public ushort? TradeDate { get; init; }
+    public DateTimeOffset? TransactTime { get; init; }
+}
+
+/// <summary>Maps to <c>PositionMaintenanceReport</c> (template 503). Confirmation
+/// or rejection of a previously sent PositionMaintenanceRequest (or its cancel
+/// variant). Surfaces on Drop Copy sessions for any PMR affecting the firm.</summary>
+public sealed record PositionMaintenanceReceived : EntryPointEvent
+{
+    public required ulong PosMaintRptId { get; init; }
+    public required ulong SecurityId { get; init; }
+    public required PosTransType TransType { get; init; }
+    public required PosMaintAction Action { get; init; }
+    public required PosMaintStatus Status { get; init; }
+    public ulong? PosReqId { get; init; }
+    public uint? TradeId { get; init; }
+    public ulong? OrigPosReqRefId { get; init; }
+    public AccountType? AccountType { get; init; }
+    public uint? Account { get; init; }
+    public ushort? ClearingBusinessDate { get; init; }
+    public uint? PosMaintResult { get; init; }
     public DateTimeOffset? TransactTime { get; init; }
 }
