@@ -14,7 +14,7 @@ namespace B3.EntryPoint.Client;
 /// public API surface; their wire-level implementations land incrementally
 /// (see <c>docs/CONFORMANCE.md</c> and the issues tagged <c>area/api-surface</c>).
 /// </summary>
-public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder
+public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder, ICancelOrder
 {
     private readonly EntryPointClientOptions _options;
     private TcpClient? _tcp;
@@ -96,6 +96,24 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         EnsureEstablished();
         throw new NotImplementedException(
             "ReplaceSimpleAsync is not yet wired to the FIXP transport. Tracked by issue #7.");
+    }
+
+    /// <inheritdoc />
+    public Task CancelAsync(CancelOrderRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "CancelAsync is not yet wired to the FIXP transport. Tracked by issue #8.");
+    }
+
+    /// <inheritdoc />
+    public Task<MassActionReport> MassActionAsync(MassActionRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureEstablished();
+        throw new NotImplementedException(
+            "MassActionAsync is not yet wired to the FIXP transport. Tracked by issue #8.");
     }
 
     /// <summary>
