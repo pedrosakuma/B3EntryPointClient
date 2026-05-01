@@ -4,6 +4,7 @@ using System.Text;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Framing;
+using SbeTerminationCode = B3.Entrypoint.Fixp.Sbe.V6.TerminationCode;
 
 namespace B3.EntryPoint.Client.Fixp;
 
@@ -98,7 +99,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         }
     }
 
-    public async Task TerminateAsync(TerminationCode code, CancellationToken ct)
+    public async Task TerminateAsync(SbeTerminationCode code, CancellationToken ct)
     {
         if (_machine.State == FixpClientState.Disconnected || _machine.State == FixpClientState.Terminated)
             return;
@@ -116,7 +117,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        try { await TerminateAsync(TerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }
+        try { await TerminateAsync(SbeTerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }
         catch { /* best-effort */ }
         await _stream.DisposeAsync().ConfigureAwait(false);
     }
@@ -183,7 +184,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         await _stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task SendTerminateAsync(TerminationCode code, CancellationToken ct)
+    private async Task SendTerminateAsync(SbeTerminationCode code, CancellationToken ct)
     {
         var totalSize = SofhSize + SbeHeaderSize + TerminateData.MESSAGE_SIZE;
         var buffer = new byte[totalSize];

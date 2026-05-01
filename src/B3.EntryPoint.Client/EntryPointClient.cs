@@ -28,6 +28,14 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder
 
     public FixpClientState State => _session?.State ?? FixpClientState.Disconnected;
 
+    /// <summary>
+    /// Raised after a <c>Terminate</c> is sent or received. The session is no
+    /// longer usable when this fires; a new <see cref="ConnectAsync"/> (with
+    /// a bumped <see cref="EntryPointClientOptions.SessionVerId"/>) is
+    /// required to resume.
+    /// </summary>
+    public event EventHandler<TerminatedEventArgs>? Terminated;
+
     public async Task ConnectAsync(CancellationToken ct = default)
     {
         if (_session is not null)
@@ -73,6 +81,34 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder
     }
 
     /// <summary>
+    /// Send a graceful <c>Terminate</c> to the peer and tear down the session.
+    /// API surface only — the wire-level encode lands in a follow-up PR (issue #6).
+    /// </summary>
+    public Task TerminateAsync(TerminationCode code, CancellationToken ct = default)
+    {
+        if (_session is null)
+            throw new InvalidOperationException("Client is not connected.");
+        throw new NotImplementedException(
+            "TerminateAsync(code) is not yet wired to the FIXP transport. Tracked by issue #6.");
+    }
+
+    /// <summary>
+    /// Reconnect against the same logical session bumping
+    /// <see cref="EntryPointClientOptions.SessionVerId"/>. The next
+    /// <c>SessionVerID</c> must be strictly greater than the previous one;
+    /// otherwise the gateway terminates with
+    /// <see cref="TerminationCode.InvalidSessionVerId"/>.
+    /// </summary>
+    public Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default)
+    {
+        if (nextSessionVerId <= _options.SessionVerId)
+            throw new ArgumentOutOfRangeException(nameof(nextSessionVerId),
+                "Next SessionVerID must be strictly greater than the current one.");
+        throw new NotImplementedException(
+            "ReconnectAsync is not yet implemented. Tracked by issue #6.");
+    }
+
+    /// <summary>
     /// Async stream of unsolicited events (ER/Reject/BusinessReject). The
     /// typed event family lands with issue #9; today the stream completes
     /// immediately.
@@ -92,6 +128,14 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder
         _session = null;
         _tcp = null;
     }
+
+    /// <summary>
+    /// Test/internal hook — surface a <see cref="Terminated"/> notification
+    /// through the public event. Replaced by the real wire-level handler in
+    /// the follow-up implementation PR.
+    /// </summary>
+    internal void RaiseTerminated(TerminationCode code, string? reason, bool initiatedByClient) =>
+        Terminated?.Invoke(this, new TerminatedEventArgs(code, reason, initiatedByClient));
 
     private void EnsureEstablished()
     {
