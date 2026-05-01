@@ -1,5 +1,5 @@
 using System.Net;
-using B3.EntryPoint.TestPeer;
+using B3.EntryPoint.Client.TestPeer;
 
 namespace B3.EntryPoint.Conformance.Infrastructure;
 
@@ -17,7 +17,7 @@ namespace B3.EntryPoint.Conformance.Infrastructure;
 /// </para>
 /// <para>
 /// Set <c>ENTRYPOINT_TESTPEER=1</c> to spin up an in-process
-/// <see cref="InMemoryFixpPeer"/> instead. This makes the conformance suite
+/// <see cref="InProcessFixpTestPeer"/> instead. This makes the conformance suite
 /// runnable in CI without an external endpoint.
 /// </para>
 /// </remarks>
@@ -30,10 +30,10 @@ public sealed record PeerEndpoint(IPEndPoint Endpoint, uint SessionId, uint Sess
     public const string EnvAccessKey = "B3EP_ACCESS_KEY";
     public const string EnvUseTestPeer = "ENTRYPOINT_TESTPEER";
 
-    private static readonly Lazy<InMemoryFixpPeer?> SharedTestPeer = new(() =>
+    private static readonly Lazy<InProcessFixpTestPeer?> SharedTestPeer = new(() =>
     {
         if (!IsTestPeerEnabled()) return null;
-        var peer = new InMemoryFixpPeer();
+        var peer = new InProcessFixpTestPeer();
         peer.Start();
         AppDomain.CurrentDomain.ProcessExit += async (_, _) => await peer.DisposeAsync();
         return peer;

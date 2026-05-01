@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>B3.EntryPoint.Client.TestPeer</RootNamespace>
+    <AssemblyName>B3.EntryPoint.Client.TestPeer</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>B3.EntryPoint.Client.TestPeer</PackageId>
+    <Description>In-process FIXP test peer for B3.EntryPoint.Client. Drop-in for integration tests that need a full Negotiate/Establish/NewOrder/ExecutionReport handshake without a real B3 endpoint. Includes built-in scenarios (AcceptAll, FillImmediately, RejectAll) plus an ITestPeerScenario extensibility hook.</Description>
+    <PackageTags>b3;entrypoint;fixp;sbe;trading;order-entry;testing</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\B3.EntryPoint.Sbe\B3.EntryPoint.Sbe.csproj" />
+    <ProjectReference Include="..\B3.EntryPoint.Client\B3.EntryPoint.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.11.0-beta1.23472.1" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

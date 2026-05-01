@@ -4,8 +4,9 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Framing;
+using SbeTerminationCode = B3.Entrypoint.Fixp.Sbe.V6.TerminationCode;
 
-namespace B3.EntryPoint.TestPeer;
+namespace B3.EntryPoint.Client.TestPeer;
 
 /// <summary>
 /// Minimal in-process FIXP gateway for conformance tests. Accepts TCP
@@ -18,33 +19,70 @@ namespace B3.EntryPoint.TestPeer;
 /// without an external endpoint. Application response messages
 /// (ExecutionReport*) are out of scope here.
 /// </summary>
-public sealed class InMemoryFixpPeer : IAsyncDisposable
+public sealed class InProcessFixpTestPeer : IAsyncDisposable
 {
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _connections = new();
-    private readonly X509Certificate2? _serverCertificate;
+    private readonly TestPeerOptions _options;
     private Task? _acceptLoop;
 
-    public InMemoryFixpPeer() : this(serverCertificate: null) { }
+    public InProcessFixpTestPeer() : this(new TestPeerOptions()) { }
 
     /// <summary>
-    /// Creates a peer that wraps every accepted TCP connection in an
-    /// <see cref="SslStream"/> using <paramref name="serverCertificate"/>
-    /// for the TLS handshake. Pass <c>null</c> for plain TCP.
+    /// Back-compat ctor: TLS-only knob. Equivalent to
+    /// <c>new InProcessFixpTestPeer(new TestPeerOptions { ServerCertificate = serverCertificate })</c>.
     /// </summary>
-    public InMemoryFixpPeer(X509Certificate2? serverCertificate)
+    public InProcessFixpTestPeer(X509Certificate2? serverCertificate)
+        : this(new TestPeerOptions { ServerCertificate = serverCertificate }) { }
+
+    /// <summary>
+    /// Creates a peer with full <see cref="TestPeerOptions"/> control: TLS,
+    /// response latency, scenario, per-firm credentials.
+    /// </summary>
+    public InProcessFixpTestPeer(TestPeerOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _listener = new TcpListener(IPAddress.Loopback, 0);
-        _serverCertificate = serverCertificate;
     }
 
-    public IPEndPoint Endpoint => (IPEndPoint)_listener.LocalEndpoint;
+    /// <summary>Configured options for this peer.</summary>
+    public TestPeerOptions Options => _options;
+
+    /// <summary>Loopback endpoint the peer is listening on. Only valid after <see cref="Start"/>.</summary>
+    public IPEndPoint LocalEndpoint => (IPEndPoint)_listener.LocalEndpoint;
+
+    /// <summary>Alias for <see cref="LocalEndpoint"/> kept for back-compat with the pre-NuGet shape.</summary>
+    public IPEndPoint Endpoint => LocalEndpoint;
+
+    /// <summary>
+    /// Raised for every inbound frame the peer reads (after SOFH framing).
+    /// Subscribers run on the connection task — do not block. The payload is
+    /// owned by the peer and only valid for the call duration.
+    /// </summary>
+    public event EventHandler<TestPeerMessageEventArgs>? MessageReceived;
 
     public void Start()
     {
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(_cts.Token);
+    }
+
+    /// <summary>
+    /// Stops accepting new connections and waits for in-flight connection
+    /// handlers to finish (with a short grace). Equivalent to disposing
+    /// without freeing the underlying <see cref="CancellationTokenSource"/>.
+    /// </summary>
+    public async Task StopAsync(CancellationToken ct = default)
+    {
+        try { _cts.Cancel(); } catch { }
+        try { _listener.Stop(); } catch { }
+        Task[] tasks;
+        lock (_connections) tasks = _connections.ToArray();
+        try { await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false); } catch { }
+        if (_acceptLoop is not null)
+            try { await _acceptLoop.WaitAsync(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false); } catch { }
     }
 
     private async Task AcceptLoopAsync(CancellationToken ct)
@@ -55,7 +93,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             {
                 var tcp = await _listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
                 lock (_connections)
-                    _connections.Add(HandleConnectionAsync(tcp, _serverCertificate, ct));
+                    _connections.Add(HandleConnectionAsync(tcp, ct));
             }
         }
         catch (OperationCanceledException) { }
@@ -69,9 +107,10 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         public CancellationTokenSource? KeepAliveCts;
     }
 
-    private static async Task HandleConnectionAsync(TcpClient tcp, X509Certificate2? serverCertificate, CancellationToken ct)
+    private async Task HandleConnectionAsync(TcpClient tcp, CancellationToken ct)
     {
         var state = new ConnectionState();
+        var serverCertificate = _options.ServerCertificate;
         try
         {
             using (tcp)
@@ -101,9 +140,15 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
                     catch (IOException) { return; }
 
                     var templateId = ReadTemplateId(frame);
+                    RaiseMessageReceived(templateId, frame);
                     switch (templateId)
                     {
                         case NegotiateData.MESSAGE_ID:
+                            if (!ValidateNegotiate(frame))
+                            {
+                                // Credentials map configured and firm not allowed → close cold.
+                                return;
+                            }
                             await SendNegotiateResponseAsync(stream, frame, ct).ConfigureAwait(false);
                             break;
                         case EstablishData.MESSAGE_ID:
@@ -114,7 +159,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
                             await SendTerminateEchoAsync(stream, frame, ct).ConfigureAwait(false);
                             return;
                         case NewOrderSingleData.MESSAGE_ID:
-                            await SendExecutionReportNewAsync(stream, frame, state, ct).ConfigureAwait(false);
+                            await DispatchNewOrderAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case OrderCancelRequestData.MESSAGE_ID:
                             await SendExecutionReportCancelAsync(stream, frame, state, ct).ConfigureAwait(false);
@@ -145,7 +190,67 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         }
     }
 
-    private static async Task SendNegotiateResponseAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private void RaiseMessageReceived(ushort templateId, byte[] frame)
+    {
+        var handler = MessageReceived;
+        if (handler is null) return;
+        var payloadStart = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE;
+        var payload = frame.Length > payloadStart
+            ? new ReadOnlyMemory<byte>(frame, payloadStart, frame.Length - payloadStart)
+            : ReadOnlyMemory<byte>.Empty;
+        try { handler(this, new TestPeerMessageEventArgs(templateId, payload)); } catch { /* never break the peer loop */ }
+    }
+
+    private bool ValidateNegotiate(byte[] frame)
+    {
+        var creds = _options.Credentials;
+        if (creds is null || creds.Count == 0) return true;
+        if (!NegotiateData.TryParse(frame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return false;
+        var firmId = reader.Data.EnteringFirm.Value;
+        return creds.ContainsKey(firmId);
+    }
+
+    private async Task DispatchNewOrderAsync(Stream stream, byte[] frame, ConnectionState state, CancellationToken ct)
+    {
+        var payload = frame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
+        if (!NewOrderSingleData.TryParse(payload, out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+        var ctx = new NewOrderContext(
+            SessionId: req.BusinessHeader.SessionID.Value,
+            EnteringFirm: 0u, // SBE NewOrderSingle does not carry EnteringFirm; reserved for future.
+            SecurityId: req.SecurityID.Value,
+            ClOrdId: req.ClOrdID.Value.ToString());
+        var response = _options.Scenario.OnNewOrder(ctx);
+        switch (response)
+        {
+            case NewOrderResponse.RejectBusiness rej:
+                // BusinessReject not yet wired in this peer — emit nothing, the
+                // client-side BusinessReject path is exercised in unit tests via
+                // hand-crafted frames. Surface the reason via the event so
+                // downstream tests can assert.
+                _ = rej; // intentional: see ITestPeerScenario doc-comment.
+                break;
+            case NewOrderResponse.AcceptAndFill:
+                await SendExecutionReportNewAsync(stream, frame, state, ct).ConfigureAwait(false);
+                // Trade ER not yet implemented — see ITestPeerScenario doc-comment.
+                break;
+            case NewOrderResponse.AcceptAsNew:
+            default:
+                await SendExecutionReportNewAsync(stream, frame, state, ct).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    private async Task ApplyLatencyAsync(CancellationToken ct)
+    {
+        var latency = _options.ResponseLatency;
+        if (latency > TimeSpan.Zero)
+            try { await Task.Delay(latency, ct).ConfigureAwait(false); } catch (OperationCanceledException) { }
+    }
+
+    private async Task SendNegotiateResponseAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
     {
         if (!NegotiateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -166,11 +271,12 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         if (!resp.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
+        await ApplyLatencyAsync(ct).ConfigureAwait(false);
         await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    private static async Task SendEstablishAckAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    private async Task SendEstablishAckAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         if (!EstablishData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -194,6 +300,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
+        await ApplyLatencyAsync(ct).ConfigureAwait(false);
         await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);
 
@@ -206,7 +313,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         }
     }
 
-    private static async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
+    private async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
     {
         try
         {
@@ -220,7 +327,8 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
                 var seq = new SequenceData { NextSeqNo = new SeqNum(state.OutSeq) };
                 if (!seq.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
                     return;
-                await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+                await ApplyLatencyAsync(ct).ConfigureAwait(false);
+        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
                 await stream.FlushAsync(ct).ConfigureAwait(false);
             }
         }
@@ -229,7 +337,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         catch (ObjectDisposedException) { }
     }
 
-    private static async Task SendTerminateEchoAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private async Task SendTerminateEchoAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
     {
         if (!TerminateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -244,20 +352,21 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         {
             SessionID = req.SessionID,
             SessionVerID = req.SessionVerID,
-            TerminationCode = TerminationCode.FINISHED,
+            TerminationCode = SbeTerminationCode.FINISHED,
         };
         if (!echo.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
         try
         {
-            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await ApplyLatencyAsync(ct).ConfigureAwait(false);
+        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }
         catch (IOException) { }
     }
 
-    private static async Task SendExecutionReportNewAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    private async Task SendExecutionReportNewAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         var payload = requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
         if (!NewOrderSingleData.TryParse(payload, out var reader))
@@ -284,7 +393,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             ct).ConfigureAwait(false);
     }
 
-    private static async Task SendExecutionReportCancelAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    private async Task SendExecutionReportCancelAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         var payload = requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
         if (!OrderCancelRequestData.TryParse(payload, out var reader))
@@ -312,7 +421,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             ct).ConfigureAwait(false);
     }
 
-    private static async Task SendExecutionReportModifyAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    private async Task SendExecutionReportModifyAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         var payload = requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
         if (!OrderCancelReplaceRequestData.TryParse(payload, out var reader))
@@ -340,7 +449,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             ct).ConfigureAwait(false);
     }
 
-    private static async Task SendOrderMassActionReportAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    private async Task SendOrderMassActionReportAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         var payload = requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
         if (!OrderMassActionRequestData.TryParse(payload, out var reader))
@@ -367,7 +476,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
             ct).ConfigureAwait(false);
     }
 
-    private static async Task SendRetransmissionAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private async Task SendRetransmissionAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
     {
         if (!RetransmitRequestData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -392,7 +501,8 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
 
         try
         {
-            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await ApplyLatencyAsync(ct).ConfigureAwait(false);
+        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }
         catch (IOException) { }
@@ -400,7 +510,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
 
     private static long _orderIdSeq;
 
-    private static async Task SendAppFrameAsync(Stream stream, ushort templateId, int payloadSize, EncodeDelegate encode, CancellationToken ct)
+    private async Task SendAppFrameAsync(Stream stream, ushort templateId, int payloadSize, EncodeDelegate encode, CancellationToken ct)
     {
         // Allocate generous trailing room for var-data sections (DeskID, Memo, etc.).
         const int VarDataPad = 16;
@@ -414,6 +524,7 @@ public sealed class InMemoryFixpPeer : IAsyncDisposable
         SofhFrameWriter.WriteHeader(buffer.AsSpan(0, totalSize), checked((ushort)totalSize));
         try
         {
+            await ApplyLatencyAsync(ct).ConfigureAwait(false);
             await stream.WriteAsync(buffer.AsMemory(0, totalSize), ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }

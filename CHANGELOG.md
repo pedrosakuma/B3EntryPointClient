@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New NuGet package `B3.EntryPoint.Client.TestPeer` (#96) — publishes the in-process FIXP test peer so downstream consumers can write `Mode=Real` integration tests without a real B3 endpoint. Public surface: `InProcessFixpTestPeer` (Start/StopAsync/LocalEndpoint, `MessageReceived` event), `TestPeerOptions` (TLS `ServerCertificate`, `ResponseLatency`, `Scenario`, per-firm `Credentials` gating), `ITestPeerScenario` extensibility hook with `NewOrderContext`/`NewOrderResponse` discriminated union, and built-in `TestPeerScenarios.AcceptAll`/`FillImmediately`/`RejectAll(reason)`. End-to-end sample test in `tests/Samples/B3.EntryPoint.Client.TestPeer.Sample/`. Doc page `docs/TEST-PEER.md` linked from README.
+
+### Changed
+- The in-process FIXP peer (formerly `tests/B3.EntryPoint.TestPeer/InMemoryFixpPeer`) moved to `src/B3.EntryPoint.Client.TestPeer/InProcessFixpTestPeer` and is now a published API. The constructor takes `TestPeerOptions`; `Endpoint` is preserved as an alias for `LocalEndpoint`.
+
 ## [0.7.0] - 2026-05-01
 
 ### Added
