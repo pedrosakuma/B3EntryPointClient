@@ -26,6 +26,10 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         });
     private TcpClient? _tcp;
     private FixpClientSession? _session;
+    private KeepAliveScheduler? _keepAlive;
+
+    /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
+    public IKeepAliveScheduler? KeepAlive => _keepAlive;
 
     public EntryPointClient(EntryPointClientOptions options)
     {
@@ -68,6 +72,13 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         await _session.NegotiateAsync(ct).ConfigureAwait(false);
         await _session.EstablishAsync(ct).ConfigureAwait(false);
         _session.StartInboundLoop(_events.Writer);
+
+        _keepAlive = new KeepAliveScheduler(
+            _options.KeepAliveInterval,
+            sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
+            nextSeqNo: () => _session.NextOutboundSeqNum());
+        _session.OnInboundSequence = nextSeq => _keepAlive.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
+        _keepAlive.Start();
     }
 
     /// <inheritdoc />
@@ -198,6 +209,8 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
     public async ValueTask DisposeAsync()
     {
+        _keepAlive?.Dispose();
+        _keepAlive = null;
         if (_session is not null)
             await _session.DisposeAsync().ConfigureAwait(false);
         _tcp?.Dispose();
