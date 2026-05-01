@@ -328,7 +328,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                 if (!seq.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
                     return;
                 await ApplyLatencyAsync(ct).ConfigureAwait(false);
-        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+                await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
                 await stream.FlushAsync(ct).ConfigureAwait(false);
             }
         }
@@ -360,7 +360,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         try
         {
             await ApplyLatencyAsync(ct).ConfigureAwait(false);
-        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }
         catch (IOException) { }
@@ -502,7 +502,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         try
         {
             await ApplyLatencyAsync(ct).ConfigureAwait(false);
-        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }
         catch (IOException) { }
