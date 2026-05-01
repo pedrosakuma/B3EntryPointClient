@@ -27,6 +27,15 @@ public sealed class EntryPointClientOptions
     /// <summary>FIXP keep-alive interval requested by the client.</summary>
     public TimeSpan KeepAliveInterval => TimeSpan.FromMilliseconds(KeepAliveIntervalMs);
 
+    /// <summary>
+    /// Cancel-on-disconnect behaviour requested at <c>Negotiate</c>. Defaults
+    /// to <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/>
+    /// — the safest choice for a participant that must not leave open orders
+    /// after losing the session.
+    /// </summary>
+    public CancelOnDisconnectType CancelOnDisconnect { get; init; } =
+        CancelOnDisconnectType.CancelOnDisconnectOrTerminate;
+
     /// <summary>Optional client metadata sent in <c>Negotiate.ClientAppName</c>.</summary>
     public string ClientAppName { get; init; } = "B3.EntryPoint.Client";
 
