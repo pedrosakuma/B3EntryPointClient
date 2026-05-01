@@ -140,6 +140,16 @@ dotnet run -c Release --project benchmarks/B3.EntryPoint.Benchmarks -- --filter 
 Or trigger the [`Benchmarks`](.github/workflows/bench.yml) workflow via
 `workflow_dispatch` to run on CI and download the artifacts.
 
+## Releasing (NuGet)
+
+Both packages ship from the same git tag:
+
+1. Bump `<Version>` in [`Directory.Build.props`](Directory.Build.props) and update [`CHANGELOG.md`](CHANGELOG.md).
+2. Commit, then tag: `git tag v0.5.0 && git push origin v0.5.0` (use `v0.5.0-alpha.1` for pre-releases).
+3. The [`Publish NuGet`](.github/workflows/publish.yml) workflow runs on `v*` tags: it builds, tests, packs, and pushes both `.nupkg` + `.snupkg` to nuget.org via the `NUGET_API_KEY` repo secret.
+
+Without `NUGET_API_KEY`, the workflow still produces uploadable artifacts you can grab from the run page.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
