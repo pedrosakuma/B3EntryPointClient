@@ -154,3 +154,20 @@ public sealed record QuoteStatusUpdated : EntryPointEvent
     public uint? QuoteRejectReason { get; init; }
     public DateTimeOffset? TransactTime { get; init; }
 }
+
+/// <summary>Maps to <c>OrderMassActionReport</c> (template 702). Confirmation /
+/// rejection event for a previously sent <see cref="MassActionRequest"/>; also
+/// emitted on Drop Copy sessions for any mass action affecting the firm.</summary>
+public sealed record MassActionExecuted : EntryPointEvent
+{
+    public required ClOrdID ClOrdID { get; init; }
+    public required ulong MassActionReportId { get; init; }
+    public required MassActionType ActionType { get; init; }
+    public required MassActionScope Scope { get; init; }
+    public required MassActionResponse Response { get; init; }
+    public MassActionRejectReason? RejectReason { get; init; }
+    public ExecRestatementReason? RestatementReason { get; init; }
+    public Side? Side { get; init; }
+    public ulong? SecurityId { get; init; }
+    public DateTimeOffset? TransactTime { get; init; }
+}

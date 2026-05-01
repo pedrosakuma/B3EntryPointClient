@@ -163,4 +163,45 @@ public class InboundDecoderTests
         Assert.Equal(4242UL, updated.SecurityId);
         Assert.Equal(B3.EntryPoint.Client.Models.QuoteStatus.Accepted, updated.Status);
     }
+
+    [Fact]
+    public void TryDecode_OrderMassActionReport_ReturnsMassActionExecuted()
+    {
+        var msg = new OrderMassActionReportData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = 1,
+                MsgSeqNum = new SeqNum(123),
+            },
+            MassActionType = B3.Entrypoint.Fixp.Sbe.V6.MassActionType.CANCEL_ORDERS,
+            ClOrdID = new B3.Entrypoint.Fixp.Sbe.V6.ClOrdID(8888UL),
+            MassActionReportID = new MassActionReportID(55555UL),
+            TransactTime = new UTCTimestampNanos { Time = 1_700_000_000_000_000_000UL },
+            MassActionResponse = B3.Entrypoint.Fixp.Sbe.V6.MassActionResponse.ACCEPTED,
+        };
+        msg.SetMassActionScope(B3.Entrypoint.Fixp.Sbe.V6.MassActionScope.ALL_ORDERS_FOR_A_TRADING_SESSION);
+        msg.SetMassActionRejectReason(null);
+        msg.SetExecRestatementReason(null);
+        msg.SetSide(B3.Entrypoint.Fixp.Sbe.V6.Side.BUY);
+        msg.SetSecurityID(4242UL);
+
+        var frame = BuildFrame(OrderMassActionReportData.MESSAGE_ID, OrderMassActionReportData.MESSAGE_SIZE, span =>
+        {
+            if (!msg.TryEncode(span, out _))
+                throw new InvalidOperationException("encode failed");
+        });
+
+        Assert.True(InboundDecoder.TryDecode(frame, out var evt));
+        var report = Assert.IsType<MassActionExecuted>(evt);
+        Assert.Equal(123UL, report.SeqNum);
+        Assert.Equal(8888UL, report.ClOrdID.Value);
+        Assert.Equal(55555UL, report.MassActionReportId);
+        Assert.Equal(B3.EntryPoint.Client.Models.MassActionType.CancelOrders, report.ActionType);
+        Assert.Equal(B3.EntryPoint.Client.Models.MassActionScope.AllOrdersForATradingSession, report.Scope);
+        Assert.Equal(B3.EntryPoint.Client.Models.MassActionResponse.Accepted, report.Response);
+        Assert.Equal(B3.EntryPoint.Client.Models.Side.Buy, report.Side);
+        Assert.Equal(4242UL, report.SecurityId);
+        Assert.Null(report.RejectReason);
+    }
 }

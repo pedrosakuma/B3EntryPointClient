@@ -20,6 +20,8 @@ using SbeErReject = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_RejectData;
 using SbeErTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_TradeData;
 using SbeQuoteRequestReject = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestRejectData;
 using SbeQuoteStatusReport = B3.Entrypoint.Fixp.Sbe.V6.QuoteStatusReportData;
+using SbeMassActionReport = B3.Entrypoint.Fixp.Sbe.V6.OrderMassActionReportData;
+using ClientMassActionExecuted = B3.EntryPoint.Client.Models.MassActionExecuted;
 using ClientClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -79,6 +81,9 @@ internal static class InboundDecoder
                 return true;
             case SbeQuoteStatusReport.MESSAGE_ID:
                 evt = DecodeQuoteStatusReport(payload);
+                return true;
+            case SbeMassActionReport.MESSAGE_ID:
+                evt = DecodeMassActionReport(payload);
                 return true;
             default:
                 return false;
@@ -223,6 +228,32 @@ internal static class InboundDecoder
             SecurityId = msg.SecurityID.Value,
             Status = (Models.QuoteStatus)(byte)msg.QuoteStatus,
             QuoteRejectReason = msg.QuoteRejectReason,
+            TransactTime = ToDateTime(msg.TransactTime.Time),
+        };
+    }
+
+    private static ClientMassActionExecuted DecodeMassActionReport(ReadOnlySpan<byte> payload)
+    {
+        ref readonly var msg = ref MemoryMarshal.AsRef<SbeMassActionReport>(payload);
+        return new ClientMassActionExecuted
+        {
+            SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
+            SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
+            ClOrdID = new ClientClOrdID(msg.ClOrdID.Value),
+            MassActionReportId = msg.MassActionReportID.Value,
+            ActionType = (Models.MassActionType)(byte)msg.MassActionType,
+            Scope = msg.MassActionScope.HasValue
+                ? (Models.MassActionScope)(byte)msg.MassActionScope.Value
+                : Models.MassActionScope.AllOrdersForATradingSession,
+            Response = (Models.MassActionResponse)(byte)msg.MassActionResponse,
+            RejectReason = msg.MassActionRejectReason.HasValue
+                ? (Models.MassActionRejectReason)(byte)msg.MassActionRejectReason.Value
+                : null,
+            RestatementReason = msg.ExecRestatementReason.HasValue
+                ? (Models.ExecRestatementReason)(byte)msg.ExecRestatementReason.Value
+                : null,
+            Side = msg.Side.HasValue ? (Models.Side)(byte)msg.Side.Value : null,
+            SecurityId = msg.SecurityID,
             TransactTime = ToDateTime(msg.TransactTime.Time),
         };
     }
