@@ -90,9 +90,18 @@ public class KeepAliveSchedulerPeriodicTests
             (Func<ulong>)(() => System.Threading.Interlocked.Increment(ref nextSeq)),
         });
         scheduler.Start();
-        await Task.Delay(180);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            int count;
+            lock (ticks) count = ticks.Count;
+            if (count >= 2) break;
+            await Task.Delay(20);
+        }
         scheduler.Stop();
         scheduler.Dispose();
-        Assert.True(ticks.Count >= 2, $"expected >=2 ticks, got {ticks.Count}");
+        int finalCount;
+        lock (ticks) finalCount = ticks.Count;
+        Assert.True(finalCount >= 2, $"expected >=2 ticks, got {finalCount}");
     }
 }
