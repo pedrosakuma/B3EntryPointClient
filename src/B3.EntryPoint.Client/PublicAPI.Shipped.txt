@@ -1,0 +1,1177 @@
+#nullable enable
+B3.EntryPoint.Client.Auth.Credentials
+B3.EntryPoint.Client.Auth.Credentials.AsSpan() -> System.ReadOnlySpan<byte>
+B3.EntryPoint.Client.Auth.Credentials.Credentials(System.ReadOnlySpan<byte> bytes) -> void
+B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.CancelOnDisconnectType.CancelOnDisconnectOnly = 1 -> B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.CancelOnDisconnectType.CancelOnDisconnectOrTerminate = 3 -> B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.CancelOnDisconnectType.CancelOnTerminateOnly = 2 -> B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.CancelOnDisconnectType.DoNotCancelOnDisconnectOrTerminate = 0 -> B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.DependencyInjection.EntryPointClientServiceCollectionExtensions
+B3.EntryPoint.Client.DropCopy.DropCopyClient
+B3.EntryPoint.Client.DropCopy.DropCopyClient.ConnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.DropCopy.DropCopyClient.DisposeAsync() -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.DropCopy.DropCopyClient.DropCopyClient(B3.EntryPoint.Client.EntryPointClientOptions! options) -> void
+B3.EntryPoint.Client.DropCopy.DropCopyClient.Events(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
+B3.EntryPoint.Client.DropCopy.DropCopyClient.TerminateAsync(B3.EntryPoint.Client.TerminationCode code = B3.EntryPoint.Client.TerminationCode.Finished, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.DropCopy.DropCopyClient.Terminated -> System.EventHandler<B3.EntryPoint.Client.TerminatedEventArgs!>?
+B3.EntryPoint.Client.EntryPointClient
+B3.EntryPoint.Client.EntryPointClient.CancelAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.CancelQuoteAsync(string! quoteId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.ConnectAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.DisposeAsync() -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.EntryPointClient.EntryPointClient(B3.EntryPoint.Client.EntryPointClientOptions! options) -> void
+B3.EntryPoint.Client.EntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
+B3.EntryPoint.Client.EntryPointClient.GetHealth() -> B3.EntryPoint.Client.Telemetry.ClientHealth
+B3.EntryPoint.Client.EntryPointClient.KeepAlive.get -> B3.EntryPoint.Client.Fixp.IKeepAliveScheduler?
+B3.EntryPoint.Client.EntryPointClient.MassActionAsync(B3.EntryPoint.Client.Models.MassActionRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.MassActionReport!>!
+B3.EntryPoint.Client.EntryPointClient.ReconnectAsync(uint nextSessionVerId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.ReplaceAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.EntryPointClient.ReplaceSimpleAsync(B3.EntryPoint.Client.Models.SimpleModifyRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.EntryPointClient.Retransmit.get -> B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler?
+B3.EntryPoint.Client.EntryPointClient.RiskGates.get -> System.Collections.Generic.IList<B3.EntryPoint.Client.Risk.IPreTradeGate!>!
+B3.EntryPoint.Client.EntryPointClient.SendQuoteAsync(B3.EntryPoint.Client.Models.QuoteMessage! quote, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.SendQuoteRequestAsync(B3.EntryPoint.Client.Models.QuoteRequestMessage! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.State.get -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.EntryPointClient.SubmitAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.EntryPointClient.SubmitCrossAsync(B3.EntryPoint.Client.Models.NewOrderCrossRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+B3.EntryPoint.Client.EntryPointClient.SubmitSimpleAsync(B3.EntryPoint.Client.Models.SimpleNewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.EntryPointClient.TerminateAsync(B3.EntryPoint.Client.TerminationCode code, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.EntryPointClient.Terminated -> System.EventHandler<B3.EntryPoint.Client.TerminatedEventArgs!>?
+B3.EntryPoint.Client.EntryPointClientOptions
+B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.get -> B3.EntryPoint.Client.CancelOnDisconnectType
+B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ClientAppName.get -> string!
+B3.EntryPoint.Client.EntryPointClientOptions.ClientAppName.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ClientAppVersion.get -> string!
+B3.EntryPoint.Client.EntryPointClientOptions.ClientAppVersion.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ClientIP.get -> string?
+B3.EntryPoint.Client.EntryPointClientOptions.ClientIP.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectBaseDelay.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectBaseDelay.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxAttempts.get -> int
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxAttempts.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxDelay.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxDelay.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectTimeout.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectTimeout.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.Credentials.get -> B3.EntryPoint.Client.Auth.Credentials!
+B3.EntryPoint.Client.EntryPointClientOptions.Credentials.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.DefaultMarketSegmentId.get -> byte
+B3.EntryPoint.Client.EntryPointClientOptions.DefaultMarketSegmentId.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.Endpoint.get -> System.Net.IPEndPoint!
+B3.EntryPoint.Client.EntryPointClientOptions.Endpoint.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.EnteringFirm.get -> uint
+B3.EntryPoint.Client.EntryPointClientOptions.EnteringFirm.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.EnteringTrader.get -> string!
+B3.EntryPoint.Client.EntryPointClientOptions.EnteringTrader.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.EntryPointClientOptions() -> void
+B3.EntryPoint.Client.EntryPointClientOptions.HandshakeTimeout.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.HandshakeTimeout.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.IdleTimeout.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.IdleTimeout.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.KeepAliveInterval.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.KeepAliveIntervalMs.get -> uint
+B3.EntryPoint.Client.EntryPointClientOptions.KeepAliveIntervalMs.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.Logger.get -> Microsoft.Extensions.Logging.ILogger!
+B3.EntryPoint.Client.EntryPointClientOptions.Logger.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.Profile.get -> B3.EntryPoint.Client.SessionProfile
+B3.EntryPoint.Client.EntryPointClientOptions.Profile.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.SenderLocation.get -> string!
+B3.EntryPoint.Client.EntryPointClientOptions.SenderLocation.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.SessionId.get -> uint
+B3.EntryPoint.Client.EntryPointClientOptions.SessionId.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.SessionStateStore.get -> B3.EntryPoint.Client.State.ISessionStateStore?
+B3.EntryPoint.Client.EntryPointClientOptions.SessionStateStore.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.SessionVerId.get -> uint
+B3.EntryPoint.Client.EntryPointClientOptions.SessionVerId.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.StateCompactEveryDeltas.get -> int
+B3.EntryPoint.Client.EntryPointClientOptions.StateCompactEveryDeltas.set -> void
+B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Disconnected = 0 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Established = 5 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Establishing = 4 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Negotiated = 3 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Negotiating = 2 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Suspended = 6 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.TcpConnected = 1 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Terminated = 8 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientState.Terminating = 7 -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientStateMachine
+B3.EntryPoint.Client.Fixp.FixpClientStateMachine.CanFire(B3.EntryPoint.Client.Fixp.FixpClientTrigger trigger) -> bool
+B3.EntryPoint.Client.Fixp.FixpClientStateMachine.Fire(B3.EntryPoint.Client.Fixp.FixpClientTrigger trigger) -> void
+B3.EntryPoint.Client.Fixp.FixpClientStateMachine.FixpClientStateMachine() -> void
+B3.EntryPoint.Client.Fixp.FixpClientStateMachine.State.get -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.EstablishAckReceived = 5 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.EstablishRejectReceived = 6 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.NegotiateRejectReceived = 3 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.NegotiateResponseReceived = 2 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.ProtocolError = 10 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.SendEstablish = 4 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.SendNegotiate = 1 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.SendTerminate = 7 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.TcpConnected = 0 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.TerminateReceived = 8 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpClientTrigger.TransportClosed = 9 -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.FixpRejectedException
+B3.EntryPoint.Client.Fixp.FixpRejectedException.FixpRejectedException(string! message) -> void
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler.KeepAliveInterval.get -> System.TimeSpan
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler.SequenceFrameReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs!>?
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler.SequenceFrameSent -> System.EventHandler<B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs!>?
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler.Start() -> void
+B3.EntryPoint.Client.Fixp.IKeepAliveScheduler.Stop() -> void
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler.NotAppliedReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.NotAppliedEventArgs!>?
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler.RequestRetransmitAsync(ulong fromSeqNo, uint count, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler.RetransmissionReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmissionEventArgs!>?
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler.RetransmitRejected -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs!>?
+B3.EntryPoint.Client.Fixp.IRetransmitRequestHandler.RetransmitRequested -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs!>?
+B3.EntryPoint.Client.Fixp.InvalidFixpTransitionException
+B3.EntryPoint.Client.Fixp.InvalidFixpTransitionException.InvalidFixpTransitionException(B3.EntryPoint.Client.Fixp.FixpClientState state, B3.EntryPoint.Client.Fixp.FixpClientTrigger trigger) -> void
+B3.EntryPoint.Client.Fixp.InvalidFixpTransitionException.State.get -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Fixp.InvalidFixpTransitionException.Trigger.get -> B3.EntryPoint.Client.Fixp.FixpClientTrigger
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.Dispose() -> void
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.KeepAliveInterval.get -> System.TimeSpan
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.KeepAliveScheduler(System.TimeSpan keepAliveInterval) -> void
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.SequenceFrameReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs!>?
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.SequenceFrameSent -> System.EventHandler<B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs!>?
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.Start() -> void
+B3.EntryPoint.Client.Fixp.KeepAliveScheduler.Stop() -> void
+B3.EntryPoint.Client.Fixp.NotAppliedEventArgs
+B3.EntryPoint.Client.Fixp.NotAppliedEventArgs.Count.get -> uint
+B3.EntryPoint.Client.Fixp.NotAppliedEventArgs.FromSeqNo.get -> ulong
+B3.EntryPoint.Client.Fixp.NotAppliedEventArgs.NotAppliedEventArgs(ulong fromSeqNo, uint count) -> void
+B3.EntryPoint.Client.Fixp.RetransmissionEventArgs
+B3.EntryPoint.Client.Fixp.RetransmissionEventArgs.Count.get -> uint
+B3.EntryPoint.Client.Fixp.RetransmissionEventArgs.NextSeqNo.get -> ulong
+B3.EntryPoint.Client.Fixp.RetransmissionEventArgs.RequestTimestamp.get -> System.DateTimeOffset
+B3.EntryPoint.Client.Fixp.RetransmissionEventArgs.RetransmissionEventArgs(ulong nextSeqNo, uint count, System.DateTimeOffset requestTimestamp) -> void
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.InvalidCount = 9 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.InvalidFromSeqNo = 5 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.InvalidSession = 1 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.InvalidTimestamp = 4 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.OutOfRange = 0 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.RequestLimitExceeded = 2 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.RetransmitInProgress = 3 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.SystemBusy = 11 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectCode.ThrottleReject = 10 -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs
+B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs.Code.get -> B3.EntryPoint.Client.Fixp.RetransmitRejectCode
+B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs.RequestTimestamp.get -> System.DateTimeOffset
+B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs.RetransmitRejectedEventArgs(B3.EntryPoint.Client.Fixp.RetransmitRejectCode code, System.DateTimeOffset requestTimestamp) -> void
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.NotAppliedReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.NotAppliedEventArgs!>?
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.RequestRetransmitAsync(ulong fromSeqNo, uint count, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.RetransmissionReceived -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmissionEventArgs!>?
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.RetransmitRejected -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmitRejectedEventArgs!>?
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.RetransmitRequestHandler() -> void
+B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.RetransmitRequested -> System.EventHandler<B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs!>?
+B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs
+B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs.At.get -> System.DateTimeOffset
+B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs.Count.get -> uint
+B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs.FromSeqNo.get -> ulong
+B3.EntryPoint.Client.Fixp.RetransmitRequestedEventArgs.RetransmitRequestedEventArgs(ulong fromSeqNo, uint count, System.DateTimeOffset at) -> void
+B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs
+B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs.At.get -> System.DateTimeOffset
+B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs.NextSeqNo.get -> ulong
+B3.EntryPoint.Client.Fixp.SequenceFrameEventArgs.SequenceFrameEventArgs(ulong nextSeqNo, System.DateTimeOffset at) -> void
+B3.EntryPoint.Client.Framing.SofhFrameReader
+B3.EntryPoint.Client.Framing.SofhFrameWriter
+B3.EntryPoint.Client.ICancelOrder
+B3.EntryPoint.Client.ICancelOrder.CancelAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.ICancelOrder.MassActionAsync(B3.EntryPoint.Client.Models.MassActionRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.MassActionReport!>!
+B3.EntryPoint.Client.IQuoteFlow
+B3.EntryPoint.Client.IQuoteFlow.CancelQuoteAsync(string! quoteId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.IQuoteFlow.SendQuoteAsync(B3.EntryPoint.Client.Models.QuoteMessage! quote, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.IQuoteFlow.SendQuoteRequestAsync(B3.EntryPoint.Client.Models.QuoteRequestMessage! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.IReplaceOrder
+B3.EntryPoint.Client.IReplaceOrder.ReplaceAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.IReplaceOrder.ReplaceSimpleAsync(B3.EntryPoint.Client.Models.SimpleModifyRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.ISubmitCross
+B3.EntryPoint.Client.ISubmitCross.SubmitCrossAsync(B3.EntryPoint.Client.Models.NewOrderCrossRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+B3.EntryPoint.Client.ISubmitOrder
+B3.EntryPoint.Client.ISubmitOrder.SubmitAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.ISubmitOrder.SubmitSimpleAsync(B3.EntryPoint.Client.Models.SimpleNewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.AccountType.RegularAccount = 39 -> B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.AccountType.RemoveAccountInformation = 38 -> B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.AllocNoOrdersType
+B3.EntryPoint.Client.Models.AllocNoOrdersType.NotSpecified = 48 -> B3.EntryPoint.Client.Models.AllocNoOrdersType
+B3.EntryPoint.Client.Models.AllocReportType
+B3.EntryPoint.Client.Models.AllocReportType.RequestToIntermediary = 56 -> B3.EntryPoint.Client.Models.AllocReportType
+B3.EntryPoint.Client.Models.AllocStatus
+B3.EntryPoint.Client.Models.AllocStatus.Accepted = 48 -> B3.EntryPoint.Client.Models.AllocStatus
+B3.EntryPoint.Client.Models.AllocStatus.RejectedByIntermediary = 53 -> B3.EntryPoint.Client.Models.AllocStatus
+B3.EntryPoint.Client.Models.AllocTransType
+B3.EntryPoint.Client.Models.AllocTransType.Cancel = 50 -> B3.EntryPoint.Client.Models.AllocTransType
+B3.EntryPoint.Client.Models.AllocTransType.New = 48 -> B3.EntryPoint.Client.Models.AllocTransType
+B3.EntryPoint.Client.Models.AllocationReceived
+B3.EntryPoint.Client.Models.AllocationReceived.AllocId.get -> ulong
+B3.EntryPoint.Client.Models.AllocationReceived.AllocId.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.AllocReportId.get -> ulong
+B3.EntryPoint.Client.Models.AllocationReceived.AllocReportId.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.AllocationReceived() -> void
+B3.EntryPoint.Client.Models.AllocationReceived.Equals(B3.EntryPoint.Client.Models.AllocationReceived? other) -> bool
+B3.EntryPoint.Client.Models.AllocationReceived.NoOrdersType.get -> B3.EntryPoint.Client.Models.AllocNoOrdersType?
+B3.EntryPoint.Client.Models.AllocationReceived.NoOrdersType.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.Quantity.get -> ulong
+B3.EntryPoint.Client.Models.AllocationReceived.Quantity.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.RejCode.get -> uint?
+B3.EntryPoint.Client.Models.AllocationReceived.RejCode.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.ReportType.get -> B3.EntryPoint.Client.Models.AllocReportType
+B3.EntryPoint.Client.Models.AllocationReceived.ReportType.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.AllocationReceived.SecurityId.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.AllocationReceived.Side.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.Status.get -> B3.EntryPoint.Client.Models.AllocStatus
+B3.EntryPoint.Client.Models.AllocationReceived.Status.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.TradeDate.get -> ushort?
+B3.EntryPoint.Client.Models.AllocationReceived.TradeDate.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.TransType.get -> B3.EntryPoint.Client.Models.AllocTransType
+B3.EntryPoint.Client.Models.AllocationReceived.TransType.init -> void
+B3.EntryPoint.Client.Models.AllocationReceived.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.AllocationReceived.TransactTime.init -> void
+B3.EntryPoint.Client.Models.BusinessReject
+B3.EntryPoint.Client.Models.BusinessReject.BusinessReject() -> void
+B3.EntryPoint.Client.Models.BusinessReject.Equals(B3.EntryPoint.Client.Models.BusinessReject? other) -> bool
+B3.EntryPoint.Client.Models.BusinessReject.RefSeqNum.get -> ulong
+B3.EntryPoint.Client.Models.BusinessReject.RefSeqNum.init -> void
+B3.EntryPoint.Client.Models.BusinessReject.RejectReason.get -> ushort
+B3.EntryPoint.Client.Models.BusinessReject.RejectReason.init -> void
+B3.EntryPoint.Client.Models.BusinessReject.Text.get -> string?
+B3.EntryPoint.Client.Models.BusinessReject.Text.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest
+B3.EntryPoint.Client.Models.CancelOrderRequest.<Clone>$() -> B3.EntryPoint.Client.Models.CancelOrderRequest!
+B3.EntryPoint.Client.Models.CancelOrderRequest.Account.get -> ulong?
+B3.EntryPoint.Client.Models.CancelOrderRequest.Account.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.CancelOrderRequest() -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.CancelOrderRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.Equals(B3.EntryPoint.Client.Models.CancelOrderRequest? other) -> bool
+B3.EntryPoint.Client.Models.CancelOrderRequest.MemoText.get -> string?
+B3.EntryPoint.Client.Models.CancelOrderRequest.MemoText.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.OrigClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.CancelOrderRequest.OrigClOrdID.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.CancelOrderRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.CancelOrderRequest.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.CancelOrderRequest.Side.init -> void
+B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.ClOrdID.ClOrdID() -> void
+B3.EntryPoint.Client.Models.ClOrdID.ClOrdID(ulong value) -> void
+B3.EntryPoint.Client.Models.ClOrdID.Equals(B3.EntryPoint.Client.Models.ClOrdID other) -> bool
+B3.EntryPoint.Client.Models.ClOrdID.Value.get -> ulong
+B3.EntryPoint.Client.Models.CrossLeg
+B3.EntryPoint.Client.Models.CrossLeg.<Clone>$() -> B3.EntryPoint.Client.Models.CrossLeg!
+B3.EntryPoint.Client.Models.CrossLeg.Account.get -> ulong?
+B3.EntryPoint.Client.Models.CrossLeg.Account.init -> void
+B3.EntryPoint.Client.Models.CrossLeg.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.CrossLeg.AccountType.init -> void
+B3.EntryPoint.Client.Models.CrossLeg.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.CrossLeg.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.CrossLeg.CrossLeg() -> void
+B3.EntryPoint.Client.Models.CrossLeg.Equals(B3.EntryPoint.Client.Models.CrossLeg? other) -> bool
+B3.EntryPoint.Client.Models.CrossLeg.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.CrossLeg.OrderQty.init -> void
+B3.EntryPoint.Client.Models.CrossLeg.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.CrossLeg.Side.init -> void
+B3.EntryPoint.Client.Models.CrossPrioritization
+B3.EntryPoint.Client.Models.CrossPrioritization.BuySidePrioritized = 1 -> B3.EntryPoint.Client.Models.CrossPrioritization
+B3.EntryPoint.Client.Models.CrossPrioritization.None = 0 -> B3.EntryPoint.Client.Models.CrossPrioritization
+B3.EntryPoint.Client.Models.CrossPrioritization.SellSidePrioritized = 2 -> B3.EntryPoint.Client.Models.CrossPrioritization
+B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.CrossType.AllOrNone = 1 -> B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.CrossType.ClosingPriceCross = 8 -> B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.CrossType.CrossExecutedAgainstBookFromClient = 4 -> B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.CrossType.VwapCross = 7 -> B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.EntryPointEvent
+B3.EntryPoint.Client.Models.EntryPointEvent.EntryPointEvent() -> void
+B3.EntryPoint.Client.Models.EntryPointEvent.EntryPointEvent(B3.EntryPoint.Client.Models.EntryPointEvent! original) -> void
+B3.EntryPoint.Client.Models.EntryPointEvent.SendingTime.get -> System.DateTimeOffset
+B3.EntryPoint.Client.Models.EntryPointEvent.SendingTime.init -> void
+B3.EntryPoint.Client.Models.EntryPointEvent.SeqNum.get -> ulong
+B3.EntryPoint.Client.Models.EntryPointEvent.SeqNum.init -> void
+B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelFromFirmsoft = 105 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelMinimumQtyBlock = 209 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOnDisconnectAndTerminate = 102 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOnHardDisconnection = 100 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOnMidpointBrokerOnlyRemoval = 213 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOnTerminate = 101 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOrderDueToOperationalError = 203 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelOrderFirmsoftDueToOperationalError = 205 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelRemainingFromSweepCross = 210 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.CancelRestingOrderOnSelfTrade = 107 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.GtRestatement = 1 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MarketMakerProtection = 200 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MarketOption = 8 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MassCancelOnBehalf = 211 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MassCancelOnBehalfDueToOperationalErrorEffective = 212 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MassCancelOrderDueToOperationalErrorEffective = 208 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.MassCancelOrderDueToOperationalErrorRequest = 207 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.OrderCancelledDueToOperationalError = 204 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.OrderCancelledFirmsoftDueToOperationalError = 206 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.OrderMassActionFromClientRequest = 202 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.RiskManagementCancellation = 201 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecRestatementReason.SelfTradingPrevention = 103 -> B3.EntryPoint.Client.Models.ExecRestatementReason
+B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade
+B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade.NoUnderlyingTrade = 48 -> B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade
+B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade.UnderlyingOpposingTrade = 49 -> B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade
+B3.EntryPoint.Client.Models.MassActionExecuted
+B3.EntryPoint.Client.Models.MassActionExecuted.ActionType.get -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionExecuted.ActionType.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.MassActionExecuted.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.Equals(B3.EntryPoint.Client.Models.MassActionExecuted? other) -> bool
+B3.EntryPoint.Client.Models.MassActionExecuted.MassActionExecuted() -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.MassActionReportId.get -> ulong
+B3.EntryPoint.Client.Models.MassActionExecuted.MassActionReportId.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.RejectReason.get -> B3.EntryPoint.Client.Models.MassActionRejectReason?
+B3.EntryPoint.Client.Models.MassActionExecuted.RejectReason.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.Response.get -> B3.EntryPoint.Client.Models.MassActionResponse
+B3.EntryPoint.Client.Models.MassActionExecuted.Response.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.RestatementReason.get -> B3.EntryPoint.Client.Models.ExecRestatementReason?
+B3.EntryPoint.Client.Models.MassActionExecuted.RestatementReason.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.Scope.get -> B3.EntryPoint.Client.Models.MassActionScope
+B3.EntryPoint.Client.Models.MassActionExecuted.Scope.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.SecurityId.get -> ulong?
+B3.EntryPoint.Client.Models.MassActionExecuted.SecurityId.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.Side.get -> B3.EntryPoint.Client.Models.Side?
+B3.EntryPoint.Client.Models.MassActionExecuted.Side.init -> void
+B3.EntryPoint.Client.Models.MassActionExecuted.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.MassActionExecuted.TransactTime.init -> void
+B3.EntryPoint.Client.Models.MassActionRejectReason
+B3.EntryPoint.Client.Models.MassActionRejectReason.InvalidOrUnknownMarketSegment = 8 -> B3.EntryPoint.Client.Models.MassActionRejectReason
+B3.EntryPoint.Client.Models.MassActionRejectReason.MassActionNotSupported = 0 -> B3.EntryPoint.Client.Models.MassActionRejectReason
+B3.EntryPoint.Client.Models.MassActionRejectReason.Other = 99 -> B3.EntryPoint.Client.Models.MassActionRejectReason
+B3.EntryPoint.Client.Models.MassActionReport
+B3.EntryPoint.Client.Models.MassActionReport.<Clone>$() -> B3.EntryPoint.Client.Models.MassActionReport!
+B3.EntryPoint.Client.Models.MassActionReport.ActionType.get -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionReport.ActionType.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.MassActionReport.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.Equals(B3.EntryPoint.Client.Models.MassActionReport? other) -> bool
+B3.EntryPoint.Client.Models.MassActionReport.MassActionReport() -> void
+B3.EntryPoint.Client.Models.MassActionReport.Reason.get -> string?
+B3.EntryPoint.Client.Models.MassActionReport.Reason.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.RejectReason.get -> B3.EntryPoint.Client.Models.MassActionRejectReason?
+B3.EntryPoint.Client.Models.MassActionReport.RejectReason.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.Response.get -> B3.EntryPoint.Client.Models.MassActionResponse
+B3.EntryPoint.Client.Models.MassActionReport.Response.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.Scope.get -> B3.EntryPoint.Client.Models.MassActionScope
+B3.EntryPoint.Client.Models.MassActionReport.Scope.init -> void
+B3.EntryPoint.Client.Models.MassActionReport.TotalAffectedOrders.get -> uint?
+B3.EntryPoint.Client.Models.MassActionReport.TotalAffectedOrders.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest
+B3.EntryPoint.Client.Models.MassActionRequest.<Clone>$() -> B3.EntryPoint.Client.Models.MassActionRequest!
+B3.EntryPoint.Client.Models.MassActionRequest.Account.get -> ulong?
+B3.EntryPoint.Client.Models.MassActionRequest.Account.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.ActionType.get -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionRequest.ActionType.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.MassActionRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.Equals(B3.EntryPoint.Client.Models.MassActionRequest? other) -> bool
+B3.EntryPoint.Client.Models.MassActionRequest.MarketSegment.get -> string?
+B3.EntryPoint.Client.Models.MassActionRequest.MarketSegment.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.MassActionRequest() -> void
+B3.EntryPoint.Client.Models.MassActionRequest.Scope.get -> B3.EntryPoint.Client.Models.MassActionScope
+B3.EntryPoint.Client.Models.MassActionRequest.Scope.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.SecurityId.get -> ulong?
+B3.EntryPoint.Client.Models.MassActionRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.MassActionRequest.Side.get -> B3.EntryPoint.Client.Models.Side?
+B3.EntryPoint.Client.Models.MassActionRequest.Side.init -> void
+B3.EntryPoint.Client.Models.MassActionResponse
+B3.EntryPoint.Client.Models.MassActionResponse.Accepted = 49 -> B3.EntryPoint.Client.Models.MassActionResponse
+B3.EntryPoint.Client.Models.MassActionResponse.Rejected = 48 -> B3.EntryPoint.Client.Models.MassActionResponse
+B3.EntryPoint.Client.Models.MassActionScope
+B3.EntryPoint.Client.Models.MassActionScope.AllOrdersForATradingSession = 6 -> B3.EntryPoint.Client.Models.MassActionScope
+B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionType.CancelAndSuspendOrders = 4 -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionType.CancelOrders = 3 -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.MassActionType.ReleaseOrdersFromSuspension = 2 -> B3.EntryPoint.Client.Models.MassActionType
+B3.EntryPoint.Client.Models.NewOrderCrossRequest
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.<Clone>$() -> B3.EntryPoint.Client.Models.NewOrderCrossRequest!
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.CrossId.get -> string!
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.CrossId.init -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.CrossType.get -> B3.EntryPoint.Client.Models.CrossType
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.CrossType.init -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Equals(B3.EntryPoint.Client.Models.NewOrderCrossRequest? other) -> bool
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Legs.get -> System.Collections.Generic.IReadOnlyList<B3.EntryPoint.Client.Models.CrossLeg!>!
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Legs.init -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.NewOrderCrossRequest() -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Price.get -> decimal
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Price.init -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Prioritization.get -> B3.EntryPoint.Client.Models.CrossPrioritization
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.Prioritization.init -> void
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.NewOrderCrossRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest
+B3.EntryPoint.Client.Models.NewOrderRequest.<Clone>$() -> B3.EntryPoint.Client.Models.NewOrderRequest!
+B3.EntryPoint.Client.Models.NewOrderRequest.Account.get -> ulong?
+B3.EntryPoint.Client.Models.NewOrderRequest.Account.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.NewOrderRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.Equals(B3.EntryPoint.Client.Models.NewOrderRequest? other) -> bool
+B3.EntryPoint.Client.Models.NewOrderRequest.ExpireDate.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.NewOrderRequest.ExpireDate.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.MaxFloor.get -> ulong?
+B3.EntryPoint.Client.Models.NewOrderRequest.MaxFloor.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.MemoText.get -> string?
+B3.EntryPoint.Client.Models.NewOrderRequest.MemoText.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.MinQty.get -> ulong?
+B3.EntryPoint.Client.Models.NewOrderRequest.MinQty.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.NewOrderRequest() -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.NewOrderRequest.OrderQty.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.OrderType.get -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.NewOrderRequest.OrderType.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.Price.get -> decimal?
+B3.EntryPoint.Client.Models.NewOrderRequest.Price.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.NewOrderRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.NewOrderRequest.Side.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.StopPrice.get -> decimal?
+B3.EntryPoint.Client.Models.NewOrderRequest.StopPrice.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.TimeInForce.get -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.NewOrderRequest.TimeInForce.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted
+B3.EntryPoint.Client.Models.OrderAccepted.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderAccepted.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.CumQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderAccepted.CumQty.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.Equals(B3.EntryPoint.Client.Models.OrderAccepted? other) -> bool
+B3.EntryPoint.Client.Models.OrderAccepted.LeavesQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderAccepted.LeavesQty.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.OrderAccepted() -> void
+B3.EntryPoint.Client.Models.OrderAccepted.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderAccepted.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.OrderStatus.get -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderAccepted.OrderStatus.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.OrderAccepted.SecurityId.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.OrderAccepted.Side.init -> void
+B3.EntryPoint.Client.Models.OrderAccepted.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderAccepted.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled
+B3.EntryPoint.Client.Models.OrderCancelled.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderCancelled.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled.Equals(B3.EntryPoint.Client.Models.OrderCancelled? other) -> bool
+B3.EntryPoint.Client.Models.OrderCancelled.OrderCancelled() -> void
+B3.EntryPoint.Client.Models.OrderCancelled.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderCancelled.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled.OrderStatus.get -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderCancelled.OrderStatus.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled.OrigClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID?
+B3.EntryPoint.Client.Models.OrderCancelled.OrigClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled.RestatementReason.get -> B3.EntryPoint.Client.Models.ExecRestatementReason?
+B3.EntryPoint.Client.Models.OrderCancelled.RestatementReason.init -> void
+B3.EntryPoint.Client.Models.OrderCancelled.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderCancelled.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderForwarded
+B3.EntryPoint.Client.Models.OrderForwarded.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderForwarded.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderForwarded.Equals(B3.EntryPoint.Client.Models.OrderForwarded? other) -> bool
+B3.EntryPoint.Client.Models.OrderForwarded.OrderForwarded() -> void
+B3.EntryPoint.Client.Models.OrderForwarded.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderForwarded.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderForwarded.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderForwarded.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderModified
+B3.EntryPoint.Client.Models.OrderModified.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderModified.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderModified.CumQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderModified.CumQty.init -> void
+B3.EntryPoint.Client.Models.OrderModified.Equals(B3.EntryPoint.Client.Models.OrderModified? other) -> bool
+B3.EntryPoint.Client.Models.OrderModified.LeavesQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderModified.LeavesQty.init -> void
+B3.EntryPoint.Client.Models.OrderModified.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderModified.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderModified.OrderModified() -> void
+B3.EntryPoint.Client.Models.OrderModified.OrderStatus.get -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderModified.OrderStatus.init -> void
+B3.EntryPoint.Client.Models.OrderModified.OrigClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderModified.OrigClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderModified.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderModified.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderRejected
+B3.EntryPoint.Client.Models.OrderRejected.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderRejected.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderRejected.Equals(B3.EntryPoint.Client.Models.OrderRejected? other) -> bool
+B3.EntryPoint.Client.Models.OrderRejected.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderRejected.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderRejected.OrderRejected() -> void
+B3.EntryPoint.Client.Models.OrderRejected.Reason.get -> string?
+B3.EntryPoint.Client.Models.OrderRejected.Reason.init -> void
+B3.EntryPoint.Client.Models.OrderRejected.RejectCode.get -> ushort
+B3.EntryPoint.Client.Models.OrderRejected.RejectCode.init -> void
+B3.EntryPoint.Client.Models.OrderRejected.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderRejected.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Cancelled = 52 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Expired = 67 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Filled = 50 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.New = 48 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.PartiallyFilled = 49 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.PreviousFinalState = 90 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Rejected = 56 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Replaced = 53 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderStatus.Restated = 82 -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderTrade
+B3.EntryPoint.Client.Models.OrderTrade.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OrderTrade.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.CumQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderTrade.CumQty.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.Equals(B3.EntryPoint.Client.Models.OrderTrade? other) -> bool
+B3.EntryPoint.Client.Models.OrderTrade.LastPx.get -> decimal
+B3.EntryPoint.Client.Models.OrderTrade.LastPx.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.LastQty.get -> ulong
+B3.EntryPoint.Client.Models.OrderTrade.LastQty.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.LeavesQty.get -> ulong?
+B3.EntryPoint.Client.Models.OrderTrade.LeavesQty.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.OrderId.get -> ulong
+B3.EntryPoint.Client.Models.OrderTrade.OrderId.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.OrderStatus.get -> B3.EntryPoint.Client.Models.OrderStatus
+B3.EntryPoint.Client.Models.OrderTrade.OrderStatus.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.OrderTrade() -> void
+B3.EntryPoint.Client.Models.OrderTrade.TradeId.get -> ulong
+B3.EntryPoint.Client.Models.OrderTrade.TradeId.init -> void
+B3.EntryPoint.Client.Models.OrderTrade.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.OrderTrade.TransactTime.init -> void
+B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.Limit = 50 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.Market = 49 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.MarketWithLeftoverAsLimit = 75 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.PeggedMidpoint = 80 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.Rlp = 87 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.StopLimit = 52 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.OrderType.StopLoss = 51 -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.PosMaintAction
+B3.EntryPoint.Client.Models.PosMaintAction.Cancel = 51 -> B3.EntryPoint.Client.Models.PosMaintAction
+B3.EntryPoint.Client.Models.PosMaintAction.New = 49 -> B3.EntryPoint.Client.Models.PosMaintAction
+B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PosMaintStatus.Accepted = 48 -> B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PosMaintStatus.Completed = 51 -> B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PosMaintStatus.NotExecuted = 57 -> B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PosMaintStatus.Rejected = 50 -> B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PosTransType
+B3.EntryPoint.Client.Models.PosTransType.AutomaticExercise = 105 -> B3.EntryPoint.Client.Models.PosTransType
+B3.EntryPoint.Client.Models.PosTransType.Exercise = 1 -> B3.EntryPoint.Client.Models.PosTransType
+B3.EntryPoint.Client.Models.PosTransType.ExerciseNotAutomatic = 106 -> B3.EntryPoint.Client.Models.PosTransType
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Account.get -> uint?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Account.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.AccountType.get -> B3.EntryPoint.Client.Models.AccountType?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.AccountType.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Action.get -> B3.EntryPoint.Client.Models.PosMaintAction
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Action.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.ClearingBusinessDate.get -> ushort?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.ClearingBusinessDate.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Equals(B3.EntryPoint.Client.Models.PositionMaintenanceReceived? other) -> bool
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.OrigPosReqRefId.get -> ulong?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.OrigPosReqRefId.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosMaintResult.get -> uint?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosMaintResult.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosMaintRptId.get -> ulong
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosMaintRptId.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosReqId.get -> ulong?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PosReqId.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.PositionMaintenanceReceived() -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.SecurityId.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Status.get -> B3.EntryPoint.Client.Models.PosMaintStatus
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Status.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TradeId.get -> uint?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TradeId.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TransType.get -> B3.EntryPoint.Client.Models.PosTransType
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TransType.init -> void
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.PositionMaintenanceReceived.TransactTime.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage
+B3.EntryPoint.Client.Models.QuoteMessage.<Clone>$() -> B3.EntryPoint.Client.Models.QuoteMessage!
+B3.EntryPoint.Client.Models.QuoteMessage.Account.get -> uint?
+B3.EntryPoint.Client.Models.QuoteMessage.Account.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.DaysToSettlement.get -> ushort
+B3.EntryPoint.Client.Models.QuoteMessage.DaysToSettlement.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.Equals(B3.EntryPoint.Client.Models.QuoteMessage? other) -> bool
+B3.EntryPoint.Client.Models.QuoteMessage.ExecuteUnderlyingTrade.get -> B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade?
+B3.EntryPoint.Client.Models.QuoteMessage.ExecuteUnderlyingTrade.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.FixedRate.get -> decimal
+B3.EntryPoint.Client.Models.QuoteMessage.FixedRate.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.QuoteMessage.OrderQty.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.Price.get -> decimal?
+B3.EntryPoint.Client.Models.QuoteMessage.Price.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.QuoteId.get -> string!
+B3.EntryPoint.Client.Models.QuoteMessage.QuoteId.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.QuoteMessage() -> void
+B3.EntryPoint.Client.Models.QuoteMessage.QuoteReqId.get -> string?
+B3.EntryPoint.Client.Models.QuoteMessage.QuoteReqId.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.QuoteMessage.SecurityId.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.SettlType.get -> B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.QuoteMessage.SettlType.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.QuoteMessage.Side.init -> void
+B3.EntryPoint.Client.Models.QuoteMessage.TradingSubAccount.get -> uint?
+B3.EntryPoint.Client.Models.QuoteMessage.TradingSubAccount.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage
+B3.EntryPoint.Client.Models.QuoteRequestMessage.<Clone>$() -> B3.EntryPoint.Client.Models.QuoteRequestMessage!
+B3.EntryPoint.Client.Models.QuoteRequestMessage.ContraBroker.get -> uint
+B3.EntryPoint.Client.Models.QuoteRequestMessage.ContraBroker.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.DaysToSettlement.get -> ushort
+B3.EntryPoint.Client.Models.QuoteRequestMessage.DaysToSettlement.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.Equals(B3.EntryPoint.Client.Models.QuoteRequestMessage? other) -> bool
+B3.EntryPoint.Client.Models.QuoteRequestMessage.ExecuteUnderlyingTrade.get -> B3.EntryPoint.Client.Models.ExecuteUnderlyingTrade?
+B3.EntryPoint.Client.Models.QuoteRequestMessage.ExecuteUnderlyingTrade.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.FixedRate.get -> decimal
+B3.EntryPoint.Client.Models.QuoteRequestMessage.FixedRate.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.QuoteRequestMessage.OrderQty.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.Price.get -> decimal
+B3.EntryPoint.Client.Models.QuoteRequestMessage.Price.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.QuoteId.get -> string?
+B3.EntryPoint.Client.Models.QuoteRequestMessage.QuoteId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.QuoteReqId.get -> string!
+B3.EntryPoint.Client.Models.QuoteRequestMessage.QuoteReqId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.QuoteRequestMessage() -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.QuoteRequestMessage.SecurityId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.SettlType.get -> B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.QuoteRequestMessage.SettlType.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.QuoteRequestMessage.Side.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestMessage.TradeId.get -> uint?
+B3.EntryPoint.Client.Models.QuoteRequestMessage.TradeId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.ExchangeClosed = 2 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.InvalidPrice = 5 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.NotAuthorizedToRequestQuote = 6 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.Other = 99 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.QuoteRequestExceedsLimit = 3 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.TooLateToEnter = 4 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejectReason.UnknownSymbol = 1 -> B3.EntryPoint.Client.Models.QuoteRequestRejectReason
+B3.EntryPoint.Client.Models.QuoteRequestRejected
+B3.EntryPoint.Client.Models.QuoteRequestRejected.Equals(B3.EntryPoint.Client.Models.QuoteRequestRejected? other) -> bool
+B3.EntryPoint.Client.Models.QuoteRequestRejected.QuoteId.get -> string?
+B3.EntryPoint.Client.Models.QuoteRequestRejected.QuoteId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejected.QuoteReqId.get -> string!
+B3.EntryPoint.Client.Models.QuoteRequestRejected.QuoteReqId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejected.QuoteRequestRejected() -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejected.RejectReason.get -> uint?
+B3.EntryPoint.Client.Models.QuoteRequestRejected.RejectReason.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejected.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.QuoteRequestRejected.SecurityId.init -> void
+B3.EntryPoint.Client.Models.QuoteRequestRejected.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.QuoteRequestRejected.TransactTime.init -> void
+B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Accepted = 0 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Canceled = 17 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Expired = 7 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Pass = 11 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Pending = 10 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.QuoteNotFound = 9 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatus.Rejected = 5 -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatusUpdated
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.Equals(B3.EntryPoint.Client.Models.QuoteStatusUpdated? other) -> bool
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteId.get -> string!
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteId.init -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteRejectReason.get -> uint?
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteRejectReason.init -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteReqId.get -> string!
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteReqId.init -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.QuoteStatusUpdated() -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.SecurityId.init -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.Status.get -> B3.EntryPoint.Client.Models.QuoteStatus
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.Status.init -> void
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.TransactTime.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.QuoteStatusUpdated.TransactTime.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.<Clone>$() -> B3.EntryPoint.Client.Models.ReplaceOrderRequest!
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Account.get -> ulong?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Account.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.AccountType.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Equals(B3.EntryPoint.Client.Models.ReplaceOrderRequest? other) -> bool
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.ExpireDate.get -> System.DateTimeOffset?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.ExpireDate.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MaxFloor.get -> ulong?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MaxFloor.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MemoText.get -> string?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MemoText.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MinQty.get -> ulong?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MinQty.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrderQty.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrderType.get -> B3.EntryPoint.Client.Models.OrderType
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrderType.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrigClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrigClOrdID.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Price.get -> decimal?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Price.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.ReplaceOrderRequest() -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.Side.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.StopPrice.get -> decimal?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.StopPrice.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.TimeInForce.get -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.TimeInForce.init -> void
+B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.SettlementType.BuyersDiscretion = 48 -> B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.SettlementType.Mutual = 88 -> B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.SettlementType.SellersDiscretion = 56 -> B3.EntryPoint.Client.Models.SettlementType
+B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.Side.Buy = 49 -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.Side.Sell = 50 -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.SimpleModifyRequest
+B3.EntryPoint.Client.Models.SimpleModifyRequest.<Clone>$() -> B3.EntryPoint.Client.Models.SimpleModifyRequest!
+B3.EntryPoint.Client.Models.SimpleModifyRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.SimpleModifyRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.Equals(B3.EntryPoint.Client.Models.SimpleModifyRequest? other) -> bool
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrderQty.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrderType.get -> B3.EntryPoint.Client.Models.SimpleOrderType
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrderType.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrigClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.SimpleModifyRequest.OrigClOrdID.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.Price.get -> decimal?
+B3.EntryPoint.Client.Models.SimpleModifyRequest.Price.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.SimpleModifyRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.SimpleModifyRequest.Side.init -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.SimpleModifyRequest() -> void
+B3.EntryPoint.Client.Models.SimpleModifyRequest.TimeInForce.get -> B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.SimpleModifyRequest.TimeInForce.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.<Clone>$() -> B3.EntryPoint.Client.Models.SimpleNewOrderRequest!
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Account.get -> ulong?
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Account.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Equals(B3.EntryPoint.Client.Models.SimpleNewOrderRequest? other) -> bool
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.OrderQty.get -> ulong
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.OrderQty.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.OrderType.get -> B3.EntryPoint.Client.Models.SimpleOrderType
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.OrderType.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Price.get -> decimal?
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Price.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Side.get -> B3.EntryPoint.Client.Models.Side
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Side.init -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.SimpleNewOrderRequest() -> void
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.TimeInForce.get -> B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.SimpleNewOrderRequest.TimeInForce.init -> void
+B3.EntryPoint.Client.Models.SimpleOrderType
+B3.EntryPoint.Client.Models.SimpleOrderType.Limit = 50 -> B3.EntryPoint.Client.Models.SimpleOrderType
+B3.EntryPoint.Client.Models.SimpleOrderType.Market = 49 -> B3.EntryPoint.Client.Models.SimpleOrderType
+B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.SimpleTimeInForce.Day = 48 -> B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.SimpleTimeInForce.FillOrKill = 52 -> B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.SimpleTimeInForce.ImmediateOrCancel = 51 -> B3.EntryPoint.Client.Models.SimpleTimeInForce
+B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.AtTheClose = 55 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.Day = 48 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.FillOrKill = 52 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.GoodForAuction = 65 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.GoodTillCancel = 49 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.GoodTillDate = 54 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Models.TimeInForce.ImmediateOrCancel = 51 -> B3.EntryPoint.Client.Models.TimeInForce
+B3.EntryPoint.Client.Risk.ClOrdIdPrefixThrottle
+B3.EntryPoint.Client.Risk.ClOrdIdPrefixThrottle.ClOrdIdPrefixThrottle(int prefixLength, int maxPerWindow, System.TimeSpan windowDuration) -> void
+B3.EntryPoint.Client.Risk.ClOrdIdPrefixThrottle.EvaluateAsync(B3.EntryPoint.Client.Risk.OutboundRequest request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.Risk.RiskDecision>
+B3.EntryPoint.Client.Risk.ClOrdIdPrefixThrottle.MaxPerWindow.get -> int
+B3.EntryPoint.Client.Risk.ClOrdIdPrefixThrottle.WindowDuration.get -> System.TimeSpan
+B3.EntryPoint.Client.Risk.IPreTradeGate
+B3.EntryPoint.Client.Risk.IPreTradeGate.EvaluateAsync(B3.EntryPoint.Client.Risk.OutboundRequest request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.Risk.RiskDecision>
+B3.EntryPoint.Client.Risk.OutboundRequest
+B3.EntryPoint.Client.Risk.OutboundRequest.ClOrdID.get -> string!
+B3.EntryPoint.Client.Risk.OutboundRequest.ClOrdID.init -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.Deconstruct(out B3.EntryPoint.Client.Risk.OutboundRequestKind Kind, out object! Request, out ulong SecurityId, out string! ClOrdID) -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.Equals(B3.EntryPoint.Client.Risk.OutboundRequest other) -> bool
+B3.EntryPoint.Client.Risk.OutboundRequest.Kind.get -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequest.Kind.init -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.OutboundRequest() -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.OutboundRequest(B3.EntryPoint.Client.Risk.OutboundRequestKind Kind, object! Request, ulong SecurityId, string! ClOrdID) -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.Request.get -> object!
+B3.EntryPoint.Client.Risk.OutboundRequest.Request.init -> void
+B3.EntryPoint.Client.Risk.OutboundRequest.SecurityId.get -> ulong
+B3.EntryPoint.Client.Risk.OutboundRequest.SecurityId.init -> void
+B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.Cancel = 4 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.MassAction = 5 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.NewOrder = 0 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.Replace = 2 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.SimpleNewOrder = 1 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.OutboundRequestKind.SimpleReplace = 3 -> B3.EntryPoint.Client.Risk.OutboundRequestKind
+B3.EntryPoint.Client.Risk.RiskDecision
+B3.EntryPoint.Client.Risk.RiskDecision.Kind.get -> B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskDecision.Kind.init -> void
+B3.EntryPoint.Client.Risk.RiskDecision.Reason.get -> string?
+B3.EntryPoint.Client.Risk.RiskDecision.Reason.init -> void
+B3.EntryPoint.Client.Risk.RiskDecision.RiskDecision() -> void
+B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskDecisionKind.Allow = 0 -> B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskDecisionKind.Reject = 1 -> B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskDecisionKind.Throttle = 2 -> B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskRejectedException
+B3.EntryPoint.Client.Risk.RiskRejectedException.Kind.get -> B3.EntryPoint.Client.Risk.RiskDecisionKind
+B3.EntryPoint.Client.Risk.RiskRejectedException.RiskRejectedException(B3.EntryPoint.Client.Risk.RiskDecision decision) -> void
+B3.EntryPoint.Client.Risk.SecurityIdRateThrottle
+B3.EntryPoint.Client.Risk.SecurityIdRateThrottle.EvaluateAsync(B3.EntryPoint.Client.Risk.OutboundRequest request, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.Risk.RiskDecision>
+B3.EntryPoint.Client.Risk.SecurityIdRateThrottle.MaxPerWindow.get -> int
+B3.EntryPoint.Client.Risk.SecurityIdRateThrottle.SecurityIdRateThrottle(int maxPerWindow, System.TimeSpan windowDuration) -> void
+B3.EntryPoint.Client.Risk.SecurityIdRateThrottle.WindowDuration.get -> System.TimeSpan
+B3.EntryPoint.Client.SegmentRouter<T>
+B3.EntryPoint.Client.SegmentedEntryPointClient
+B3.EntryPoint.Client.SegmentedEntryPointClient.CancelAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.SegmentedEntryPointClient.ConnectAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+B3.EntryPoint.Client.SegmentedEntryPointClient.DefaultSegment.get -> byte
+B3.EntryPoint.Client.SegmentedEntryPointClient.DisposeAsync() -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.SegmentedEntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.GetClient(byte segment) -> B3.EntryPoint.Client.EntryPointClient!
+B3.EntryPoint.Client.SegmentedEntryPointClient.MassActionAsync(B3.EntryPoint.Client.Models.MassActionRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.MassActionReport!>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.ReplaceAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.ReplaceSimpleAsync(B3.EntryPoint.Client.Models.SimpleModifyRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.SegmentedEntryPointClient(System.Collections.Generic.IReadOnlyDictionary<byte, B3.EntryPoint.Client.EntryPointClientOptions!>! perSegmentOptions, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.NewOrderRequest!>! routeNewOrder, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.ReplaceOrderRequest!>! routeReplace, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.CancelOrderRequest!>! routeCancel, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.MassActionRequest!>? routeMassAction = null, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.SimpleNewOrderRequest!>? routeSimpleNewOrder = null, B3.EntryPoint.Client.SegmentRouter<B3.EntryPoint.Client.Models.SimpleModifyRequest!>? routeSimpleReplace = null) -> void
+B3.EntryPoint.Client.SegmentedEntryPointClient.Segments.get -> System.Collections.Generic.IReadOnlyCollection<byte>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.SubmitAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.SubmitSimpleAsync(B3.EntryPoint.Client.Models.SimpleNewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.SessionProfile
+B3.EntryPoint.Client.SessionProfile.DropCopy = 1 -> B3.EntryPoint.Client.SessionProfile
+B3.EntryPoint.Client.SessionProfile.OrderEntry = 0 -> B3.EntryPoint.Client.SessionProfile
+B3.EntryPoint.Client.State.FileSessionStateStore
+B3.EntryPoint.Client.State.FileSessionStateStore.AppendDeltaAsync(B3.EntryPoint.Client.State.SessionDelta! delta, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.FileSessionStateStore.CompactAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.FileSessionStateStore.FileSessionStateStore(string! directory) -> void
+B3.EntryPoint.Client.State.FileSessionStateStore.LoadAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.State.SessionSnapshot?>
+B3.EntryPoint.Client.State.FileSessionStateStore.ReplayAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.State.SessionSnapshot?>
+B3.EntryPoint.Client.State.FileSessionStateStore.SaveAsync(B3.EntryPoint.Client.State.SessionSnapshot! snapshot, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.ISessionStateStore
+B3.EntryPoint.Client.State.ISessionStateStore.AppendDeltaAsync(B3.EntryPoint.Client.State.SessionDelta! delta, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.ISessionStateStore.CompactAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.ISessionStateStore.LoadAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.State.SessionSnapshot?>
+B3.EntryPoint.Client.State.ISessionStateStore.ReplayAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<B3.EntryPoint.Client.State.SessionSnapshot?>
+B3.EntryPoint.Client.State.ISessionStateStore.SaveAsync(B3.EntryPoint.Client.State.SessionSnapshot! snapshot, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+B3.EntryPoint.Client.State.InboundDelta
+B3.EntryPoint.Client.State.InboundDelta.Deconstruct(out ulong SeqNum) -> void
+B3.EntryPoint.Client.State.InboundDelta.Equals(B3.EntryPoint.Client.State.InboundDelta? other) -> bool
+B3.EntryPoint.Client.State.InboundDelta.InboundDelta(ulong SeqNum) -> void
+B3.EntryPoint.Client.State.InboundDelta.SeqNum.get -> ulong
+B3.EntryPoint.Client.State.InboundDelta.SeqNum.init -> void
+B3.EntryPoint.Client.State.OrderClosedDelta
+B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.get -> string!
+B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.init -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.Deconstruct(out string! ClOrdID) -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.Equals(B3.EntryPoint.Client.State.OrderClosedDelta? other) -> bool
+B3.EntryPoint.Client.State.OrderClosedDelta.OrderClosedDelta(string! ClOrdID) -> void
+B3.EntryPoint.Client.State.OutboundDelta
+B3.EntryPoint.Client.State.OutboundDelta.ClOrdID.get -> string!
+B3.EntryPoint.Client.State.OutboundDelta.ClOrdID.init -> void
+B3.EntryPoint.Client.State.OutboundDelta.Deconstruct(out ulong SeqNum, out string! ClOrdID, out ulong SecurityId) -> void
+B3.EntryPoint.Client.State.OutboundDelta.Equals(B3.EntryPoint.Client.State.OutboundDelta? other) -> bool
+B3.EntryPoint.Client.State.OutboundDelta.OutboundDelta(ulong SeqNum, string! ClOrdID, ulong SecurityId) -> void
+B3.EntryPoint.Client.State.OutboundDelta.SecurityId.get -> ulong
+B3.EntryPoint.Client.State.OutboundDelta.SecurityId.init -> void
+B3.EntryPoint.Client.State.OutboundDelta.SeqNum.get -> ulong
+B3.EntryPoint.Client.State.OutboundDelta.SeqNum.init -> void
+B3.EntryPoint.Client.State.SessionDelta
+B3.EntryPoint.Client.State.SessionDelta.At.get -> System.DateTimeOffset
+B3.EntryPoint.Client.State.SessionDelta.At.init -> void
+B3.EntryPoint.Client.State.SessionDelta.SessionDelta() -> void
+B3.EntryPoint.Client.State.SessionDelta.SessionDelta(B3.EntryPoint.Client.State.SessionDelta! original) -> void
+B3.EntryPoint.Client.State.SessionSnapshot
+B3.EntryPoint.Client.State.SessionSnapshot.<Clone>$() -> B3.EntryPoint.Client.State.SessionSnapshot!
+B3.EntryPoint.Client.State.SessionSnapshot.CapturedAt.get -> System.DateTimeOffset
+B3.EntryPoint.Client.State.SessionSnapshot.CapturedAt.init -> void
+B3.EntryPoint.Client.State.SessionSnapshot.Equals(B3.EntryPoint.Client.State.SessionSnapshot? other) -> bool
+B3.EntryPoint.Client.State.SessionSnapshot.LastInboundSeqNum.get -> ulong
+B3.EntryPoint.Client.State.SessionSnapshot.LastInboundSeqNum.init -> void
+B3.EntryPoint.Client.State.SessionSnapshot.LastOutboundSeqNum.get -> ulong
+B3.EntryPoint.Client.State.SessionSnapshot.LastOutboundSeqNum.init -> void
+B3.EntryPoint.Client.State.SessionSnapshot.OutstandingOrders.get -> System.Collections.Generic.Dictionary<string!, ulong>!
+B3.EntryPoint.Client.State.SessionSnapshot.OutstandingOrders.init -> void
+B3.EntryPoint.Client.State.SessionSnapshot.SessionId.get -> uint
+B3.EntryPoint.Client.State.SessionSnapshot.SessionId.init -> void
+B3.EntryPoint.Client.State.SessionSnapshot.SessionSnapshot() -> void
+B3.EntryPoint.Client.State.SessionSnapshot.SessionVerId.get -> uint
+B3.EntryPoint.Client.State.SessionSnapshot.SessionVerId.init -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth
+B3.EntryPoint.Client.Telemetry.ClientHealth.ClientHealth() -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth.ClientHealth(B3.EntryPoint.Client.Fixp.FixpClientState State, System.DateTime LastInboundUtc, System.TimeSpan SinceLastInbound) -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth.Deconstruct(out B3.EntryPoint.Client.Fixp.FixpClientState State, out System.DateTime LastInboundUtc, out System.TimeSpan SinceLastInbound) -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth.Equals(B3.EntryPoint.Client.Telemetry.ClientHealth other) -> bool
+B3.EntryPoint.Client.Telemetry.ClientHealth.LastInboundUtc.get -> System.DateTime
+B3.EntryPoint.Client.Telemetry.ClientHealth.LastInboundUtc.init -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth.SinceLastInbound.get -> System.TimeSpan
+B3.EntryPoint.Client.Telemetry.ClientHealth.SinceLastInbound.init -> void
+B3.EntryPoint.Client.Telemetry.ClientHealth.State.get -> B3.EntryPoint.Client.Fixp.FixpClientState
+B3.EntryPoint.Client.Telemetry.ClientHealth.State.init -> void
+B3.EntryPoint.Client.Telemetry.EntryPointTelemetry
+B3.EntryPoint.Client.TerminatedEventArgs
+B3.EntryPoint.Client.TerminatedEventArgs.Code.get -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminatedEventArgs.InitiatedByClient.get -> bool
+B3.EntryPoint.Client.TerminatedEventArgs.Reason.get -> string?
+B3.EntryPoint.Client.TerminatedEventArgs.TerminatedEventArgs(B3.EntryPoint.Client.TerminationCode code, string? reason, bool initiatedByClient) -> void
+B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.BackupTakeoverInProgress = 30 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.DecodingError = 17 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.EstablishInProgress = 6 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.Finished = 1 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.InvalidNextSeqNo = 14 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.InvalidSessionId = 11 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.InvalidSessionVerId = 12 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.InvalidSofh = 16 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.InvalidTimestamp = 13 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.KeepaliveIntervalLapsed = 10 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.NegotiationInProgress = 5 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.NotEstablished = 3 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.ProtocolVersionNotSupported = 23 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.SessionBlocked = 4 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.TerminateInProgress = 21 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.TerminateNotAllowed = 20 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.Unnegotiated = 2 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.UnrecognizedMessage = 15 -> B3.EntryPoint.Client.TerminationCode
+B3.EntryPoint.Client.TerminationCode.Unspecified = 0 -> B3.EntryPoint.Client.TerminationCode
+abstract B3.EntryPoint.Client.Models.EntryPointEvent.<Clone>$() -> B3.EntryPoint.Client.Models.EntryPointEvent!
+abstract B3.EntryPoint.Client.State.SessionDelta.<Clone>$() -> B3.EntryPoint.Client.State.SessionDelta!
+const B3.EntryPoint.Client.DependencyInjection.EntryPointClientServiceCollectionExtensions.DropCopyOptionsName = "B3.EntryPoint.DropCopy" -> string!
+const B3.EntryPoint.Client.Fixp.RetransmitRequestHandler.MaxCountPerRequest = 1000 -> uint
+const B3.EntryPoint.Client.Framing.SofhFrameReader.HeaderSize = 4 -> int
+const B3.EntryPoint.Client.Framing.SofhFrameReader.SbeLittleEndianEncodingType = 60240 -> ushort
+const B3.EntryPoint.Client.Framing.SofhFrameWriter.HeaderSize = 4 -> int
+const B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.SourceName = "B3.EntryPoint.Client" -> string!
+const B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.Version = "0.4.2" -> string!
+override B3.EntryPoint.Client.Models.AllocationReceived.<Clone>$() -> B3.EntryPoint.Client.Models.AllocationReceived!
+override B3.EntryPoint.Client.Models.AllocationReceived.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.AllocationReceived.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.AllocationReceived.ToString() -> string!
+override B3.EntryPoint.Client.Models.BusinessReject.<Clone>$() -> B3.EntryPoint.Client.Models.BusinessReject!
+override B3.EntryPoint.Client.Models.BusinessReject.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.BusinessReject.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.BusinessReject.ToString() -> string!
+override B3.EntryPoint.Client.Models.CancelOrderRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.CancelOrderRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.CancelOrderRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.ClOrdID.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.ClOrdID.ToString() -> string!
+override B3.EntryPoint.Client.Models.CrossLeg.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.CrossLeg.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.CrossLeg.ToString() -> string!
+override B3.EntryPoint.Client.Models.EntryPointEvent.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.EntryPointEvent.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.EntryPointEvent.ToString() -> string!
+override B3.EntryPoint.Client.Models.MassActionExecuted.<Clone>$() -> B3.EntryPoint.Client.Models.MassActionExecuted!
+override B3.EntryPoint.Client.Models.MassActionExecuted.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.MassActionExecuted.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.MassActionExecuted.ToString() -> string!
+override B3.EntryPoint.Client.Models.MassActionReport.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.MassActionReport.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.MassActionReport.ToString() -> string!
+override B3.EntryPoint.Client.Models.MassActionRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.MassActionRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.MassActionRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.NewOrderCrossRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.NewOrderCrossRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.NewOrderCrossRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.NewOrderRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.NewOrderRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.NewOrderRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderAccepted.<Clone>$() -> B3.EntryPoint.Client.Models.OrderAccepted!
+override B3.EntryPoint.Client.Models.OrderAccepted.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderAccepted.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderAccepted.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderCancelled.<Clone>$() -> B3.EntryPoint.Client.Models.OrderCancelled!
+override B3.EntryPoint.Client.Models.OrderCancelled.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderCancelled.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderCancelled.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderForwarded.<Clone>$() -> B3.EntryPoint.Client.Models.OrderForwarded!
+override B3.EntryPoint.Client.Models.OrderForwarded.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderForwarded.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderForwarded.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderModified.<Clone>$() -> B3.EntryPoint.Client.Models.OrderModified!
+override B3.EntryPoint.Client.Models.OrderModified.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderModified.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderModified.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderRejected.<Clone>$() -> B3.EntryPoint.Client.Models.OrderRejected!
+override B3.EntryPoint.Client.Models.OrderRejected.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderRejected.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderRejected.ToString() -> string!
+override B3.EntryPoint.Client.Models.OrderTrade.<Clone>$() -> B3.EntryPoint.Client.Models.OrderTrade!
+override B3.EntryPoint.Client.Models.OrderTrade.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.OrderTrade.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.OrderTrade.ToString() -> string!
+override B3.EntryPoint.Client.Models.PositionMaintenanceReceived.<Clone>$() -> B3.EntryPoint.Client.Models.PositionMaintenanceReceived!
+override B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.PositionMaintenanceReceived.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.PositionMaintenanceReceived.ToString() -> string!
+override B3.EntryPoint.Client.Models.QuoteMessage.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.QuoteMessage.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.QuoteMessage.ToString() -> string!
+override B3.EntryPoint.Client.Models.QuoteRequestMessage.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.QuoteRequestMessage.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.QuoteRequestMessage.ToString() -> string!
+override B3.EntryPoint.Client.Models.QuoteRequestRejected.<Clone>$() -> B3.EntryPoint.Client.Models.QuoteRequestRejected!
+override B3.EntryPoint.Client.Models.QuoteRequestRejected.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.QuoteRequestRejected.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.QuoteRequestRejected.ToString() -> string!
+override B3.EntryPoint.Client.Models.QuoteStatusUpdated.<Clone>$() -> B3.EntryPoint.Client.Models.QuoteStatusUpdated!
+override B3.EntryPoint.Client.Models.QuoteStatusUpdated.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.QuoteStatusUpdated.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.QuoteStatusUpdated.ToString() -> string!
+override B3.EntryPoint.Client.Models.ReplaceOrderRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.ReplaceOrderRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.ReplaceOrderRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.SimpleModifyRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.SimpleModifyRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.SimpleModifyRequest.ToString() -> string!
+override B3.EntryPoint.Client.Models.SimpleNewOrderRequest.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.Models.SimpleNewOrderRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.Models.SimpleNewOrderRequest.ToString() -> string!
+override B3.EntryPoint.Client.Risk.OutboundRequest.GetHashCode() -> int
+override B3.EntryPoint.Client.State.InboundDelta.<Clone>$() -> B3.EntryPoint.Client.State.InboundDelta!
+override B3.EntryPoint.Client.State.InboundDelta.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.State.InboundDelta.GetHashCode() -> int
+override B3.EntryPoint.Client.State.InboundDelta.ToString() -> string!
+override B3.EntryPoint.Client.State.OrderClosedDelta.<Clone>$() -> B3.EntryPoint.Client.State.OrderClosedDelta!
+override B3.EntryPoint.Client.State.OrderClosedDelta.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.State.OrderClosedDelta.GetHashCode() -> int
+override B3.EntryPoint.Client.State.OrderClosedDelta.ToString() -> string!
+override B3.EntryPoint.Client.State.OutboundDelta.<Clone>$() -> B3.EntryPoint.Client.State.OutboundDelta!
+override B3.EntryPoint.Client.State.OutboundDelta.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.State.OutboundDelta.GetHashCode() -> int
+override B3.EntryPoint.Client.State.OutboundDelta.ToString() -> string!
+override B3.EntryPoint.Client.State.SessionDelta.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.State.SessionDelta.GetHashCode() -> int
+override B3.EntryPoint.Client.State.SessionDelta.ToString() -> string!
+override B3.EntryPoint.Client.State.SessionSnapshot.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.State.SessionSnapshot.GetHashCode() -> int
+override B3.EntryPoint.Client.State.SessionSnapshot.ToString() -> string!
+override B3.EntryPoint.Client.Telemetry.ClientHealth.GetHashCode() -> int
+override sealed B3.EntryPoint.Client.Models.AllocationReceived.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.BusinessReject.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.MassActionExecuted.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderAccepted.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderCancelled.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderForwarded.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderModified.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderRejected.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.OrderTrade.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.PositionMaintenanceReceived.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.QuoteRequestRejected.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.Models.QuoteStatusUpdated.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+override sealed B3.EntryPoint.Client.State.InboundDelta.Equals(B3.EntryPoint.Client.State.SessionDelta? other) -> bool
+override sealed B3.EntryPoint.Client.State.OrderClosedDelta.Equals(B3.EntryPoint.Client.State.SessionDelta? other) -> bool
+override sealed B3.EntryPoint.Client.State.OutboundDelta.Equals(B3.EntryPoint.Client.State.SessionDelta? other) -> bool
+static B3.EntryPoint.Client.Auth.Credentials.FromUtf8(string! accessKey) -> B3.EntryPoint.Client.Auth.Credentials!
+static B3.EntryPoint.Client.DependencyInjection.EntryPointClientServiceCollectionExtensions.AddDropCopyClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.EntryPointClientOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static B3.EntryPoint.Client.DependencyInjection.EntryPointClientServiceCollectionExtensions.AddEntryPointClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.EntryPointClientOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static B3.EntryPoint.Client.EntryPointClientOptions.AccessKey(string! value) -> B3.EntryPoint.Client.Auth.Credentials!
+static B3.EntryPoint.Client.Framing.SofhFrameReader.ReadFrameAsync(System.IO.Stream! stream, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<byte[]!>!
+static B3.EntryPoint.Client.Framing.SofhFrameReader.TryParseHeader(System.ReadOnlySpan<byte> buffer, out ushort messageLength, out ushort encodingType) -> bool
+static B3.EntryPoint.Client.Framing.SofhFrameWriter.WriteHeader(System.Span<byte> buffer, ushort messageLength, ushort encodingType = 60240) -> void
+static B3.EntryPoint.Client.Models.AllocationReceived.operator !=(B3.EntryPoint.Client.Models.AllocationReceived? left, B3.EntryPoint.Client.Models.AllocationReceived? right) -> bool
+static B3.EntryPoint.Client.Models.AllocationReceived.operator ==(B3.EntryPoint.Client.Models.AllocationReceived? left, B3.EntryPoint.Client.Models.AllocationReceived? right) -> bool
+static B3.EntryPoint.Client.Models.BusinessReject.operator !=(B3.EntryPoint.Client.Models.BusinessReject? left, B3.EntryPoint.Client.Models.BusinessReject? right) -> bool
+static B3.EntryPoint.Client.Models.BusinessReject.operator ==(B3.EntryPoint.Client.Models.BusinessReject? left, B3.EntryPoint.Client.Models.BusinessReject? right) -> bool
+static B3.EntryPoint.Client.Models.CancelOrderRequest.operator !=(B3.EntryPoint.Client.Models.CancelOrderRequest? left, B3.EntryPoint.Client.Models.CancelOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.CancelOrderRequest.operator ==(B3.EntryPoint.Client.Models.CancelOrderRequest? left, B3.EntryPoint.Client.Models.CancelOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.ClOrdID.Parse(string! value) -> B3.EntryPoint.Client.Models.ClOrdID
+static B3.EntryPoint.Client.Models.ClOrdID.explicit operator B3.EntryPoint.Client.Models.ClOrdID(ulong value) -> B3.EntryPoint.Client.Models.ClOrdID
+static B3.EntryPoint.Client.Models.ClOrdID.implicit operator ulong(B3.EntryPoint.Client.Models.ClOrdID id) -> ulong
+static B3.EntryPoint.Client.Models.ClOrdID.operator !=(B3.EntryPoint.Client.Models.ClOrdID left, B3.EntryPoint.Client.Models.ClOrdID right) -> bool
+static B3.EntryPoint.Client.Models.ClOrdID.operator ==(B3.EntryPoint.Client.Models.ClOrdID left, B3.EntryPoint.Client.Models.ClOrdID right) -> bool
+static B3.EntryPoint.Client.Models.CrossLeg.operator !=(B3.EntryPoint.Client.Models.CrossLeg? left, B3.EntryPoint.Client.Models.CrossLeg? right) -> bool
+static B3.EntryPoint.Client.Models.CrossLeg.operator ==(B3.EntryPoint.Client.Models.CrossLeg? left, B3.EntryPoint.Client.Models.CrossLeg? right) -> bool
+static B3.EntryPoint.Client.Models.EntryPointEvent.operator !=(B3.EntryPoint.Client.Models.EntryPointEvent? left, B3.EntryPoint.Client.Models.EntryPointEvent? right) -> bool
+static B3.EntryPoint.Client.Models.EntryPointEvent.operator ==(B3.EntryPoint.Client.Models.EntryPointEvent? left, B3.EntryPoint.Client.Models.EntryPointEvent? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionExecuted.operator !=(B3.EntryPoint.Client.Models.MassActionExecuted? left, B3.EntryPoint.Client.Models.MassActionExecuted? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionExecuted.operator ==(B3.EntryPoint.Client.Models.MassActionExecuted? left, B3.EntryPoint.Client.Models.MassActionExecuted? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionReport.operator !=(B3.EntryPoint.Client.Models.MassActionReport? left, B3.EntryPoint.Client.Models.MassActionReport? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionReport.operator ==(B3.EntryPoint.Client.Models.MassActionReport? left, B3.EntryPoint.Client.Models.MassActionReport? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionRequest.operator !=(B3.EntryPoint.Client.Models.MassActionRequest? left, B3.EntryPoint.Client.Models.MassActionRequest? right) -> bool
+static B3.EntryPoint.Client.Models.MassActionRequest.operator ==(B3.EntryPoint.Client.Models.MassActionRequest? left, B3.EntryPoint.Client.Models.MassActionRequest? right) -> bool
+static B3.EntryPoint.Client.Models.NewOrderCrossRequest.operator !=(B3.EntryPoint.Client.Models.NewOrderCrossRequest? left, B3.EntryPoint.Client.Models.NewOrderCrossRequest? right) -> bool
+static B3.EntryPoint.Client.Models.NewOrderCrossRequest.operator ==(B3.EntryPoint.Client.Models.NewOrderCrossRequest? left, B3.EntryPoint.Client.Models.NewOrderCrossRequest? right) -> bool
+static B3.EntryPoint.Client.Models.NewOrderRequest.operator !=(B3.EntryPoint.Client.Models.NewOrderRequest? left, B3.EntryPoint.Client.Models.NewOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.NewOrderRequest.operator ==(B3.EntryPoint.Client.Models.NewOrderRequest? left, B3.EntryPoint.Client.Models.NewOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.OrderAccepted.operator !=(B3.EntryPoint.Client.Models.OrderAccepted? left, B3.EntryPoint.Client.Models.OrderAccepted? right) -> bool
+static B3.EntryPoint.Client.Models.OrderAccepted.operator ==(B3.EntryPoint.Client.Models.OrderAccepted? left, B3.EntryPoint.Client.Models.OrderAccepted? right) -> bool
+static B3.EntryPoint.Client.Models.OrderCancelled.operator !=(B3.EntryPoint.Client.Models.OrderCancelled? left, B3.EntryPoint.Client.Models.OrderCancelled? right) -> bool
+static B3.EntryPoint.Client.Models.OrderCancelled.operator ==(B3.EntryPoint.Client.Models.OrderCancelled? left, B3.EntryPoint.Client.Models.OrderCancelled? right) -> bool
+static B3.EntryPoint.Client.Models.OrderForwarded.operator !=(B3.EntryPoint.Client.Models.OrderForwarded? left, B3.EntryPoint.Client.Models.OrderForwarded? right) -> bool
+static B3.EntryPoint.Client.Models.OrderForwarded.operator ==(B3.EntryPoint.Client.Models.OrderForwarded? left, B3.EntryPoint.Client.Models.OrderForwarded? right) -> bool
+static B3.EntryPoint.Client.Models.OrderModified.operator !=(B3.EntryPoint.Client.Models.OrderModified? left, B3.EntryPoint.Client.Models.OrderModified? right) -> bool
+static B3.EntryPoint.Client.Models.OrderModified.operator ==(B3.EntryPoint.Client.Models.OrderModified? left, B3.EntryPoint.Client.Models.OrderModified? right) -> bool
+static B3.EntryPoint.Client.Models.OrderRejected.operator !=(B3.EntryPoint.Client.Models.OrderRejected? left, B3.EntryPoint.Client.Models.OrderRejected? right) -> bool
+static B3.EntryPoint.Client.Models.OrderRejected.operator ==(B3.EntryPoint.Client.Models.OrderRejected? left, B3.EntryPoint.Client.Models.OrderRejected? right) -> bool
+static B3.EntryPoint.Client.Models.OrderTrade.operator !=(B3.EntryPoint.Client.Models.OrderTrade? left, B3.EntryPoint.Client.Models.OrderTrade? right) -> bool
+static B3.EntryPoint.Client.Models.OrderTrade.operator ==(B3.EntryPoint.Client.Models.OrderTrade? left, B3.EntryPoint.Client.Models.OrderTrade? right) -> bool
+static B3.EntryPoint.Client.Models.PositionMaintenanceReceived.operator !=(B3.EntryPoint.Client.Models.PositionMaintenanceReceived? left, B3.EntryPoint.Client.Models.PositionMaintenanceReceived? right) -> bool
+static B3.EntryPoint.Client.Models.PositionMaintenanceReceived.operator ==(B3.EntryPoint.Client.Models.PositionMaintenanceReceived? left, B3.EntryPoint.Client.Models.PositionMaintenanceReceived? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteMessage.operator !=(B3.EntryPoint.Client.Models.QuoteMessage? left, B3.EntryPoint.Client.Models.QuoteMessage? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteMessage.operator ==(B3.EntryPoint.Client.Models.QuoteMessage? left, B3.EntryPoint.Client.Models.QuoteMessage? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteRequestMessage.operator !=(B3.EntryPoint.Client.Models.QuoteRequestMessage? left, B3.EntryPoint.Client.Models.QuoteRequestMessage? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteRequestMessage.operator ==(B3.EntryPoint.Client.Models.QuoteRequestMessage? left, B3.EntryPoint.Client.Models.QuoteRequestMessage? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteRequestRejected.operator !=(B3.EntryPoint.Client.Models.QuoteRequestRejected? left, B3.EntryPoint.Client.Models.QuoteRequestRejected? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteRequestRejected.operator ==(B3.EntryPoint.Client.Models.QuoteRequestRejected? left, B3.EntryPoint.Client.Models.QuoteRequestRejected? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteStatusUpdated.operator !=(B3.EntryPoint.Client.Models.QuoteStatusUpdated? left, B3.EntryPoint.Client.Models.QuoteStatusUpdated? right) -> bool
+static B3.EntryPoint.Client.Models.QuoteStatusUpdated.operator ==(B3.EntryPoint.Client.Models.QuoteStatusUpdated? left, B3.EntryPoint.Client.Models.QuoteStatusUpdated? right) -> bool
+static B3.EntryPoint.Client.Models.ReplaceOrderRequest.operator !=(B3.EntryPoint.Client.Models.ReplaceOrderRequest? left, B3.EntryPoint.Client.Models.ReplaceOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.ReplaceOrderRequest.operator ==(B3.EntryPoint.Client.Models.ReplaceOrderRequest? left, B3.EntryPoint.Client.Models.ReplaceOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.SimpleModifyRequest.operator !=(B3.EntryPoint.Client.Models.SimpleModifyRequest? left, B3.EntryPoint.Client.Models.SimpleModifyRequest? right) -> bool
+static B3.EntryPoint.Client.Models.SimpleModifyRequest.operator ==(B3.EntryPoint.Client.Models.SimpleModifyRequest? left, B3.EntryPoint.Client.Models.SimpleModifyRequest? right) -> bool
+static B3.EntryPoint.Client.Models.SimpleNewOrderRequest.operator !=(B3.EntryPoint.Client.Models.SimpleNewOrderRequest? left, B3.EntryPoint.Client.Models.SimpleNewOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Models.SimpleNewOrderRequest.operator ==(B3.EntryPoint.Client.Models.SimpleNewOrderRequest? left, B3.EntryPoint.Client.Models.SimpleNewOrderRequest? right) -> bool
+static B3.EntryPoint.Client.Risk.OutboundRequest.operator !=(B3.EntryPoint.Client.Risk.OutboundRequest left, B3.EntryPoint.Client.Risk.OutboundRequest right) -> bool
+static B3.EntryPoint.Client.Risk.OutboundRequest.operator ==(B3.EntryPoint.Client.Risk.OutboundRequest left, B3.EntryPoint.Client.Risk.OutboundRequest right) -> bool
+static B3.EntryPoint.Client.Risk.RiskDecision.Allow() -> B3.EntryPoint.Client.Risk.RiskDecision
+static B3.EntryPoint.Client.Risk.RiskDecision.Reject(string! reason) -> B3.EntryPoint.Client.Risk.RiskDecision
+static B3.EntryPoint.Client.Risk.RiskDecision.Throttle(string! reason) -> B3.EntryPoint.Client.Risk.RiskDecision
+static B3.EntryPoint.Client.State.InboundDelta.operator !=(B3.EntryPoint.Client.State.InboundDelta? left, B3.EntryPoint.Client.State.InboundDelta? right) -> bool
+static B3.EntryPoint.Client.State.InboundDelta.operator ==(B3.EntryPoint.Client.State.InboundDelta? left, B3.EntryPoint.Client.State.InboundDelta? right) -> bool
+static B3.EntryPoint.Client.State.OrderClosedDelta.operator !=(B3.EntryPoint.Client.State.OrderClosedDelta? left, B3.EntryPoint.Client.State.OrderClosedDelta? right) -> bool
+static B3.EntryPoint.Client.State.OrderClosedDelta.operator ==(B3.EntryPoint.Client.State.OrderClosedDelta? left, B3.EntryPoint.Client.State.OrderClosedDelta? right) -> bool
+static B3.EntryPoint.Client.State.OutboundDelta.operator !=(B3.EntryPoint.Client.State.OutboundDelta? left, B3.EntryPoint.Client.State.OutboundDelta? right) -> bool
+static B3.EntryPoint.Client.State.OutboundDelta.operator ==(B3.EntryPoint.Client.State.OutboundDelta? left, B3.EntryPoint.Client.State.OutboundDelta? right) -> bool
+static B3.EntryPoint.Client.State.SessionDelta.operator !=(B3.EntryPoint.Client.State.SessionDelta? left, B3.EntryPoint.Client.State.SessionDelta? right) -> bool
+static B3.EntryPoint.Client.State.SessionDelta.operator ==(B3.EntryPoint.Client.State.SessionDelta? left, B3.EntryPoint.Client.State.SessionDelta? right) -> bool
+static B3.EntryPoint.Client.State.SessionSnapshot.operator !=(B3.EntryPoint.Client.State.SessionSnapshot? left, B3.EntryPoint.Client.State.SessionSnapshot? right) -> bool
+static B3.EntryPoint.Client.State.SessionSnapshot.operator ==(B3.EntryPoint.Client.State.SessionSnapshot? left, B3.EntryPoint.Client.State.SessionSnapshot? right) -> bool
+static B3.EntryPoint.Client.Telemetry.ClientHealth.operator !=(B3.EntryPoint.Client.Telemetry.ClientHealth left, B3.EntryPoint.Client.Telemetry.ClientHealth right) -> bool
+static B3.EntryPoint.Client.Telemetry.ClientHealth.operator ==(B3.EntryPoint.Client.Telemetry.ClientHealth left, B3.EntryPoint.Client.Telemetry.ClientHealth right) -> bool
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.ActivitySource -> System.Diagnostics.ActivitySource!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.MassActions -> System.Diagnostics.Metrics.Counter<long>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.Meter -> System.Diagnostics.Metrics.Meter!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.OrdersCancelled -> System.Diagnostics.Metrics.Counter<long>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.OrdersReplaced -> System.Diagnostics.Metrics.Counter<long>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.OrdersSubmitted -> System.Diagnostics.Metrics.Counter<long>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.OutboundLatency -> System.Diagnostics.Metrics.Histogram<double>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.RiskRejections -> System.Diagnostics.Metrics.Counter<long>!
+static readonly B3.EntryPoint.Client.Telemetry.EntryPointTelemetry.Terminations -> System.Diagnostics.Metrics.Counter<long>!
+virtual B3.EntryPoint.Client.Models.EntryPointEvent.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.Models.EntryPointEvent.Equals(B3.EntryPoint.Client.Models.EntryPointEvent? other) -> bool
+virtual B3.EntryPoint.Client.Models.EntryPointEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual B3.EntryPoint.Client.SegmentRouter<T>.Invoke(T request) -> byte
+virtual B3.EntryPoint.Client.State.SessionDelta.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.State.SessionDelta.Equals(B3.EntryPoint.Client.State.SessionDelta? other) -> bool
+virtual B3.EntryPoint.Client.State.SessionDelta.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override B3.EntryPoint.Client.Models.ClOrdID.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.Risk.OutboundRequest.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.Risk.OutboundRequest.ToString() -> string
+~override B3.EntryPoint.Client.Telemetry.ClientHealth.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.Telemetry.ClientHealth.ToString() -> string
