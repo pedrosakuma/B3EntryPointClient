@@ -13,6 +13,8 @@ using SbeSimpleTimeInForce = B3.Entrypoint.Fixp.Sbe.V6.SimpleTimeInForce;
 using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
 using SbeMassActionType = B3.Entrypoint.Fixp.Sbe.V6.MassActionType;
 using SbeMassActionScope = B3.Entrypoint.Fixp.Sbe.V6.MassActionScope;
+using SbeSettlType = B3.Entrypoint.Fixp.Sbe.V6.SettlType;
+using SbeExecuteUnderlyingTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecuteUnderlyingTrade;
 using SbeCrossType = B3.Entrypoint.Fixp.Sbe.V6.CrossType;
 using SbeCrossPrioritization = B3.Entrypoint.Fixp.Sbe.V6.CrossPrioritization;
 
@@ -42,6 +44,24 @@ internal static class OrderEntryEncoder
         header.MarketSegmentID = new MarketSegmentID(options.DefaultMarketSegmentId);
         return header;
     }
+
+    private static BidirectionalBusinessHeader BuildBidirectionalBusinessHeader(EntryPointClientOptions options, ulong msgSeqNum)
+    {
+        var header = default(BidirectionalBusinessHeader);
+        header.SessionID = new SessionID(options.SessionId);
+        header.MsgSeqNum = new SeqNum(checked((uint)msgSeqNum));
+        header.SendingTime = default;
+        // MarketSegmentID is optional on bidirectional messages; left at NullValue (0) to mean "not set".
+        if (options.DefaultMarketSegmentId != 0)
+            MemoryMarshalAsBytes(ref header, 17, 1)[0] = options.DefaultMarketSegmentId;
+        return header;
+    }
+
+    private static long Percentage8Mantissa(decimal value) =>
+        (long)(value * 100_000_000m);
+
+    private static long Price8Mantissa(decimal value) =>
+        (long)(value * 100_000_000m);
 
     private static void WriteHeaders(Span<byte> buffer, int totalSize, Action<Span<byte>> writeSbeHeader)
     {
@@ -352,6 +372,115 @@ internal static class OrderEntryEncoder
             throw new ArgumentException(
                 $"CrossId must be a numeric string parseable to ulong (was '{crossId}').", nameof(crossId));
         return value;
+    }
+
+    private static ulong ParseQuoteUlongId(string id, string fieldName)
+    {
+        if (string.IsNullOrEmpty(id))
+            throw new ArgumentException($"{fieldName} is required.", fieldName);
+        if (!ulong.TryParse(id, out var value))
+            throw new ArgumentException(
+                $"{fieldName} must be a numeric string parseable to ulong (was '{id}').", fieldName);
+        return value;
+    }
+
+    /// <summary>Encodes a QuoteRequest (template id 401) for B3 Termo. Returns total bytes written.</summary>
+    public static int EncodeQuoteRequest(
+        Span<byte> buffer,
+        QuoteRequestMessage request,
+        EntryPointClientOptions options,
+        ulong msgSeqNum)
+    {
+        var totalSize = SofhSize + SbeHeaderSize + QuoteRequestData.MESSAGE_SIZE;
+        WriteHeaders(buffer.Slice(0, totalSize), totalSize, p => QuoteRequestData.WriteHeader(p));
+
+        var msg = default(QuoteRequestData);
+        msg.BusinessHeader = BuildBidirectionalBusinessHeader(options, msgSeqNum);
+        msg.SecurityID = new SecurityID(request.SecurityId);
+        msg.QuoteReqID = new QuoteReqID(ParseQuoteUlongId(request.QuoteReqId, nameof(request.QuoteReqId)));
+        if (!string.IsNullOrEmpty(request.QuoteId))
+            msg.SetQuoteID(ParseQuoteUlongId(request.QuoteId, nameof(request.QuoteId)));
+        if (request.TradeId.HasValue)
+            msg.SetTradeID(request.TradeId.Value);
+        msg.ContraBroker = new Firm(request.ContraBroker);
+        BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 60, 8), Price8Mantissa(request.Price));
+        msg.SettlType = (SbeSettlType)(byte)request.SettlType;
+        if (request.ExecuteUnderlyingTrade.HasValue)
+            msg.SetExecuteUnderlyingTrade((SbeExecuteUnderlyingTrade)(byte)request.ExecuteUnderlyingTrade.Value);
+        msg.OrderQty = new Quantity(request.OrderQty);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 78, 10), options.SenderLocation);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 88, 5), options.EnteringTrader);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 93, 5), options.EnteringTrader);
+        BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 98, 8), Percentage8Mantissa(request.FixedRate));
+        msg.DaysToSettlement = new DaysToSettlement(request.DaysToSettlement);
+
+        if (!msg.TryEncode(buffer.Slice(SofhSize + SbeHeaderSize), out _))
+            throw new InvalidOperationException("Failed to encode QuoteRequestData.");
+        return totalSize;
+    }
+
+    /// <summary>Encodes a Quote (template id 403) for B3 Termo. Returns total bytes written.</summary>
+    public static int EncodeQuote(
+        Span<byte> buffer,
+        QuoteMessage quote,
+        EntryPointClientOptions options,
+        ulong msgSeqNum)
+    {
+        var totalSize = SofhSize + SbeHeaderSize + QuoteData.MESSAGE_SIZE;
+        WriteHeaders(buffer.Slice(0, totalSize), totalSize, p => QuoteData.WriteHeader(p));
+
+        var msg = default(QuoteData);
+        msg.BusinessHeader = BuildBidirectionalBusinessHeader(options, msgSeqNum);
+        msg.SecurityID = new SecurityID(quote.SecurityId);
+        if (!string.IsNullOrEmpty(quote.QuoteReqId))
+            msg.QuoteReqID = new QuoteReqID(ParseQuoteUlongId(quote.QuoteReqId, nameof(quote.QuoteReqId)));
+        msg.QuoteID = new QuoteID(ParseQuoteUlongId(quote.QuoteId, nameof(quote.QuoteId)));
+        if (quote.Price.HasValue)
+            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 52, 8), Price8Mantissa(quote.Price.Value));
+        else
+            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 52, 8), long.MinValue);
+        msg.OrderQty = new Quantity(quote.OrderQty);
+        msg.Side = (SbeSide)(byte)quote.Side;
+        msg.SettlType = (SbeSettlType)(byte)quote.SettlType;
+        if (quote.Account.HasValue)
+            msg.SetAccount(quote.Account.Value);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 74, 10), options.SenderLocation);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 84, 5), options.EnteringTrader);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 89, 5), options.EnteringTrader);
+        BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 94, 8), Percentage8Mantissa(quote.FixedRate));
+        if (quote.ExecuteUnderlyingTrade.HasValue)
+            msg.SetExecuteUnderlyingTrade((SbeExecuteUnderlyingTrade)(byte)quote.ExecuteUnderlyingTrade.Value);
+        msg.DaysToSettlement = new DaysToSettlement(quote.DaysToSettlement);
+        if (quote.TradingSubAccount.HasValue)
+            msg.SetTradingSubAccount(quote.TradingSubAccount.Value);
+
+        if (!msg.TryEncode(buffer.Slice(SofhSize + SbeHeaderSize), out _))
+            throw new InvalidOperationException("Failed to encode QuoteData.");
+        return totalSize;
+    }
+
+    /// <summary>Encodes a QuoteCancel (template id 404). Returns total bytes written.</summary>
+    public static int EncodeQuoteCancel(
+        Span<byte> buffer,
+        string quoteId,
+        ulong securityId,
+        EntryPointClientOptions options,
+        ulong msgSeqNum)
+    {
+        var totalSize = SofhSize + SbeHeaderSize + QuoteCancelData.MESSAGE_SIZE;
+        WriteHeaders(buffer.Slice(0, totalSize), totalSize, p => QuoteCancelData.WriteHeader(p));
+
+        var msg = default(QuoteCancelData);
+        msg.BusinessHeader = BuildBidirectionalBusinessHeader(options, msgSeqNum);
+        msg.SecurityID = new SecurityID(securityId);
+        msg.SetQuoteID(ParseQuoteUlongId(quoteId, nameof(quoteId)));
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 48, 10), options.SenderLocation);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 58, 5), options.EnteringTrader);
+        WriteFixedString(MemoryMarshalAsBytes(ref msg, 63, 5), options.EnteringTrader);
+
+        if (!msg.TryEncode(buffer.Slice(SofhSize + SbeHeaderSize), out _))
+            throw new InvalidOperationException("Failed to encode QuoteCancelData.");
+        return totalSize;
     }
 
 
