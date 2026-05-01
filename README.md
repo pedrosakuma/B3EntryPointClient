@@ -114,6 +114,20 @@ integração com `B3MatchingPlatform` antes da fiação SBE/FIXP completa.
 Cross / Quote / Position / Allocation / SecurityDefinition messages estão fora
 de escopo nesta fase.
 
+## Benchmarks
+
+Micro-benchmarks live in [`benchmarks/B3.EntryPoint.Benchmarks`](benchmarks/B3.EntryPoint.Benchmarks)
+and exercise the hot paths the matching platform pays for on every order
+(DTO construction, pre-trade risk gates, polymorphic session-state delta
+serialization). Run locally:
+
+```bash
+dotnet run -c Release --project benchmarks/B3.EntryPoint.Benchmarks -- --filter '*'
+```
+
+Or trigger the [`Benchmarks`](.github/workflows/bench.yml) workflow via
+`workflow_dispatch` to run on CI and download the artifacts.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).

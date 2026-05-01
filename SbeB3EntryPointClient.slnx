@@ -8,4 +8,7 @@
     <Project Path="tests/B3.EntryPoint.Client.Tests/B3.EntryPoint.Client.Tests.csproj" />
     <Project Path="tests/B3.EntryPoint.Conformance/B3.EntryPoint.Conformance.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/B3.EntryPoint.Benchmarks/B3.EntryPoint.Benchmarks.csproj" />
+  </Folder>
 </Solution>
