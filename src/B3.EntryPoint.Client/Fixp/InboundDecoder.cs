@@ -9,6 +9,8 @@ using ClientReject = B3.EntryPoint.Client.Models.OrderRejected;
 using ClientTrade = B3.EntryPoint.Client.Models.OrderTrade;
 using ClientAccepted = B3.EntryPoint.Client.Models.OrderAccepted;
 using ClientBusinessReject = B3.EntryPoint.Client.Models.BusinessReject;
+using ClientQuoteRequestRejected = B3.EntryPoint.Client.Models.QuoteRequestRejected;
+using ClientQuoteStatusUpdated = B3.EntryPoint.Client.Models.QuoteStatusUpdated;
 using SbeBmr = B3.Entrypoint.Fixp.Sbe.V6.BusinessMessageRejectData;
 using SbeErCancel = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_CancelData;
 using SbeErForward = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_ForwardData;
@@ -16,6 +18,8 @@ using SbeErModify = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_ModifyData;
 using SbeErNew = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_NewData;
 using SbeErReject = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_RejectData;
 using SbeErTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecutionReport_TradeData;
+using SbeQuoteRequestReject = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestRejectData;
+using SbeQuoteStatusReport = B3.Entrypoint.Fixp.Sbe.V6.QuoteStatusReportData;
 using ClientClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client.Fixp;
@@ -69,6 +73,12 @@ internal static class InboundDecoder
                 return true;
             case SbeBmr.MESSAGE_ID:
                 evt = DecodeBmr(payload);
+                return true;
+            case SbeQuoteRequestReject.MESSAGE_ID:
+                evt = DecodeQuoteRequestReject(payload);
+                return true;
+            case SbeQuoteStatusReport.MESSAGE_ID:
+                evt = DecodeQuoteStatusReport(payload);
                 return true;
             default:
                 return false;
@@ -181,6 +191,39 @@ internal static class InboundDecoder
             SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
             RefSeqNum = msg.RefSeqNum.Value,
             RejectReason = (ushort)msg.BusinessRejectReason.Value,
+        };
+    }
+
+    private static ClientQuoteRequestRejected DecodeQuoteRequestReject(ReadOnlySpan<byte> payload)
+    {
+        ref readonly var msg = ref MemoryMarshal.AsRef<SbeQuoteRequestReject>(payload);
+        return new ClientQuoteRequestRejected
+        {
+            SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
+            SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
+            QuoteReqId = ((ulong)msg.QuoteReqID).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            SecurityId = msg.SecurityID.Value,
+            QuoteId = msg.QuoteID.HasValue
+                ? msg.QuoteID.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : null,
+            RejectReason = msg.QuoteRequestRejectReason,
+            TransactTime = ToDateTime(msg.TransactTime.Time),
+        };
+    }
+
+    private static ClientQuoteStatusUpdated DecodeQuoteStatusReport(ReadOnlySpan<byte> payload)
+    {
+        ref readonly var msg = ref MemoryMarshal.AsRef<SbeQuoteStatusReport>(payload);
+        return new ClientQuoteStatusUpdated
+        {
+            SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
+            SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
+            QuoteId = ((ulong)msg.QuoteID).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            QuoteReqId = ((ulong)msg.QuoteReqID).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            SecurityId = msg.SecurityID.Value,
+            Status = (Models.QuoteStatus)(byte)msg.QuoteStatus,
+            QuoteRejectReason = msg.QuoteRejectReason,
+            TransactTime = ToDateTime(msg.TransactTime.Time),
         };
     }
 
