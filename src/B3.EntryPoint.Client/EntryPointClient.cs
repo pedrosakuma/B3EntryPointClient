@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
+using Microsoft.Extensions.Logging;
 using ClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
 namespace B3.EntryPoint.Client;
@@ -28,6 +29,9 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     private FixpClientSession? _session;
     private KeepAliveScheduler? _keepAlive;
     private RetransmitRequestHandler? _retransmit;
+    private DateTime _lastInboundUtc;
+    private CancellationTokenSource? _idleCts;
+    private Task? _idleWatchdog;
 
     /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IKeepAliveScheduler? KeepAlive => _keepAlive;
@@ -56,6 +60,33 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         if (_session is not null)
             throw new InvalidOperationException("Client is already connected.");
 
+        var attempts = Math.Max(1, _options.ConnectMaxAttempts);
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await ConnectOnceAsync(ct).ConfigureAwait(false);
+                _options.Logger.LogInformation("EntryPointClient connected on attempt {Attempt}/{Max} to {Endpoint}",
+                    attempt, attempts, _options.Endpoint);
+                StartIdleWatchdog();
+                return;
+            }
+            catch (Exception ex) when (attempt < attempts && !ct.IsCancellationRequested)
+            {
+                lastError = ex;
+                var delay = ComputeBackoff(attempt);
+                _options.Logger.LogWarning(ex, "ConnectAsync attempt {Attempt}/{Max} failed; retrying in {DelayMs} ms",
+                    attempt, attempts, (int)delay.TotalMilliseconds);
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+        }
+        throw lastError ?? new InvalidOperationException("ConnectAsync failed without exception.");
+    }
+
+    private async Task ConnectOnceAsync(CancellationToken ct)
+    {
         var tcp = new TcpClient();
         try
         {
@@ -74,26 +105,79 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         _session = new FixpClientSession(tcp.GetStream(), _options);
 
         await _session.NegotiateAsync(ct).ConfigureAwait(false);
+        _options.Logger.LogDebug("FIXP Negotiated with {Endpoint}", _options.Endpoint);
         await _session.EstablishAsync(ct).ConfigureAwait(false);
+        _options.Logger.LogDebug("FIXP Established with {Endpoint}", _options.Endpoint);
         _session.StartInboundLoop(_events.Writer);
 
         _keepAlive = new KeepAliveScheduler(
             _options.KeepAliveInterval,
             sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
             nextSeqNo: () => _session.NextOutboundSeqNum());
-        _session.OnInboundSequence = nextSeq => _keepAlive.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
+        _session.OnInboundSequence = nextSeq =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
+        };
         _keepAlive.Start();
 
         _retransmit = new RetransmitRequestHandler(
             sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
         _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
-            _retransmit.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
+        };
         _session.OnInboundRetransmitReject = (code, reqNanos) =>
-            _retransmit.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
+        };
         _session.OnInboundNotApplied = (from, count) =>
-            _retransmit.RaiseNotAppliedReceived(from, count);
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _retransmit!.RaiseNotAppliedReceived(from, count);
+        };
         _session.OnInboundTerminate = code =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _options.Logger.LogInformation("Inbound Terminate received: code={Code}", code);
             RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
+        };
+        _lastInboundUtc = DateTime.UtcNow;
+    }
+
+    private TimeSpan ComputeBackoff(int attempt)
+    {
+        var baseMs = _options.ConnectBaseDelay.TotalMilliseconds;
+        var raw = baseMs * Math.Pow(2, attempt - 1);
+        var capped = Math.Min(raw, _options.ConnectMaxDelay.TotalMilliseconds);
+        var jitter = Random.Shared.NextDouble() * 0.25 * capped;
+        return TimeSpan.FromMilliseconds(capped + jitter);
+    }
+
+    private void StartIdleWatchdog()
+    {
+        if (_options.IdleTimeout <= TimeSpan.Zero) return;
+        _idleCts = new CancellationTokenSource();
+        var token = _idleCts.Token;
+        _idleWatchdog = Task.Run(async () =>
+        {
+            var period = TimeSpan.FromMilliseconds(Math.Max(50, _options.IdleTimeout.TotalMilliseconds / 4));
+            using var timer = new PeriodicTimer(period);
+            while (!token.IsCancellationRequested && await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                var idleFor = DateTime.UtcNow - _lastInboundUtc;
+                if (idleFor > _options.IdleTimeout)
+                {
+                    _options.Logger.LogWarning("Idle timeout exceeded ({Idle} > {Threshold}); closing session",
+                        idleFor, _options.IdleTimeout);
+                    try { await TerminateAsync(TerminationCode.KeepaliveIntervalLapsed, CancellationToken.None).ConfigureAwait(false); }
+                    catch { /* best-effort */ }
+                    return;
+                }
+            }
+        }, token);
     }
 
     private static DateTimeOffset NanosToOffset(ulong unixNanos) =>
@@ -245,6 +329,14 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
     public async ValueTask DisposeAsync()
     {
+        try { _idleCts?.Cancel(); } catch { }
+        if (_idleWatchdog is not null)
+        {
+            try { await _idleWatchdog.ConfigureAwait(false); } catch { }
+        }
+        _idleCts?.Dispose();
+        _idleCts = null;
+        _idleWatchdog = null;
         _keepAlive?.Dispose();
         _keepAlive = null;
         if (_session is not null)
