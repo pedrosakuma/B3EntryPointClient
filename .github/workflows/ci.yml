@@ -22,6 +22,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # Use the PR head SHA (not the synthetic merge commit) so the SHA
+          # SourceLink embeds is reachable from raw.githubusercontent.com.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up .NET SDK (pinned by global.json)
         uses: actions/setup-dotnet@v5
@@ -63,6 +67,28 @@ jobs:
 
       - name: Pack (validation)
         run: dotnet pack SbeB3EntryPointClient.slnx --no-build -c Release -o ./nupkgs
+
+      # SourceLink gate: every .snupkg's PDB must contain GitHub URLs that
+      # resolve (HTTP 200) and whose content checksum matches the PDB hash.
+      - name: Install sourcelink tool
+        run: dotnet tool install --global sourcelink
+
+      - name: SourceLink test (snupkgs)
+        run: |
+          set -euo pipefail
+          mkdir -p ./snupkg-extract
+          shopt -s nullglob globstar
+          for snupkg in ./nupkgs/*.snupkg; do
+            name=$(basename "$snupkg" .snupkg)
+            dest="./snupkg-extract/$name"
+            mkdir -p "$dest"
+            unzip -q -o "$snupkg" -d "$dest"
+            for pdb in "$dest"/lib/**/*.pdb; do
+              echo "::group::sourcelink test $pdb"
+              sourcelink test "$pdb"
+              echo "::endgroup::"
+            done
+          done
 
       - name: Upload test results
         if: always()
