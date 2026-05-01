@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -5,6 +6,7 @@ using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
 using B3.EntryPoint.Client.Risk;
+using B3.EntryPoint.Client.Telemetry;
 using Microsoft.Extensions.Logging;
 using ClOrdID = B3.EntryPoint.Client.Models.ClOrdID;
 
@@ -95,6 +97,9 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
     private async Task ConnectOnceAsync(CancellationToken ct)
     {
+        using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.connect", ActivityKind.Client);
+        activity?.SetTag("net.peer.name", _options.Endpoint.Address.ToString());
+        activity?.SetTag("net.peer.port", _options.Endpoint.Port);
         var tcp = new TcpClient();
         try
         {
@@ -112,10 +117,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         _tcp = tcp;
         _session = new FixpClientSession(tcp.GetStream(), _options);
 
-        await _session.NegotiateAsync(ct).ConfigureAwait(false);
-        _options.Logger.LogDebug("FIXP Negotiated with {Endpoint}", _options.Endpoint);
-        await _session.EstablishAsync(ct).ConfigureAwait(false);
-        _options.Logger.LogDebug("FIXP Established with {Endpoint}", _options.Endpoint);
+        using (var negotiate = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.negotiate", ActivityKind.Client))
+        {
+            await _session.NegotiateAsync(ct).ConfigureAwait(false);
+            _options.Logger.LogDebug("FIXP Negotiated with {Endpoint}", _options.Endpoint);
+        }
+        using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish", ActivityKind.Client))
+        {
+            await _session.EstablishAsync(ct).ConfigureAwait(false);
+            _options.Logger.LogDebug("FIXP Established with {Endpoint}", _options.Endpoint);
+        }
         _session.StartInboundLoop(_events.Writer);
 
         _keepAlive = new KeepAliveScheduler(
@@ -150,6 +161,9 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
         {
             _lastInboundUtc = DateTime.UtcNow;
             _options.Logger.LogInformation("Inbound Terminate received: code={Code}", code);
+            EntryPointTelemetry.Terminations.Add(1,
+                new KeyValuePair<string, object?>("direction", "inbound"),
+                new KeyValuePair<string, object?>("code", code.ToString()));
             RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
         };
         _lastInboundUtc = DateTime.UtcNow;
@@ -202,9 +216,31 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
             if (decision.Kind != RiskDecisionKind.Allow)
             {
                 _options.Logger.LogWarning("Risk gate {Gate} {Kind}: {Reason}", gate.GetType().Name, decision.Kind, decision.Reason);
+                EntryPointTelemetry.RiskRejections.Add(1,
+                    new KeyValuePair<string, object?>("kind", kind.ToString()),
+                    new KeyValuePair<string, object?>("decision", decision.Kind.ToString()));
                 throw new RiskRejectedException(decision);
             }
         }
+    }
+
+    private static Activity? StartOutbound(string op, OutboundRequestKind kind, ulong securityId, string clordid)
+    {
+        var act = EntryPointTelemetry.ActivitySource.StartActivity(op, ActivityKind.Client);
+        if (act is not null)
+        {
+            act.SetTag("entrypoint.kind", kind.ToString());
+            act.SetTag("entrypoint.security_id", securityId);
+            act.SetTag("entrypoint.clordid", clordid);
+        }
+        return act;
+    }
+
+    private static void RecordLatency(long startTs, OutboundRequestKind kind)
+    {
+        var elapsedMs = (Stopwatch.GetTimestamp() - startTs) * 1000.0 / Stopwatch.Frequency;
+        EntryPointTelemetry.OutboundLatency.Record(elapsedMs,
+            new KeyValuePair<string, object?>("kind", kind.ToString()));
     }
 
     /// <inheritdoc />
@@ -212,11 +248,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.submit", OutboundRequestKind.NewOrder, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrder"));
+        RecordLatency(startTs, OutboundRequestKind.NewOrder);
         return request.ClOrdID;
     }
 
@@ -225,11 +266,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        await EvaluateRiskAsync(OutboundRequestKind.SimpleNewOrder, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskAsync(OutboundRequestKind.SimpleNewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.submit_simple", OutboundRequestKind.SimpleNewOrder, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "SimpleNewOrder"));
+        RecordLatency(startTs, OutboundRequestKind.SimpleNewOrder);
         return request.ClOrdID;
     }
 
@@ -238,11 +284,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        await EvaluateRiskAsync(OutboundRequestKind.Replace, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskAsync(OutboundRequestKind.Replace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.replace", OutboundRequestKind.Replace, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "Replace"));
+        RecordLatency(startTs, OutboundRequestKind.Replace);
         return request.ClOrdID;
     }
 
@@ -251,11 +302,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        await EvaluateRiskAsync(OutboundRequestKind.SimpleReplace, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskAsync(OutboundRequestKind.SimpleReplace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.replace_simple", OutboundRequestKind.SimpleReplace, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "SimpleReplace"));
+        RecordLatency(startTs, OutboundRequestKind.SimpleReplace);
         return request.ClOrdID;
     }
 
@@ -264,11 +320,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureEstablished();
-        await EvaluateRiskAsync(OutboundRequestKind.Cancel, request, request.SecurityId, request.ClOrdID.Value.ToString(), ct).ConfigureAwait(false);
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskAsync(OutboundRequestKind.Cancel, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        using var activity = StartOutbound("entrypoint.cancel", OutboundRequestKind.Cancel, request.SecurityId, clordid);
+        var startTs = Stopwatch.GetTimestamp();
         var seq = _session!.NextOutboundSeqNum();
         var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        EntryPointTelemetry.OrdersCancelled.Add(1);
+        RecordLatency(startTs, OutboundRequestKind.Cancel);
     }
 
     /// <inheritdoc />
@@ -280,11 +341,16 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
 
         async Task<MassActionReport> SendMassActionWithRiskAsync(MassActionRequest req, CancellationToken token)
         {
-            await EvaluateRiskAsync(OutboundRequestKind.MassAction, req, req.SecurityId ?? 0UL, req.ClOrdID.Value.ToString(), token).ConfigureAwait(false);
+            var clordid = req.ClOrdID.Value.ToString();
+            await EvaluateRiskAsync(OutboundRequestKind.MassAction, req, req.SecurityId ?? 0UL, clordid, token).ConfigureAwait(false);
+            using var activity = StartOutbound("entrypoint.mass_action", OutboundRequestKind.MassAction, req.SecurityId ?? 0UL, clordid);
+            var startTs = Stopwatch.GetTimestamp();
             var seq = _session!.NextOutboundSeqNum();
             var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
             var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, seq);
             await _session.SendApplicationFrameAsync(buffer, len, token).ConfigureAwait(false);
+            EntryPointTelemetry.MassActions.Add(1);
+            RecordLatency(startTs, OutboundRequestKind.MassAction);
             return new MassActionReport
             {
                 ClOrdID = req.ClOrdID,
@@ -304,8 +370,23 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     {
         if (_session is null)
             throw new InvalidOperationException("Client is not connected.");
+        using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.terminate", ActivityKind.Client);
+        activity?.SetTag("entrypoint.terminate_code", code.ToString());
         await _session.TerminateAsync((B3.Entrypoint.Fixp.Sbe.V6.TerminationCode)(byte)code, ct).ConfigureAwait(false);
+        EntryPointTelemetry.Terminations.Add(1,
+            new KeyValuePair<string, object?>("direction", "outbound"),
+            new KeyValuePair<string, object?>("code", code.ToString()));
         RaiseTerminated(code, reason: null, initiatedByClient: true);
+    }
+
+    /// <summary>
+    /// Snapshot of the client's session health for liveness/readiness probes.
+    /// Pure data; consumers (e.g. ASP.NET Core <c>IHealthCheck</c>) decide thresholds.
+    /// </summary>
+    public ClientHealth GetHealth()
+    {
+        var last = _lastInboundUtc == default ? DateTime.UtcNow : _lastInboundUtc;
+        return new ClientHealth(State, last, DateTime.UtcNow - last);
     }
 
     /// <summary>
