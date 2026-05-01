@@ -22,9 +22,10 @@ public class ReplaceHappyPathTests
         });
 
         await client.ConnectAsync();
+        var clOrdId = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL);
         await client.ReplaceAsync(new ReplaceOrderRequest
         {
-            ClOrdID = new ClOrdID((ulong)(uint)Guid.NewGuid().GetHashCode() | 1UL),
+            ClOrdID = clOrdId,
             OrigClOrdID = new ClOrdID(2UL),
             SecurityId = 1,
             Side = Side.Buy,
@@ -32,5 +33,14 @@ public class ReplaceHappyPathTests
             OrderQty = 2,
             Price = 0.02m,
         });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await foreach (var evt in client.Events(cts.Token))
+        {
+            var modified = Assert.IsType<OrderModified>(evt);
+            Assert.Equal(clOrdId.Value, modified.ClOrdID.Value);
+            return;
+        }
+        throw new TimeoutException("No OrderModified received");
     }
 }
