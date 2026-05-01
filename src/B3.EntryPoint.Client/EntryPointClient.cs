@@ -58,7 +58,20 @@ public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceO
     public EntryPointClient(EntryPointClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ValidateOptions(options);
         _options = options;
+    }
+
+    private static void ValidateOptions(EntryPointClientOptions options)
+    {
+        if (options.Endpoint is null)
+            throw new ArgumentException($"{nameof(EntryPointClientOptions.Endpoint)} is required.", nameof(options));
+        if (options.Credentials is null)
+            throw new ArgumentException($"{nameof(EntryPointClientOptions.Credentials)} is required.", nameof(options));
+        if (options.SessionId == 0u)
+            throw new ArgumentException($"{nameof(EntryPointClientOptions.SessionId)} must be non-zero.", nameof(options));
+        if (options.EnteringFirm == 0u)
+            throw new ArgumentException($"{nameof(EntryPointClientOptions.EnteringFirm)} must be non-zero.", nameof(options));
     }
 
     public FixpClientState State => _session?.State ?? FixpClientState.Disconnected;
