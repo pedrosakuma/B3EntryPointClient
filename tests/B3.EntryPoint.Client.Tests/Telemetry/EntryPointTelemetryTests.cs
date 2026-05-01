@@ -63,19 +63,23 @@ public class EntryPointTelemetryTests
     [Fact]
     public void ActivitySource_Emits_Activity_When_Listener_Sampled()
     {
+        const string opName = "entrypoint.unit-test.activity-emit";
         Activity? captured = null;
         using var listener = new ActivityListener
         {
             ShouldListenTo = src => src.Name == EntryPointTelemetry.SourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStarted = a => captured = a,
+            ActivityStarted = a =>
+            {
+                if (a.OperationName == opName) captured = a;
+            },
         };
         ActivitySource.AddActivityListener(listener);
 
-        using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.unit-test", ActivityKind.Client);
+        using var activity = EntryPointTelemetry.ActivitySource.StartActivity(opName, ActivityKind.Client);
 
         Assert.NotNull(activity);
         Assert.Same(activity, captured);
-        Assert.Equal("entrypoint.unit-test", captured!.OperationName);
+        Assert.Equal(opName, captured!.OperationName);
     }
 }
