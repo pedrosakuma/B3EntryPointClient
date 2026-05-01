@@ -1,0 +1,50 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.nupkg
+*.snupkg
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+bld/
+
+## NuGet
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+
+## IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/mcp.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Test results
+TestResults/
+coverage/
+dotnet_*.nettrace
+BenchmarkDotNet.Artifacts/
+
+## Node.js
+node_modules/
+
+# Source generator output (for inspection only)
+src/B3.EntryPoint.Sbe/generated/
