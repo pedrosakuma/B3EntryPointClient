@@ -39,6 +39,7 @@ public static class EntryPointClientServiceCollectionExtensions
 
         services.TryAddSingleton(static sp =>
             new EntryPointClient(sp.GetRequiredService<IOptions<EntryPointClientOptions>>().Value));
+        services.TryAddSingleton<IEntryPointClient>(static sp => sp.GetRequiredService<EntryPointClient>());
 
         return services;
     }
@@ -70,6 +71,7 @@ public static class EntryPointClientServiceCollectionExtensions
             var monitor = sp.GetRequiredService<IOptionsMonitor<EntryPointClientOptions>>();
             return new DropCopyClient(monitor.Get(DropCopyOptionsName));
         });
+        services.TryAddSingleton<IDropCopyClient>(static sp => sp.GetRequiredService<DropCopyClient>());
 
         return services;
     }
