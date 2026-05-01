@@ -1,5 +1,8 @@
 # B3EntryPointClient
 
+[![NuGet — Client](https://img.shields.io/nuget/v/B3.EntryPoint.Client?label=B3.EntryPoint.Client)](https://www.nuget.org/packages/B3.EntryPoint.Client)
+[![NuGet — Sbe](https://img.shields.io/nuget/v/B3.EntryPoint.Sbe?label=B3.EntryPoint.Sbe)](https://www.nuget.org/packages/B3.EntryPoint.Sbe)
+
 Wire-puro **client** library for the B3 EntryPoint (SBE/FIXP 8.4.2) order-entry
 protocol. Symmetric counterpart of [`B3MarketDataPlatform`][md] (UMDF consumer):
 this library **produces** orders and **consumes** ExecutionReports. The
