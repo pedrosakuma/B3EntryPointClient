@@ -30,6 +30,8 @@ public class EntryPointClientServiceCollectionExtensionsTests
             var a = sp.GetRequiredService<EntryPointClient>();
             var b = sp.GetRequiredService<EntryPointClient>();
             Assert.Same(a, b);
+            var i = sp.GetRequiredService<IEntryPointClient>();
+            Assert.Same(a, i);
         }
         finally { await ((IAsyncDisposable)sp).DisposeAsync(); }
     }
@@ -89,6 +91,8 @@ public class EntryPointClientServiceCollectionExtensionsTests
         {
             Assert.NotNull(sp.GetRequiredService<EntryPointClient>());
             Assert.NotNull(sp.GetRequiredService<DropCopyClient>());
+            Assert.Same(sp.GetRequiredService<DropCopyClient>(), sp.GetRequiredService<IDropCopyClient>());
+            Assert.Same(sp.GetRequiredService<EntryPointClient>(), sp.GetRequiredService<IEntryPointClient>());
 
             var monitor = sp.GetRequiredService<IOptionsMonitor<EntryPointClientOptions>>();
             Assert.Equal(1u, monitor.Get(Microsoft.Extensions.Options.Options.DefaultName).SessionId);

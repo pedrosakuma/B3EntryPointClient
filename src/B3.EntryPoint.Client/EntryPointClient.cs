@@ -21,7 +21,7 @@ namespace B3.EntryPoint.Client;
 /// public API surface; their wire-level implementations land incrementally
 /// (see <c>docs/CONFORMANCE.md</c> and the issues tagged <c>area/api-surface</c>).
 /// </summary>
-public sealed class EntryPointClient : IAsyncDisposable, ISubmitOrder, IReplaceOrder, ICancelOrder, ISubmitCross, IQuoteFlow
+public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplaceOrder, ICancelOrder, ISubmitCross, IQuoteFlow
 {
     private readonly EntryPointClientOptions _options;
     private readonly Channel<EntryPointEvent> _events =

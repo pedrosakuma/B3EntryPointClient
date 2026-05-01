@@ -9,7 +9,7 @@ namespace B3.EntryPoint.Client.DropCopy;
 /// Submission (NewOrder / Replace / Cancel) is intentionally absent —
 /// callers should use <see cref="EntryPointClient"/> for that.
 /// </summary>
-public sealed class DropCopyClient : IAsyncDisposable
+public sealed class DropCopyClient : IDropCopyClient
 {
     private readonly EntryPointClient _inner;
 
