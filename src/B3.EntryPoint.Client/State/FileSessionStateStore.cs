@@ -87,7 +87,11 @@ public sealed class FileSessionStateStore : ISessionStateStore
                     inboundSeq = Math.Max(inboundSeq, i.SeqNum);
                     break;
                 case OrderClosedDelta c:
-                    outstanding.Remove(c.ClOrdID);
+                    // OrderClosedDelta carries a strongly-typed ClOrdID (#128).
+                    // The legacy snapshot dict is still string-keyed so we
+                    // convert at the boundary; this runs only at replay /
+                    // compact time, never on the per-event hot path.
+                    outstanding.Remove(c.ClOrdID.ToString());
                     break;
             }
         }

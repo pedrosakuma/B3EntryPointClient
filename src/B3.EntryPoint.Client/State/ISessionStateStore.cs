@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using B3.EntryPoint.Client.Models;
 
 namespace B3.EntryPoint.Client.State;
 
@@ -31,7 +32,16 @@ public abstract record SessionDelta
 
 public sealed record OutboundDelta(ulong SeqNum, string ClOrdID, ulong SecurityId) : SessionDelta;
 public sealed record InboundDelta(ulong SeqNum) : SessionDelta;
-public sealed record OrderClosedDelta(string ClOrdID) : SessionDelta;
+/// <summary>
+/// Marks an order as terminal (cancelled / rejected / fully-filled). Carries
+/// the strongly-typed <see cref="Models.ClOrdID"/> directly to avoid a
+/// per-event <c>ulong.ToString()</c> allocation on the inbound hot path
+/// (#128). Wire format change vs. v0.13.0: serialized as a JSON number
+/// (the underlying <c>uint64</c>) instead of a JSON string. The
+/// <see cref="ClOrdIDJsonConverter"/> still accepts the legacy string form
+/// when replaying snapshots written by older versions.
+/// </summary>
+public sealed record OrderClosedDelta(ClOrdID ClOrdID) : SessionDelta;
 
 /// <summary>
 /// Pluggable persistence for warm-restart. Default implementation is

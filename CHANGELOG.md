@@ -13,6 +13,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **client (#138)**: `EntryPointClient` no longer silently swallows inbound app-frame gaps. The single `_lastInboundSeqNum` running-max counter is replaced by a `_lastContiguousInboundSeqNum` (last contiguous tail from seq 1) plus a `_highestInboundSeqNum` (running max). When an inbound app frame arrives with `SeqNum > contiguous + 1`, the client now auto-issues a §4.7 `RetransmitRequest(fromSeqNo = contiguous + 1, count = missing)` via the existing `RetransmitRequestHandler`. Concurrent gap requests are capped at one in-flight (cleared on `Retransmission` reply or `RetransmitReject`); subsequent in-order frames continue to flow to consumers immediately. Frames that arrive past a gap are buffered for contiguity tracking and the contiguous tail advances as missing seqs arrive (typically via Retransmission). The persisted `SessionSnapshot.LastInboundSeqNum` is now the contiguous tail rather than the running max — pre-0.14.0 snapshots may carry an inflated `LastInboundSeqNum`; on resume the gap is "lost" silently (same warning pattern as the v0.11.1 outbound seq fix). The persistence-worker `OrderClosedDelta`/`InboundDelta` pair now persists the contiguous tail at the time of enqueue, matching `BuildSnapshot` semantics.
 
+### Changed
+- **client (#128)**: `EntryPointClient` no longer allocates a `string` per
+  terminal `ExecutionReport` on `OnInboundEventForPersistence`. The internal
+  `_outstandingOrders` map is now keyed by the strongly-typed
+  `B3.EntryPoint.Client.Models.ClOrdID` (a `readonly record struct` over
+  `ulong`) and `OrderClosedDelta` carries that struct directly instead of a
+  string. Quote/cross flows (whose IDs are arbitrary strings) are tracked in
+  a parallel `_outstandingQuoteFlowIds` dict so they keep working unchanged.
+  **Wire-format break**: `OrderClosedDelta` now serializes as a JSON number
+  (the underlying `uint64`) instead of a JSON string. The new
+  `ClOrdIDJsonConverter` accepts both forms when reading, so deltas written
+  by &lt;= v0.13.0 still replay cleanly; new deltas written by v0.14.0
+  cannot be read by &lt;= v0.13.0 (downgrades require a fresh
+  `SessionStateStore` directory). Added the `CloseEventPersistenceBenchmarks`
+  BDN harness under `benchmarks/B3.EntryPoint.Benchmarks/` to track the
+  per-close allocation count.
+- **client (#130)**: audited the entire shipped public surface and
+  classified each member into Supported / Experimental / Obsolete (see
+  the new `docs/PUBLIC-API.md`). `CancelOnDisconnectType`,
+  `EntryPointClientOptions.CancelOnDisconnect`, `IQuoteFlow` and
+  `ISubmitCross` (and their members) are now decorated with
+  `[System.Diagnostics.CodeAnalysis.Experimental(...)]` because their
+  underlying behaviour is either not wired (`CancelOnDisconnect`) or has
+  no end-to-end conformance coverage (quote/cross flows). **Calling these
+  APIs from a downstream project will produce a build warning** with one
+  of the new diagnostic IDs (`B3EP_COD`, `B3EP_QUOTE`, `B3EP_CROSS`).
+  Suppress per call site with
+  `[SuppressMessage("Usage", "B3EP_<id>")]` or
+  `#pragma warning disable B3EP_<id>` to opt in. No member is removed from
+  `PublicAPI.Shipped.txt` (removal is reserved for v1.0).
+
 ## [0.13.0] - 2026-05-02
 
 ### Added

@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace B3.EntryPoint.Client.Models;
 
 /// <summary>
 /// Client order ID (FIX <c>ClOrdID</c>). Wraps the wire <c>uint64</c>
 /// (per schema <c>&lt;type name="ClOrdID" primitiveType="uint64"/&gt;</c>).
 /// </summary>
+[JsonConverter(typeof(ClOrdIDJsonConverter))]
 public readonly record struct ClOrdID
 {
     public ClOrdID(ulong value)

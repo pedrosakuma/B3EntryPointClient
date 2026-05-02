@@ -43,7 +43,7 @@ public class PersistenceWorkerTests
 
         const int burst = 200;
         for (int i = 0; i < burst; i++)
-            client.EnqueuePersistOpForTesting($"clord-{i}", (ulong)(i + 1));
+            client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID((ulong)(i + 1)), (ulong)(i + 1));
 
         await client.StopActiveSessionForTestingAsync();
 
@@ -54,7 +54,7 @@ public class PersistenceWorkerTests
         Assert.Equal(burst, inbound.Count);
         for (int i = 0; i < burst; i++)
         {
-            Assert.Contains($"clord-{i}", closed);
+            Assert.Contains(new B3.EntryPoint.Client.Models.ClOrdID((ulong)(i + 1)), closed);
             Assert.Contains((ulong)(i + 1), inbound);
         }
     }
@@ -63,17 +63,17 @@ public class PersistenceWorkerTests
     public async Task TransientStoreFailure_IsLoggedOnce_AndWorkerContinues()
     {
         var fake = new FakeLogger();
-        var store = new FlakyStore(failFirstClOrdID: "clord-1");
+        var store = new FlakyStore(failFirstClOrdID: new B3.EntryPoint.Client.Models.ClOrdID(2));
         var opts = BaseOptions(store, fake);
         opts.PersistenceQueueCapacity = 16;
 
         var client = new EntryPointClient(opts);
         client.StartPersistenceWorkerForTesting();
 
-        client.EnqueuePersistOpForTesting("clord-0", 1);
-        client.EnqueuePersistOpForTesting("clord-1", 2); // throws transiently
-        client.EnqueuePersistOpForTesting("clord-2", 3);
-        client.EnqueuePersistOpForTesting("clord-3", 4);
+        client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID(1), 1);
+        client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID(2), 2); // throws transiently
+        client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID(3), 3);
+        client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID(4), 4);
 
         await client.StopActiveSessionForTestingAsync();
 
@@ -83,11 +83,11 @@ public class PersistenceWorkerTests
 
         // Subsequent ops still recorded — worker did not die.
         var ids = store.Deltas.OfType<OrderClosedDelta>().Select(d => d.ClOrdID).ToHashSet();
-        Assert.Contains("clord-0", ids);
-        Assert.Contains("clord-2", ids);
-        Assert.Contains("clord-3", ids);
-        // clord-1 OrderClosedDelta was attempted but threw before AppendDeltaAsync recorded — not recorded.
-        Assert.DoesNotContain("clord-1", ids);
+        Assert.Contains(new B3.EntryPoint.Client.Models.ClOrdID(1), ids);
+        Assert.Contains(new B3.EntryPoint.Client.Models.ClOrdID(3), ids);
+        Assert.Contains(new B3.EntryPoint.Client.Models.ClOrdID(4), ids);
+        // ClOrdID(2) OrderClosedDelta was attempted but threw before AppendDeltaAsync recorded — not recorded.
+        Assert.DoesNotContain(new B3.EntryPoint.Client.Models.ClOrdID(2), ids);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class PersistenceWorkerTests
 
         var client = new EntryPointClient(opts);
         client.StartPersistenceWorkerForTesting();
-        client.EnqueuePersistOpForTesting("hang-1", 1);
+        client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID(99), 1);
 
         // Give the worker a moment to pick it up and block inside AppendDeltaAsync.
         await Task.Delay(50);
@@ -132,10 +132,10 @@ public class PersistenceWorkerTests
 
     private sealed class FlakyStore : ISessionStateStore
     {
-        private readonly string _failFirstClOrdID;
+        private readonly B3.EntryPoint.Client.Models.ClOrdID _failFirstClOrdID;
         private bool _hasFailed;
         public ConcurrentQueue<SessionDelta> Deltas { get; } = new();
-        public FlakyStore(string failFirstClOrdID) { _failFirstClOrdID = failFirstClOrdID; }
+        public FlakyStore(B3.EntryPoint.Client.Models.ClOrdID failFirstClOrdID) { _failFirstClOrdID = failFirstClOrdID; }
         public ValueTask<SessionSnapshot?> LoadAsync(CancellationToken ct = default) => new((SessionSnapshot?)null);
         public ValueTask SaveAsync(SessionSnapshot snapshot, CancellationToken ct = default) => default;
         public ValueTask AppendDeltaAsync(SessionDelta delta, CancellationToken ct = default)

@@ -32,6 +32,15 @@ public enum TerminationCode : byte
 /// <c>CancelOnDisconnectType</c>). Sent in <c>Negotiate</c>; the gateway
 /// applies it when it observes a TCP disconnect and/or <c>Terminate</c>.
 /// </summary>
+/// <remarks>
+/// Marked <see cref="System.Diagnostics.CodeAnalysis.ExperimentalAttribute"/>
+/// (#130): the type ships in the public API but
+/// <see cref="EntryPointClientOptions.CancelOnDisconnect"/> is not yet
+/// plumbed through to the FIXP <c>Negotiate</c> frame, so the negotiated
+/// behaviour is whatever the gateway defaults to. Suppress
+/// <c>B3EP_COD</c> at the call site to opt-in.
+/// </remarks>
+[System.Diagnostics.CodeAnalysis.Experimental("B3EP_COD")]
 public enum CancelOnDisconnectType : byte
 {
     DoNotCancelOnDisconnectOrTerminate = 0,
