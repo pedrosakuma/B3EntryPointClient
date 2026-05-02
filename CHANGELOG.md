@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- TestPeer (#105): `RejectBusiness` now emits a real `BusinessMessageReject` (template 206) with `Text` and bounded `BusinessRejectReason`, decoded by the client into `BusinessReject.Text`.
+- TestPeer (#105): `AcceptAndFill` now emits a real `ExecutionReport_Trade` (template 203) with full/partial-fill semantics — `FillQty`/`FillPrice` honored, `LeavesQty` derived, status set to `FILLED` or `PARTIALLY_FILLED`.
+- TestPeer (#107): `ITestPeerScenario` extended with `OnCancel(CancelContext)` and `OnModify(ModifyContext)` default-interface hooks; `RejectAll` now also rejects cancels and modifies via `ExecutionReport_Reject` (template 204) with `CxlRejResponseTo` set accordingly. `RejectBusiness` accepts an optional `RejReason`; `AcceptAndFill` accepts optional `FillPrice`/`FillQty`.
+- `NewOrderContext` extended with optional `OrderQty`, `Price`, `Side`, `MsgSeqNum` to enable richer scenario decisions.
+
+### Changed
+- TestPeer egress is now serialized per connection via a `SemaphoreSlim` and routed through a single `SendFrameAsync` helper; var-data sections are sized dynamically (one length-prefix byte per section) instead of a fixed pad. Removes write races and oversized buffers.
+- `InboundDecoder.DecodeBmr` now decodes the `Text` var-data field via `SbeBmr.TryParse` and surfaces it on `BusinessReject.Text` (existing record property).
+
 ## [0.8.0] - 2026-05-01
 
 ### Added
