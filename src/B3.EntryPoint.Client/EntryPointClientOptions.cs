@@ -136,6 +136,26 @@ public sealed class EntryPointClientOptions
     /// <summary>TLS configuration for the FIXP transport. Disabled by default.</summary>
     public TlsOptions Tls { get; set; } = new();
 
+    /// <summary>
+    /// When <see langword="true"/> (the default), <see cref="EntryPointClient"/>
+    /// invokes <see cref="Stream.FlushAsync(CancellationToken)"/> on the
+    /// underlying transport after every outbound application frame. This is the
+    /// safe choice for latency-sensitive workloads (single-order submission)
+    /// because it forces buffered transports such as
+    /// <see cref="System.Net.Security.SslStream"/> to push the bytes onto the
+    /// wire immediately.
+    /// <para>
+    /// Set to <see langword="false"/> for throughput-sensitive batching: the
+    /// client will only call <c>WriteAsync</c> per frame, allowing the
+    /// transport to coalesce writes. The caller becomes responsible for
+    /// invoking <see cref="EntryPointClient.FlushAsync(CancellationToken)"/>
+    /// (or <see cref="IEntryPointClient.FlushAsync(CancellationToken)"/>) at
+    /// batch boundaries — otherwise frames may sit in transport buffers
+    /// indefinitely. Issue #123.
+    /// </para>
+    /// </summary>
+    public bool AutoFlushOutboundFrames { get; set; } = true;
+
     private int _eventChannelCapacity = 4096;
 
     /// <summary>

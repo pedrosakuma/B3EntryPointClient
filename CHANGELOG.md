@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **client (#123)**: new `EntryPointClientOptions.AutoFlushOutboundFrames` (default `true`) controls whether `FixpClientSession.SendApplicationFrameAsync` flushes the underlying transport after every outbound application frame. The default preserves prior latency-sensitive behavior; set to `false` for throughput-sensitive batching over buffered transports (e.g. `SslStream`) and pair with the new `EntryPointClient.FlushAsync(CancellationToken)` / `IEntryPointClient.FlushAsync(CancellationToken)` at batch boundaries.
+
 ## [0.12.0] - 2026-05-02
 
 ### Changed

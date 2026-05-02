@@ -235,6 +235,21 @@ internal sealed class FixpClientSession : IAsyncDisposable
         _eventWriter?.TryComplete();
     }
 
+    /// <summary>
+    /// Test-only hook that drives the internal state machine from
+    /// <see cref="FixpClientState.TcpConnected"/> straight to
+    /// <see cref="FixpClientState.Established"/> without performing a real
+    /// handshake. Used by unit tests that exercise outbound-frame plumbing
+    /// (e.g. AutoFlush behavior, #123) over an in-memory transport.
+    /// </summary>
+    internal void ForceEstablishedForTesting()
+    {
+        Fire(FixpClientTrigger.SendNegotiate);
+        Fire(FixpClientTrigger.NegotiateResponseReceived);
+        Fire(FixpClientTrigger.SendEstablish);
+        Fire(FixpClientTrigger.EstablishAckReceived);
+    }
+
     /// <summary>Sends an Order Entry application frame previously encoded via <see cref="OrderEntryEncoder"/>.</summary>
     public async Task SendApplicationFrameAsync(byte[] buffer, int length, CancellationToken ct)
     {
@@ -243,8 +258,18 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (_options.Logger.IsEnabled(LogLevel.Trace) && length >= SofhSize + SbeHeaderSize)
             _options.Logger.OutboundFrame(BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(SofhSize, 2)), length);
         await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        if (_options.AutoFlushOutboundFrames)
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Flushes any bytes buffered by the underlying transport. Thin wrapper
+    /// over <see cref="Stream.FlushAsync(CancellationToken)"/>; intended to be
+    /// called at batch boundaries when
+    /// <see cref="EntryPointClientOptions.AutoFlushOutboundFrames"/> is
+    /// <see langword="false"/>. Issue #123.
+    /// </summary>
+    public Task FlushOutboundAsync(CancellationToken ct) => _stream.FlushAsync(ct);
 
     /// <summary>Returns the next outbound MsgSeqNum and increments the counter.</summary>
     public ulong NextOutboundSeqNum() =>
