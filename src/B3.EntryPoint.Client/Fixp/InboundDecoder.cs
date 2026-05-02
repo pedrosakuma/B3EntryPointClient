@@ -199,13 +199,32 @@ internal static class InboundDecoder
 
     private static ClientBusinessReject DecodeBmr(ReadOnlySpan<byte> payload)
     {
-        ref readonly var msg = ref MemoryMarshal.AsRef<SbeBmr>(payload);
+        // BMR has variable-length sections (Memo, Text). Use TryParse to get a
+        // reader, then access the Text accessor which slices past Memo.
+        if (!SbeBmr.TryParse(payload, out var reader))
+        {
+            // Fall back to fixed-payload-only decode (older peers / truncated frames).
+            ref readonly var fallback = ref MemoryMarshal.AsRef<SbeBmr>(payload);
+            return new ClientBusinessReject
+            {
+                SeqNum = fallback.BusinessHeader.MsgSeqNum.Value,
+                SendingTime = ToDateTime(fallback.BusinessHeader.SendingTime.Time),
+                RefSeqNum = fallback.RefSeqNum.Value,
+                RejectReason = (ushort)fallback.BusinessRejectReason.Value,
+            };
+        }
+        ref readonly var msg = ref reader.Data;
+        var textSeg = reader.Text;
+        string? text = textSeg.Length > 0
+            ? System.Text.Encoding.ASCII.GetString(textSeg.VarData)
+            : null;
         return new ClientBusinessReject
         {
             SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
             SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
             RefSeqNum = msg.RefSeqNum.Value,
             RejectReason = (ushort)msg.BusinessRejectReason.Value,
+            Text = text,
         };
     }
 

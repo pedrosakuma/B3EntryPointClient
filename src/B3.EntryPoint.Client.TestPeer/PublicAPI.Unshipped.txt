@@ -1,1 +1,133 @@
 #nullable enable
+B3.EntryPoint.Client.TestPeer.CancelContext
+B3.EntryPoint.Client.TestPeer.CancelContext.CancelContext() -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.CancelContext(uint SessionId, ulong SecurityId, string! ClOrdId, string! OrigClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.ClOrdId.get -> string!
+B3.EntryPoint.Client.TestPeer.CancelContext.ClOrdId.init -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.Deconstruct(out uint SessionId, out ulong SecurityId, out string! ClOrdId, out string! OrigClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.Equals(B3.EntryPoint.Client.TestPeer.CancelContext other) -> bool
+B3.EntryPoint.Client.TestPeer.CancelContext.MsgSeqNum.get -> uint
+B3.EntryPoint.Client.TestPeer.CancelContext.MsgSeqNum.init -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.OrigClOrdId.get -> string!
+B3.EntryPoint.Client.TestPeer.CancelContext.OrigClOrdId.init -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.SecurityId.get -> ulong
+B3.EntryPoint.Client.TestPeer.CancelContext.SecurityId.init -> void
+B3.EntryPoint.Client.TestPeer.CancelContext.SessionId.get -> uint
+B3.EntryPoint.Client.TestPeer.CancelContext.SessionId.init -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse
+B3.EntryPoint.Client.TestPeer.CancelResponse.Accept
+B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Accept() -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? other) -> bool
+B3.EntryPoint.Client.TestPeer.CancelResponse.CancelResponse(B3.EntryPoint.Client.TestPeer.CancelResponse! original) -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Deconstruct(out string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? other) -> bool
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Reason.get -> string!
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Reason.init -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.RejReason.get -> uint?
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.RejReason.init -> void
+B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Reject(string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnCancel(B3.EntryPoint.Client.TestPeer.CancelContext context) -> B3.EntryPoint.Client.TestPeer.CancelResponse!
+B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnModify(B3.EntryPoint.Client.TestPeer.ModifyContext context) -> B3.EntryPoint.Client.TestPeer.ModifyResponse!
+B3.EntryPoint.Client.TestPeer.ModifyContext
+B3.EntryPoint.Client.TestPeer.ModifyContext.ClOrdId.get -> string!
+B3.EntryPoint.Client.TestPeer.ModifyContext.ClOrdId.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.Deconstruct(out uint SessionId, out ulong SecurityId, out string! ClOrdId, out string! OrigClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.Equals(B3.EntryPoint.Client.TestPeer.ModifyContext other) -> bool
+B3.EntryPoint.Client.TestPeer.ModifyContext.ModifyContext() -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.ModifyContext(uint SessionId, ulong SecurityId, string! ClOrdId, string! OrigClOrdId) -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.MsgSeqNum.get -> uint
+B3.EntryPoint.Client.TestPeer.ModifyContext.MsgSeqNum.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.OrderQty.get -> ulong?
+B3.EntryPoint.Client.TestPeer.ModifyContext.OrderQty.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.OrigClOrdId.get -> string!
+B3.EntryPoint.Client.TestPeer.ModifyContext.OrigClOrdId.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.Price.get -> decimal?
+B3.EntryPoint.Client.TestPeer.ModifyContext.Price.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.SecurityId.get -> ulong
+B3.EntryPoint.Client.TestPeer.ModifyContext.SecurityId.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyContext.SessionId.get -> uint
+B3.EntryPoint.Client.TestPeer.ModifyContext.SessionId.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.Accept() -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? other) -> bool
+B3.EntryPoint.Client.TestPeer.ModifyResponse.ModifyResponse(B3.EntryPoint.Client.TestPeer.ModifyResponse! original) -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Deconstruct(out string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject? other) -> bool
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Reason.get -> string!
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Reason.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.RejReason.get -> uint?
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.RejReason.init -> void
+B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Reject(string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.MsgSeqNum.get -> uint
+B3.EntryPoint.Client.TestPeer.NewOrderContext.MsgSeqNum.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.OrderQty.get -> ulong?
+B3.EntryPoint.Client.TestPeer.NewOrderContext.OrderQty.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Price.get -> decimal?
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Price.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Side.get -> B3.Entrypoint.Fixp.Sbe.V6.Side?
+B3.EntryPoint.Client.TestPeer.NewOrderContext.Side.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.FillPrice.get -> decimal?
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.FillPrice.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.FillQty.get -> ulong?
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.FillQty.init -> void
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejReason.get -> uint?
+B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejReason.init -> void
+abstract B3.EntryPoint.Client.TestPeer.CancelResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.CancelResponse!
+abstract B3.EntryPoint.Client.TestPeer.ModifyResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.ModifyResponse!
+override B3.EntryPoint.Client.TestPeer.CancelContext.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.<Clone>$() -> B3.EntryPoint.Client.TestPeer.CancelResponse.Accept!
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.CancelResponse.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.<Clone>$() -> B3.EntryPoint.Client.TestPeer.CancelResponse.Reject!
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.CancelResponse.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.ModifyContext.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.<Clone>$() -> B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept!
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.<Clone>$() -> B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject!
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.ModifyResponse.ToString() -> string!
+override sealed B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse? other) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelContext.operator !=(B3.EntryPoint.Client.TestPeer.CancelContext left, B3.EntryPoint.Client.TestPeer.CancelContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelContext.operator ==(B3.EntryPoint.Client.TestPeer.CancelContext left, B3.EntryPoint.Client.TestPeer.CancelContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.operator !=(B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.operator ==(B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.operator !=(B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.operator ==(B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.operator !=(B3.EntryPoint.Client.TestPeer.CancelResponse? left, B3.EntryPoint.Client.TestPeer.CancelResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.CancelResponse.operator ==(B3.EntryPoint.Client.TestPeer.CancelResponse? left, B3.EntryPoint.Client.TestPeer.CancelResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyContext.operator !=(B3.EntryPoint.Client.TestPeer.ModifyContext left, B3.EntryPoint.Client.TestPeer.ModifyContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyContext.operator ==(B3.EntryPoint.Client.TestPeer.ModifyContext left, B3.EntryPoint.Client.TestPeer.ModifyContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.operator !=(B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? left, B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.operator ==(B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? left, B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.operator !=(B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject? left, B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.operator ==(B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject? left, B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.operator !=(B3.EntryPoint.Client.TestPeer.ModifyResponse? left, B3.EntryPoint.Client.TestPeer.ModifyResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.ModifyResponse.operator ==(B3.EntryPoint.Client.TestPeer.ModifyResponse? left, B3.EntryPoint.Client.TestPeer.ModifyResponse? right) -> bool
+virtual B3.EntryPoint.Client.TestPeer.CancelResponse.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.TestPeer.CancelResponse.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
+virtual B3.EntryPoint.Client.TestPeer.CancelResponse.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual B3.EntryPoint.Client.TestPeer.ModifyResponse.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.TestPeer.ModifyResponse.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse? other) -> bool
+virtual B3.EntryPoint.Client.TestPeer.ModifyResponse.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override B3.EntryPoint.Client.TestPeer.CancelContext.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.TestPeer.CancelContext.ToString() -> string
+~override B3.EntryPoint.Client.TestPeer.ModifyContext.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.TestPeer.ModifyContext.ToString() -> string

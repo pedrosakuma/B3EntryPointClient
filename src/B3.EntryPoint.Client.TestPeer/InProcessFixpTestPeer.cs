@@ -105,6 +105,30 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
     {
         public uint OutSeq = 1;
         public CancellationTokenSource? KeepAliveCts;
+        public readonly SemaphoreSlim SendLock = new(1, 1);
+    }
+
+    /// <summary>
+    /// Single point of egress for every outbound frame. Serializes writes per
+    /// connection so concurrent senders (app frames + the peer-side Sequence
+    /// keep-alive loop) cannot interleave SOFH frames on the wire.
+    /// Latency is applied while holding the lock so total throughput observed
+    /// by the client is the sum, not the max, of concurrent senders.
+    /// </summary>
+    private async Task SendFrameAsync(Stream stream, ConnectionState state, byte[] buffer, int totalSize, CancellationToken ct)
+    {
+        await state.SendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await ApplyLatencyAsync(ct).ConfigureAwait(false);
+            await stream.WriteAsync(buffer.AsMemory(0, totalSize), ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        catch (IOException) { }
+        finally
+        {
+            try { state.SendLock.Release(); } catch (ObjectDisposedException) { }
+        }
     }
 
     private async Task HandleConnectionAsync(TcpClient tcp, CancellationToken ct)
@@ -149,29 +173,29 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                                 // Credentials map configured and firm not allowed → close cold.
                                 return;
                             }
-                            await SendNegotiateResponseAsync(stream, frame, ct).ConfigureAwait(false);
+                            await SendNegotiateResponseAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case EstablishData.MESSAGE_ID:
                             await SendEstablishAckAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case TerminateData.MESSAGE_ID:
                             state.KeepAliveCts?.Cancel();
-                            await SendTerminateEchoAsync(stream, frame, ct).ConfigureAwait(false);
+                            await SendTerminateEchoAsync(stream, frame, state, ct).ConfigureAwait(false);
                             return;
                         case NewOrderSingleData.MESSAGE_ID:
                             await DispatchNewOrderAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case OrderCancelRequestData.MESSAGE_ID:
-                            await SendExecutionReportCancelAsync(stream, frame, state, ct).ConfigureAwait(false);
+                            await DispatchCancelAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case OrderCancelReplaceRequestData.MESSAGE_ID:
-                            await SendExecutionReportModifyAsync(stream, frame, state, ct).ConfigureAwait(false);
+                            await DispatchModifyAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case OrderMassActionRequestData.MESSAGE_ID:
                             await SendOrderMassActionReportAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case RetransmitRequestData.MESSAGE_ID:
-                            await SendRetransmissionAsync(stream, frame, ct).ConfigureAwait(false);
+                            await SendRetransmissionAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         default:
                             // Application or session-layer messages we don't model — swallow.
@@ -217,24 +241,29 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         if (!NewOrderSingleData.TryParse(payload, out var reader))
             return;
         ref readonly var req = ref reader.Data;
+        var orderQty = req.OrderQty.Value;
+        var priceMantissa = req.Price.Mantissa; // optional → null for market
+        decimal? reqPrice = priceMantissa.HasValue ? MantissaToDecimal(priceMantissa.GetValueOrDefault()) : null;
         var ctx = new NewOrderContext(
             SessionId: req.BusinessHeader.SessionID.Value,
             EnteringFirm: 0u, // SBE NewOrderSingle does not carry EnteringFirm; reserved for future.
             SecurityId: req.SecurityID.Value,
-            ClOrdId: req.ClOrdID.Value.ToString());
+            ClOrdId: req.ClOrdID.Value.ToString())
+        {
+            OrderQty = orderQty,
+            Price = reqPrice,
+            Side = req.Side,
+            MsgSeqNum = req.BusinessHeader.MsgSeqNum.Value,
+        };
         var response = _options.Scenario.OnNewOrder(ctx);
         switch (response)
         {
             case NewOrderResponse.RejectBusiness rej:
-                // BusinessReject not yet wired in this peer — emit nothing, the
-                // client-side BusinessReject path is exercised in unit tests via
-                // hand-crafted frames. Surface the reason via the event so
-                // downstream tests can assert.
-                _ = rej; // intentional: see ITestPeerScenario doc-comment.
+                await SendBusinessMessageRejectAsync(stream, ctx, rej, state, ct).ConfigureAwait(false);
                 break;
-            case NewOrderResponse.AcceptAndFill:
+            case NewOrderResponse.AcceptAndFill fill:
                 await SendExecutionReportNewAsync(stream, frame, state, ct).ConfigureAwait(false);
-                // Trade ER not yet implemented — see ITestPeerScenario doc-comment.
+                await SendExecutionReportTradeAsync(stream, frame, ctx, fill, state, ct).ConfigureAwait(false);
                 break;
             case NewOrderResponse.AcceptAsNew:
             default:
@@ -243,6 +272,64 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         }
     }
 
+    private async Task DispatchCancelAsync(Stream stream, byte[] frame, ConnectionState state, CancellationToken ct)
+    {
+        var payload = frame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
+        if (!OrderCancelRequestData.TryParse(payload, out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+        var ctx = new CancelContext(
+            SessionId: req.BusinessHeader.SessionID.Value,
+            SecurityId: req.SecurityID.Value,
+            ClOrdId: req.ClOrdID.Value.ToString(),
+            OrigClOrdId: (req.OrigClOrdID ?? 0UL).ToString(System.Globalization.CultureInfo.InvariantCulture))
+        {
+            MsgSeqNum = req.BusinessHeader.MsgSeqNum.Value,
+        };
+        var response = _options.Scenario.OnCancel(ctx);
+        switch (response)
+        {
+            case CancelResponse.Reject rej:
+                await SendExecutionReportRejectAsync(stream, frame, req.BusinessHeader.SessionID, req.ClOrdID, req.SecurityID, req.Side, CxlRejResponseTo.CANCEL, rej.Reason, rej.RejReason, state, ct).ConfigureAwait(false);
+                break;
+            case CancelResponse.Accept:
+            default:
+                await SendExecutionReportCancelAsync(stream, frame, state, ct).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    private async Task DispatchModifyAsync(Stream stream, byte[] frame, ConnectionState state, CancellationToken ct)
+    {
+        var payload = frame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
+        if (!OrderCancelReplaceRequestData.TryParse(payload, out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+        var ctx = new ModifyContext(
+            SessionId: req.BusinessHeader.SessionID.Value,
+            SecurityId: req.SecurityID.Value,
+            ClOrdId: req.ClOrdID.Value.ToString(),
+            OrigClOrdId: (req.OrigClOrdID ?? 0UL).ToString(System.Globalization.CultureInfo.InvariantCulture))
+        {
+            OrderQty = req.OrderQty.Value,
+            Price = req.Price.Mantissa.HasValue ? MantissaToDecimal(req.Price.Mantissa.GetValueOrDefault()) : null,
+            MsgSeqNum = req.BusinessHeader.MsgSeqNum.Value,
+        };
+        var response = _options.Scenario.OnModify(ctx);
+        switch (response)
+        {
+            case ModifyResponse.Reject rej:
+                await SendExecutionReportRejectAsync(stream, frame, req.BusinessHeader.SessionID, req.ClOrdID, req.SecurityID, req.Side, CxlRejResponseTo.REPLACE, rej.Reason, rej.RejReason, state, ct).ConfigureAwait(false);
+                break;
+            case ModifyResponse.Accept:
+            default:
+                await SendExecutionReportModifyAsync(stream, frame, state, ct).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    private static decimal MantissaToDecimal(long mantissa) => (decimal)mantissa / 10000m;
+
     private async Task ApplyLatencyAsync(CancellationToken ct)
     {
         var latency = _options.ResponseLatency;
@@ -250,7 +337,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             try { await Task.Delay(latency, ct).ConfigureAwait(false); } catch (OperationCanceledException) { }
     }
 
-    private async Task SendNegotiateResponseAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private async Task SendNegotiateResponseAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         if (!NegotiateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -271,9 +358,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         if (!resp.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
-        await ApplyLatencyAsync(ct).ConfigureAwait(false);
-        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await stream.FlushAsync(ct).ConfigureAwait(false);
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
 
     private async Task SendEstablishAckAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
@@ -300,9 +385,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
-        await ApplyLatencyAsync(ct).ConfigureAwait(false);
-        await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await stream.FlushAsync(ct).ConfigureAwait(false);
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
 
         // Spec §4.6: peer-side keep-alive. Emit Sequence frames at the
         // negotiated interval so the client can observe inbound heartbeats.
@@ -327,9 +410,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                 var seq = new SequenceData { NextSeqNo = new SeqNum(state.OutSeq) };
                 if (!seq.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
                     return;
-                await ApplyLatencyAsync(ct).ConfigureAwait(false);
-                await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-                await stream.FlushAsync(ct).ConfigureAwait(false);
+                await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
@@ -337,7 +418,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         catch (ObjectDisposedException) { }
     }
 
-    private async Task SendTerminateEchoAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private async Task SendTerminateEchoAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         if (!TerminateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -357,13 +438,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         if (!echo.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
-        try
-        {
-            await ApplyLatencyAsync(ct).ConfigureAwait(false);
-            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-            await stream.FlushAsync(ct).ConfigureAwait(false);
-        }
-        catch (IOException) { }
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
 
     private async Task SendExecutionReportNewAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
@@ -388,7 +463,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             TransactTime = new UTCTimestampNanos { Time = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL },
         };
 
-        await SendAppFrameAsync(stream, ExecutionReport_NewData.MESSAGE_ID, ExecutionReport_NewData.MESSAGE_SIZE,
+        await SendAppFrameAsync(stream, state, ExecutionReport_NewData.MESSAGE_ID, ExecutionReport_NewData.MESSAGE_SIZE,
             (Span<byte> buf, out int bw) => ExecutionReport_NewData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
             ct).ConfigureAwait(false);
     }
@@ -416,7 +491,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         };
         msg.SetOrigClOrdID(req.OrigClOrdID);
 
-        await SendAppFrameAsync(stream, ExecutionReport_CancelData.MESSAGE_ID, ExecutionReport_CancelData.MESSAGE_SIZE,
+        await SendAppFrameAsync(stream, state, ExecutionReport_CancelData.MESSAGE_ID, ExecutionReport_CancelData.MESSAGE_SIZE,
             (Span<byte> buf, out int bw) => ExecutionReport_CancelData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
             ct).ConfigureAwait(false);
     }
@@ -444,7 +519,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         };
         msg.SetOrigClOrdID(req.OrigClOrdID);
 
-        await SendAppFrameAsync(stream, ExecutionReport_ModifyData.MESSAGE_ID, ExecutionReport_ModifyData.MESSAGE_SIZE,
+        await SendAppFrameAsync(stream, state, ExecutionReport_ModifyData.MESSAGE_ID, ExecutionReport_ModifyData.MESSAGE_SIZE,
             (Span<byte> buf, out int bw) => ExecutionReport_ModifyData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
             ct).ConfigureAwait(false);
     }
@@ -471,12 +546,125 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         };
         msg.SetMassActionScope(req.MassActionScope);
 
-        await SendAppFrameAsync(stream, OrderMassActionReportData.MESSAGE_ID, OrderMassActionReportData.MESSAGE_SIZE,
+        await SendAppFrameAsync(stream, state, OrderMassActionReportData.MESSAGE_ID, OrderMassActionReportData.MESSAGE_SIZE,
             (Span<byte> buf, out int bw) => msg.TryEncode(buf, out bw),
             ct).ConfigureAwait(false);
     }
 
-    private async Task SendRetransmissionAsync(Stream stream, byte[] requestFrame, CancellationToken ct)
+    private async Task SendExecutionReportTradeAsync(Stream stream, byte[] requestFrame, NewOrderContext ctx, NewOrderResponse.AcceptAndFill fill, ConnectionState state, CancellationToken ct)
+    {
+        var payload = requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE);
+        if (!NewOrderSingleData.TryParse(payload, out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+
+        var orderQty = ctx.OrderQty ?? req.OrderQty.Value;
+        var requestedFill = fill.FillQty ?? orderQty;
+        var fillQty = requestedFill > orderQty ? orderQty : requestedFill;
+        var isPartial = fillQty < orderQty;
+        var leavesQty = orderQty - fillQty;
+
+        var fillPx = fill.FillPrice ?? ctx.Price ?? 1.0m;
+        var pxMantissa = (long)decimal.Round(fillPx * 10000m);
+        var execId = (ulong)System.Threading.Interlocked.Increment(ref _orderIdSeq);
+        var orderId = (ulong)System.Threading.Interlocked.Increment(ref _orderIdSeq);
+        var tradeId = (ulong)System.Threading.Interlocked.Increment(ref _orderIdSeq);
+        var nowNanos = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL;
+
+        var msg = new ExecutionReport_TradeData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = req.BusinessHeader.SessionID,
+                MsgSeqNum = new SeqNum(state.OutSeq++),
+            },
+            Side = req.Side,
+            OrdStatus = isPartial ? OrdStatus.PARTIALLY_FILLED : OrdStatus.FILLED,
+            SecurityID = req.SecurityID,
+            LastQty = new Quantity(fillQty),
+            LastPx = new Price { Mantissa = pxMantissa },
+            ExecID = new ExecID(execId),
+            TransactTime = new UTCTimestampNanos { Time = nowNanos },
+            LeavesQty = new Quantity(leavesQty),
+            CumQty = new Quantity(fillQty),
+            ExecType = ExecType.TRADE,
+            TradeID = new TradeID((uint)(tradeId & 0xFFFFFFFFu)),
+            OrderID = new OrderID(orderId),
+        };
+        msg.SetClOrdID(req.ClOrdID.Value);
+
+        await SendAppFrameAsync(stream, state, ExecutionReport_TradeData.MESSAGE_ID, ExecutionReport_TradeData.MESSAGE_SIZE,
+            (Span<byte> buf, out int bw) => ExecutionReport_TradeData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task SendBusinessMessageRejectAsync(Stream stream, NewOrderContext ctx, NewOrderResponse.RejectBusiness rej, ConnectionState state, CancellationToken ct)
+    {
+        // Schema bound: TextEncoding length prefix is 1 byte → 255 max; B3 caps at 250.
+        const int MaxTextBytes = 250;
+        var reasonBytes = rej.Reason is { Length: > 0 }
+            ? System.Text.Encoding.ASCII.GetBytes(rej.Reason)
+            : Array.Empty<byte>();
+        if (reasonBytes.Length > MaxTextBytes)
+            Array.Resize(ref reasonBytes, MaxTextBytes);
+
+        var nowNanos = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL;
+        var msg = new BusinessMessageRejectData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = new SessionID(ctx.SessionId),
+                MsgSeqNum = new SeqNum(state.OutSeq++),
+
+            },
+            RefMsgType = MessageType.NewOrderSingle,
+            RefSeqNum = new SeqNum(ctx.MsgSeqNum),
+            BusinessRejectReason = new RejReason(rej.RejReason ?? 99u),
+        };
+
+        var reasonMemory = new ReadOnlyMemory<byte>(reasonBytes);
+        await SendAppFrameAsync(stream, state, BusinessMessageRejectData.MESSAGE_ID, BusinessMessageRejectData.MESSAGE_SIZE,
+            (Span<byte> buf, out int bw) => BusinessMessageRejectData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, reasonBytes, out bw),
+            new[] { ReadOnlyMemory<byte>.Empty, reasonMemory }, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendExecutionReportRejectAsync(Stream stream, byte[] requestFrame, SessionID sessionId, ClOrdID clOrdId, SecurityID securityId, Side side,
+        CxlRejResponseTo responseTo, string reason, uint? rejReasonCode, ConnectionState state, CancellationToken ct)
+    {
+        _ = requestFrame;
+        const int MaxTextBytes = 250;
+        var reasonBytes = reason is { Length: > 0 }
+            ? System.Text.Encoding.ASCII.GetBytes(reason)
+            : Array.Empty<byte>();
+        if (reasonBytes.Length > MaxTextBytes)
+            Array.Resize(ref reasonBytes, MaxTextBytes);
+
+        var nowNanos = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL;
+        var execId = (ulong)System.Threading.Interlocked.Increment(ref _orderIdSeq);
+        var msg = new ExecutionReport_RejectData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = sessionId,
+                MsgSeqNum = new SeqNum(state.OutSeq++),
+
+            },
+            Side = side,
+            CxlRejResponseTo = responseTo,
+            ClOrdID = clOrdId,
+            SecurityID = securityId,
+            OrdRejReason = new RejReason(rejReasonCode ?? 99u),
+            TransactTime = new UTCTimestampNanos { Time = nowNanos },
+            ExecID = new ExecID(execId),
+        };
+
+        var reasonMemory = new ReadOnlyMemory<byte>(reasonBytes);
+        await SendAppFrameAsync(stream, state, ExecutionReport_RejectData.MESSAGE_ID, ExecutionReport_RejectData.MESSAGE_SIZE,
+            (Span<byte> buf, out int bw) => ExecutionReport_RejectData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, reasonBytes, out bw),
+            new[] { ReadOnlyMemory<byte>.Empty, ReadOnlyMemory<byte>.Empty, reasonMemory }, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendRetransmissionAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
     {
         if (!RetransmitRequestData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
             return;
@@ -499,22 +687,30 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
-        try
-        {
-            await ApplyLatencyAsync(ct).ConfigureAwait(false);
-            await stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-            await stream.FlushAsync(ct).ConfigureAwait(false);
-        }
-        catch (IOException) { }
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
 
     private static long _orderIdSeq;
 
-    private async Task SendAppFrameAsync(Stream stream, ushort templateId, int payloadSize, EncodeDelegate encode, CancellationToken ct)
+    /// <summary>
+    /// Encodes and sends an application frame. The buffer is sized to fit the
+    /// fixed payload plus all caller-supplied variable-length data sections,
+    /// each prefixed by its 1-byte length. Pass empty spans for sections you
+    /// don't intend to populate — every section the message defines must be
+    /// listed so its length-prefix byte is reserved.
+    /// </summary>
+    private async Task SendAppFrameAsync(Stream stream, ConnectionState state, ushort templateId, int payloadSize, EncodeDelegate encode,
+        ReadOnlyMemory<byte>[] varDataSections, CancellationToken ct)
     {
-        // Allocate generous trailing room for var-data sections (DeskID, Memo, etc.).
-        const int VarDataPad = 16;
-        var maxTotal = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + payloadSize + VarDataPad;
+        // Each var-data section on the wire is `byte length + payload`, even
+        // when payload is empty (length prefix is always emitted by the encoder).
+        var varTotal = 0;
+        for (int i = 0; i < varDataSections.Length; i++)
+            varTotal += 1 + varDataSections[i].Length;
+        // Floor at 4 bytes so messages whose var-data sections aren't all
+        // listed by the caller still don't overrun.
+        var varReserve = Math.Max(varTotal, 4);
+        var maxTotal = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + payloadSize + varReserve;
         var buffer = new byte[maxTotal];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(SofhFrameReader.HeaderSize), (ushort)payloadSize);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(SofhFrameReader.HeaderSize + 2), templateId);
@@ -522,14 +718,11 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             return;
         var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + bytesWritten;
         SofhFrameWriter.WriteHeader(buffer.AsSpan(0, totalSize), checked((ushort)totalSize));
-        try
-        {
-            await ApplyLatencyAsync(ct).ConfigureAwait(false);
-            await stream.WriteAsync(buffer.AsMemory(0, totalSize), ct).ConfigureAwait(false);
-            await stream.FlushAsync(ct).ConfigureAwait(false);
-        }
-        catch (IOException) { }
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
+
+    private Task SendAppFrameAsync(Stream stream, ConnectionState state, ushort templateId, int payloadSize, EncodeDelegate encode, CancellationToken ct)
+        => SendAppFrameAsync(stream, state, templateId, payloadSize, encode, Array.Empty<ReadOnlyMemory<byte>>(), ct);
 
     private delegate bool EncodeDelegate(Span<byte> buffer, out int bytesWritten);
 
