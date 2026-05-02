@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CI (#129): bumped `actions/checkout` to v6, `actions/setup-dotnet` to v5, and `actions/upload-artifact` to v7 in `bench.yml` and `publish.yml` to drop the deprecated Node 20 runtime (Node 20 is removed from GitHub Actions runners on 2026-09-16). Other workflows were already on these versions.
+
 ## [0.11.1] - 2026-05-02
 
 ### Fixed
