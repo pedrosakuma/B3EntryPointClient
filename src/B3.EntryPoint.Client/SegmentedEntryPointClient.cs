@@ -29,12 +29,7 @@ public sealed class SegmentedEntryPointClient : IAsyncDisposable, ISubmitOrder, 
     private readonly SegmentRouter<CancelOrderRequest> _routeCancel;
     private readonly SegmentRouter<MassActionRequest> _routeMassAction;
 
-    private readonly Channel<EntryPointEvent> _aggregatedEvents =
-        Channel.CreateUnbounded<EntryPointEvent>(new UnboundedChannelOptions
-        {
-            SingleReader = false,
-            SingleWriter = false,
-        });
+    private readonly Channel<EntryPointEvent> _aggregatedEvents;
     private readonly List<Task> _pumps = new();
     private readonly CancellationTokenSource _pumpCts = new();
     private bool _connected;
@@ -59,6 +54,14 @@ public sealed class SegmentedEntryPointClient : IAsyncDisposable, ISubmitOrder, 
         _routeMassAction = routeMassAction ?? (_ => DefaultSegment);
         _routeSimpleNewOrder = routeSimpleNewOrder ?? (req => routeNewOrder(MapSimple(req)));
         _routeSimpleReplace = routeSimpleReplace ?? (req => routeReplace(MapSimple(req)));
+
+        var aggregateCapacity = perSegmentOptions.Values.Max(o => o.EventChannelCapacity);
+        _aggregatedEvents = Channel.CreateBounded<EntryPointEvent>(new BoundedChannelOptions(aggregateCapacity)
+        {
+            SingleReader = false,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
     }
 
     /// <summary>The lowest configured MarketSegmentID; used as a fallback route.</summary>
@@ -95,7 +98,13 @@ public sealed class SegmentedEntryPointClient : IAsyncDisposable, ISubmitOrder, 
         }
     }
 
-    /// <summary>Aggregated event stream merging every per-segment <c>Events()</c>.</summary>
+    /// <summary>
+    /// Aggregated event stream merging every per-segment <c>Events()</c>. Backed by a
+    /// bounded channel sized to the largest per-segment
+    /// <see cref="EntryPointClientOptions.EventChannelCapacity"/>, with
+    /// <see cref="BoundedChannelFullMode.Wait"/>: a slow consumer stalls the per-segment
+    /// pump tasks, which in turn stall each underlying client's inbound decoder.
+    /// </summary>
     public async IAsyncEnumerable<EntryPointEvent> Events([EnumeratorCancellation] CancellationToken ct = default)
     {
         await foreach (var evt in _aggregatedEvents.Reader.ReadAllAsync(ct).ConfigureAwait(false))

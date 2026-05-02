@@ -114,6 +114,26 @@ public sealed class EntryPointClientOptions
     /// <summary>TLS configuration for the FIXP transport. Disabled by default.</summary>
     public TlsOptions Tls { get; set; } = new();
 
+    private int _eventChannelCapacity = 4096;
+
+    /// <summary>
+    /// Capacity of the bounded inbound event channel backing
+    /// <see cref="IEntryPointClient.Events"/>. When the channel is full the
+    /// inbound decoder awaits until a consumer drains an item
+    /// (<see cref="System.Threading.Channels.BoundedChannelFullMode.Wait"/>),
+    /// surfacing backpressure all the way up to the wire reader. Defaults to 4096.
+    /// </summary>
+    public int EventChannelCapacity
+    {
+        get => _eventChannelCapacity;
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(EventChannelCapacity)} must be greater than zero.");
+            _eventChannelCapacity = value;
+        }
+    }
+
     private static string ThisAssemblyVersion() =>
         typeof(EntryPointClientOptions).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 }

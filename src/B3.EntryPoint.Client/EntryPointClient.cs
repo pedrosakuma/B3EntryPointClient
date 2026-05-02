@@ -26,12 +26,7 @@ namespace B3.EntryPoint.Client;
 public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplaceOrder, ICancelOrder, ISubmitCross, IQuoteFlow
 {
     private readonly EntryPointClientOptions _options;
-    private readonly Channel<EntryPointEvent> _events =
-        Channel.CreateUnbounded<EntryPointEvent>(new UnboundedChannelOptions
-        {
-            SingleReader = false,
-            SingleWriter = true,
-        });
+    private readonly Channel<EntryPointEvent> _events;
     private TcpClient? _tcp;
     private FixpClientSession? _session;
     private KeepAliveScheduler? _keepAlive;
@@ -62,6 +57,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         ArgumentNullException.ThrowIfNull(options);
         ValidateOptions(options);
         _options = options;
+        _events = Channel.CreateBounded<EntryPointEvent>(new BoundedChannelOptions(options.EventChannelCapacity)
+        {
+            SingleReader = false,
+            SingleWriter = true,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
     }
 
     private static void ValidateOptions(EntryPointClientOptions options)
@@ -662,8 +663,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// (<see cref="OrderAccepted"/>, <see cref="OrderRejected"/>,
     /// <see cref="OrderTrade"/>, <see cref="OrderCancelled"/>,
     /// <see cref="OrderModified"/>, <see cref="BusinessReject"/>, etc.).
-    /// Backed by a bounded channel; consumers that fall behind block the
-    /// inbound decoder, so drain promptly.
+    /// Backed by a bounded channel of capacity
+    /// <see cref="EntryPointClientOptions.EventChannelCapacity"/> (default 4096) with
+    /// <see cref="BoundedChannelFullMode.Wait"/>: when the channel fills, the inbound
+    /// decoder awaits a free slot before publishing the next event. A consumer that
+    /// does not drain promptly therefore stalls the decoder, which propagates
+    /// backpressure all the way to the wire reader (and ultimately the TCP receive
+    /// window). No events are dropped.
     /// </summary>
     public async IAsyncEnumerable<EntryPointEvent> Events([EnumeratorCancellation] CancellationToken ct = default)
     {

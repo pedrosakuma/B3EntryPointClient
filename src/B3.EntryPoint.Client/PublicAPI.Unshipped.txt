@@ -1,1 +1,3 @@
 #nullable enable
+B3.EntryPoint.Client.EntryPointClientOptions.EventChannelCapacity.get -> int
+B3.EntryPoint.Client.EntryPointClientOptions.EventChannelCapacity.set -> void
