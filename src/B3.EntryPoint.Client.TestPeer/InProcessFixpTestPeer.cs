@@ -718,7 +718,39 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             return;
         var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + bytesWritten;
         SofhFrameWriter.WriteHeader(buffer.AsSpan(0, totalSize), checked((ushort)totalSize));
-        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+
+        // Application frames go through the OnOutboundFrame hook so scenarios
+        // can simulate session-layer faults (drop / seq-gap / delay).
+        // Callers increment state.OutSeq before invoking this helper, so the
+        // MsgSeqNum carried on the wire is state.OutSeq - 1.
+        var ctx = new OutboundFrameContext(templateId, state.OutSeq - 1u, totalSize);
+        var action = _options.Scenario.OnOutboundFrame(ctx);
+        await ApplyOutboundActionAsync(action, stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    private async Task ApplyOutboundActionAsync(OutboundFrameAction action, Stream stream, ConnectionState state, byte[] buffer, int totalSize, CancellationToken ct)
+    {
+        switch (action)
+        {
+            case OutboundFrameAction.Send:
+                await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+                break;
+            case OutboundFrameAction.Drop:
+                // Frame is dropped; OutSeq has already advanced at the call
+                // site so the next frame will create a one-message gap.
+                break;
+            case OutboundFrameAction.SkipSeq skip:
+                state.OutSeq += skip.Skip;
+                break;
+            case OutboundFrameAction.DelayThen delayThen:
+                if (delayThen.Delay > TimeSpan.Zero)
+                    await Task.Delay(delayThen.Delay, ct).ConfigureAwait(false);
+                await ApplyOutboundActionAsync(delayThen.Then, stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+                break;
+            default:
+                await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+                break;
+        }
     }
 
     private Task SendAppFrameAsync(Stream stream, ConnectionState state, ushort templateId, int payloadSize, EncodeDelegate encode, CancellationToken ct)

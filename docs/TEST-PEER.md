@@ -137,10 +137,40 @@ await host.StopAsync(ct); // hosted service calls peer.StopAsync(ct).
 
 A working sample lives in `tests/Samples/B3.EntryPoint.Client.TestPeer.Sample/HostedSample.cs`.
 
+## Sequence-fault simulation
+
+Application frames sent by the peer (ExecutionReports, BusinessReject,
+OrderMassActionReport, …) flow through the
+`ITestPeerScenario.OnOutboundFrame` hook. Returning an
+`OutboundFrameAction.Drop` skips the wire write entirely while still
+advancing the peer's outbound sequence counter, producing a one-message
+gap; `OutboundFrameAction.SkipSeq(n)` widens that gap by `n` more
+sequence numbers; `OutboundFrameAction.DelayThen(delay, inner)` defers
+the action by `delay` before re-evaluating it.
+
+`TestPeerScenarios.WithSequenceFaults` ships a deterministic schedule
+helper that wraps an inner scenario and applies a fault per 1-based
+outbound app-frame ordinal:
+
+```csharp
+var schedule = new Dictionary<int, OutboundFrameAction>
+{
+    [3] = new OutboundFrameAction.Drop(),       // drop the 3rd ER
+    [5] = new OutboundFrameAction.SkipSeq(2),   // create a 3-msg gap
+};
+var scenario = TestPeerScenarios.WithSequenceFaults(
+    TestPeerScenarios.AcceptAll, schedule);
+await using var peer = new InProcessFixpTestPeer(
+    new TestPeerOptions { Scenario = scenario });
+```
+
+Use this to drive `IRetransmitRequestHandler` and `KeepAliveScheduler`
+under realistic loss conditions without touching transport code.
+
 ## Limitations
 
-- Drop / sequence-gap injection is not yet implemented; only
-  `ResponseLatency` is wired today.
+- Inbound sequence-gap injection (forcing the peer to *receive* with gaps)
+  is out of scope; use the §4.7 conformance suite for that path.
 
 These will land in subsequent versions without changing the public API
 shape established here.

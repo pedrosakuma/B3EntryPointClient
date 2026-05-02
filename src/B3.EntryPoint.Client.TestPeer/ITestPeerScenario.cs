@@ -40,6 +40,64 @@ public interface ITestPeerScenario
     /// Default: <see cref="ModifyResponse.Accept"/> (emit <c>ExecutionReport_Modify</c>).
     /// </summary>
     ModifyResponse OnModify(ModifyContext context) => new ModifyResponse.Accept();
+
+    /// <summary>
+    /// Decide what the peer does for an outbound application frame. Fires
+    /// after the frame is encoded but before it hits the wire. The default
+    /// is <see cref="OutboundFrameAction.Send"/>; implementations can return
+    /// <see cref="OutboundFrameAction.Drop"/> (silently swallow the frame —
+    /// the next frame will arrive with a <c>MsgSeqNum</c> gap, exercising
+    /// the client's gap-detection / retransmit path) or
+    /// <see cref="OutboundFrameAction.SkipSeq"/> (drop the frame *and*
+    /// advance the peer's outbound seq counter further to widen the gap).
+    /// <para>
+    /// Wrapping with <see cref="OutboundFrameAction.DelayThen"/> applies a
+    /// post-encode delay before evaluating the inner action.
+    /// </para>
+    /// </summary>
+    OutboundFrameAction OnOutboundFrame(OutboundFrameContext context)
+        => new OutboundFrameAction.Send();
+}
+
+/// <summary>Decoded summary of an outbound application frame about to be sent.</summary>
+/// <param name="TemplateId">SBE template id (e.g. 201 for ExecutionReport_New, 203 for ExecutionReport_Trade).</param>
+/// <param name="MsgSeqNum">FIXP <c>MsgSeqNum</c> assigned to this frame.</param>
+/// <param name="FrameLength">Total frame length in bytes (SOFH + SBE header + payload + var-data).</param>
+public readonly record struct OutboundFrameContext(uint TemplateId, ulong MsgSeqNum, int FrameLength);
+
+/// <summary>
+/// Discriminated union describing what <see cref="InProcessFixpTestPeer"/>
+/// does with an outbound application frame after
+/// <see cref="ITestPeerScenario.OnOutboundFrame"/> is invoked.
+/// </summary>
+public abstract record OutboundFrameAction
+{
+    private OutboundFrameAction() { }
+
+    /// <summary>Send the frame as encoded (default behaviour).</summary>
+    public sealed record Send : OutboundFrameAction;
+
+    /// <summary>
+    /// Silently drop the frame. The peer's <c>MsgSeqNum</c> counter has
+    /// already been incremented at the call site, so the next frame will
+    /// arrive at the client with a one-step gap.
+    /// </summary>
+    public sealed record Drop : OutboundFrameAction;
+
+    /// <summary>
+    /// Drop the frame and additionally advance the peer's outbound
+    /// <c>MsgSeqNum</c> counter by <paramref name="Skip"/>. The next frame
+    /// arrives at the client with a gap of <c>1 + Skip</c> messages.
+    /// </summary>
+    /// <param name="Skip">Extra seq numbers to advance after dropping. Must be &gt;= 1.</param>
+    public sealed record SkipSeq(uint Skip) : OutboundFrameAction;
+
+    /// <summary>
+    /// Wait <paramref name="Delay"/> then apply <paramref name="Then"/>.
+    /// Useful to test client-side timeouts or out-of-order arrival relative
+    /// to other frames.
+    /// </summary>
+    public sealed record DelayThen(TimeSpan Delay, OutboundFrameAction Then) : OutboundFrameAction;
 }
 
 /// <summary>Decoded summary of an inbound NewOrderSingle.</summary>
@@ -185,6 +243,28 @@ public static class TestPeerScenarios
     public static ITestPeerScenario RejectAll(string reason = "rejected by test peer") =>
         new RejectAllScenario(reason);
 
+    /// <summary>
+    /// Wraps an <paramref name="inner"/> scenario and applies a deterministic
+    /// outbound fault schedule on top of its app-frame responses. Each entry
+    /// in <paramref name="schedule"/> maps a 1-based outbound app-frame index
+    /// to the <see cref="OutboundFrameAction"/> the peer should apply for
+    /// that frame; frames whose index is not in the map use
+    /// <see cref="OutboundFrameAction.Send"/>.
+    /// <para>
+    /// The frame index counts only application messages emitted by the peer
+    /// (those routed through the <see cref="ITestPeerScenario.OnOutboundFrame"/>
+    /// hook), so a schedule of <c>{ 2 = Drop }</c> drops the second app
+    /// frame regardless of session-layer Negotiate/Establish/Sequence
+    /// traffic.
+    /// </para>
+    /// </summary>
+    public static ITestPeerScenario WithSequenceFaults(ITestPeerScenario inner, IReadOnlyDictionary<int, OutboundFrameAction> schedule)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        ArgumentNullException.ThrowIfNull(schedule);
+        return new SequenceFaultScenario(inner, schedule);
+    }
+
     private sealed class AcceptAllScenario : ITestPeerScenario
     {
         public NewOrderResponse OnNewOrder(NewOrderContext context) => new NewOrderResponse.AcceptAsNew();
@@ -202,5 +282,28 @@ public static class TestPeerScenarios
         public NewOrderResponse OnNewOrder(NewOrderContext context) => new NewOrderResponse.RejectBusiness(_reason);
         public CancelResponse OnCancel(CancelContext context) => new CancelResponse.Reject(_reason);
         public ModifyResponse OnModify(ModifyContext context) => new ModifyResponse.Reject(_reason);
+    }
+
+    private sealed class SequenceFaultScenario : ITestPeerScenario
+    {
+        private readonly ITestPeerScenario _inner;
+        private readonly IReadOnlyDictionary<int, OutboundFrameAction> _schedule;
+        private int _frameCount;
+
+        public SequenceFaultScenario(ITestPeerScenario inner, IReadOnlyDictionary<int, OutboundFrameAction> schedule)
+        {
+            _inner = inner;
+            _schedule = schedule;
+        }
+
+        public NewOrderResponse OnNewOrder(NewOrderContext context) => _inner.OnNewOrder(context);
+        public CancelResponse OnCancel(CancelContext context) => _inner.OnCancel(context);
+        public ModifyResponse OnModify(ModifyContext context) => _inner.OnModify(context);
+
+        public OutboundFrameAction OnOutboundFrame(OutboundFrameContext context)
+        {
+            var index = System.Threading.Interlocked.Increment(ref _frameCount);
+            return _schedule.TryGetValue(index, out var action) ? action : new OutboundFrameAction.Send();
+        }
     }
 }
