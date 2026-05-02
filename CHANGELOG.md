@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-05-02
+
+### Fixed
+- **client (#120)**: `EntryPointClient.BuildSnapshot()` and the `KeepAliveScheduler` callback both called `FixpClientSession.NextOutboundSeqNum()` (a post-increment) for read-only purposes, burning one outbound `MsgSeqNum` per snapshot/heartbeat. The first compaction or any heartbeat would create a sequence gap that the peer could reject (`NotApplied`/`Terminate`). Added two non-mutating accessors — `LastAssignedOutboundSeqNum()` and `PeekNextOutboundSeqNum()` — and switched both call sites. Snapshots now report the true last-assigned seq, and the FIXP `Sequence` heartbeat now announces the actual next `MsgSeqNum` the sender will use. Pre-0.11.1 persisted snapshots may have inflated `LastOutboundSeqNum`; on resume the peer may reject with a duplicate-seq error if the gap was never recovered (replay actual `OutboundDelta` records or perform a session reset).
+
 ## [0.11.0] - 2026-05-02
 
 ### Changed
