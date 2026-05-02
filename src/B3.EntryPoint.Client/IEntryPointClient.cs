@@ -50,6 +50,12 @@ public interface IEntryPointClient :
     /// <summary>Snapshot of in-memory client health counters.</summary>
     ClientHealth GetHealth();
 
-    /// <summary>Streams inbound EntryPoint events as they are decoded.</summary>
+    /// <summary>
+    /// Streams inbound EntryPoint events as they are decoded. Backed by a bounded
+    /// channel (see <see cref="EntryPointClientOptions.EventChannelCapacity"/>,
+    /// default 4096, <see cref="System.Threading.Channels.BoundedChannelFullMode.Wait"/>)
+    /// so a slow consumer applies backpressure to the inbound decoder rather than
+    /// dropping events or growing memory unboundedly.
+    /// </summary>
     IAsyncEnumerable<EntryPointEvent> Events(CancellationToken ct = default);
 }
