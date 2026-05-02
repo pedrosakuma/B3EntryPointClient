@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- TestPeer (#114): peer-side support for negative-path conformance — `TestPeerOptions.EstablishRejectAfter` (+ `EstablishRejectCodeOverride`) makes the peer respond to the N-th and subsequent `Establish` frames with `EstablishReject` instead of `EstablishmentAck`; `TestPeerOptions.RetransmitRejectCode` makes the peer answer `RetransmitRequest` with `RetransmitReject` carrying the configured code; `InProcessFixpTestPeer.InjectNotAppliedAsync(fromSeqNo, count, ct)` writes a session-layer `NotApplied` frame to every established connection (returns the count of writes).
+- Conformance (#114): six new `[ConformanceFact]`/`[TestPeerOnlyConformanceFact]` tests covering `BusinessReject` text round-trip, `ExecutionReport_Reject` for cancel and replace, reconnect rejection (`FixpRejectedException` from `EstablishReject(INVALID_SESSIONVERID)`), `RetransmitReject`, and `NotApplied`.
 - TestPeer (#113): `ITestPeerScenario.OnOutboundFrame(OutboundFrameContext)` default-interface hook plus `OutboundFrameAction` discriminated union (`Send` / `Drop` / `SkipSeq` / `DelayThen`) for injecting drops, sequence gaps, and per-frame delays into the peer's outbound app-frame path. `OutboundFrameContext` carries `TemplateId`, `MsgSeqNum`, and `FrameLength`. New `TestPeerScenarios.WithSequenceFaults(inner, schedule)` helper applies a deterministic `Dictionary<int, OutboundFrameAction>` schedule (1-based outbound app-frame ordinal). `docs/TEST-PEER.md` gets a "Sequence-fault simulation" section.
+
 
 ## [0.10.1] - 2026-05-02
 
