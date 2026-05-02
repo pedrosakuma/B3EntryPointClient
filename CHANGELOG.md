@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-02
+
 ### Added
 - **client (#138)**: new `EntryPointClient.InboundGapAtReconnect` event (with `InboundGapAtReconnectEventArgs` payload carrying `FromSeqNo`, `Count`, `PriorSessionVerId`). Raised exactly once per `ReconnectAsync` call when the prior session terminated with an outstanding inbound app-frame gap that cannot be served in-band — the peer bumps `SessionVerID` on reconnect and resets its outbound counter to 1, so the missing range from the prior session is unrecoverable via §4.7. Consumers should reconcile out-of-band (e.g. via a business-layer order-status query). New structured-log events `4010` (`InboundGapDetected`), `4011` (`InboundGapRequestFailed`), `4012` (`InboundGapAtReconnect`).
 

@@ -1,5 +1,5 @@
-#nullable enable
 
+#nullable enable
 B3.EntryPoint.Client.Auth.Credentials
 B3.EntryPoint.Client.Auth.Credentials.AsSpan() -> System.ReadOnlySpan<byte>
 B3.EntryPoint.Client.Auth.Credentials.Credentials(System.ReadOnlySpan<byte> bytes) -> void
@@ -30,6 +30,7 @@ B3.EntryPoint.Client.EntryPointClient.EntryPointClient(B3.EntryPoint.Client.Entr
 B3.EntryPoint.Client.EntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
 B3.EntryPoint.Client.EntryPointClient.FlushAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 B3.EntryPoint.Client.EntryPointClient.GetHealth() -> B3.EntryPoint.Client.Telemetry.ClientHealth
+B3.EntryPoint.Client.EntryPointClient.InboundGapAtReconnect -> System.EventHandler<B3.EntryPoint.Client.InboundGapAtReconnectEventArgs!>?
 B3.EntryPoint.Client.EntryPointClient.KeepAlive.get -> B3.EntryPoint.Client.Fixp.IKeepAliveScheduler?
 B3.EntryPoint.Client.EntryPointClient.MassActionAsync(B3.EntryPoint.Client.Models.MassActionRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.MassActionReport!>!
 B3.EntryPoint.Client.EntryPointClient.ReconnectAsync(uint nextSessionVerId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -225,6 +226,11 @@ B3.EntryPoint.Client.ISubmitCross.SubmitCrossAsync(B3.EntryPoint.Client.Models.N
 B3.EntryPoint.Client.ISubmitOrder
 B3.EntryPoint.Client.ISubmitOrder.SubmitAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
 B3.EntryPoint.Client.ISubmitOrder.SubmitSimpleAsync(B3.EntryPoint.Client.Models.SimpleNewOrderRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.ClOrdID>!
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.Count.get -> uint
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.FromSeqNo.get -> ulong
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.InboundGapAtReconnectEventArgs(ulong fromSeqNo, uint count, ulong priorSessionVerId) -> void
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.PriorSessionVerId.get -> ulong
 B3.EntryPoint.Client.Models.AccountType
 B3.EntryPoint.Client.Models.AccountType.RegularAccount = 39 -> B3.EntryPoint.Client.Models.AccountType
 B3.EntryPoint.Client.Models.AccountType.RemoveAccountInformation = 38 -> B3.EntryPoint.Client.Models.AccountType
@@ -295,6 +301,8 @@ B3.EntryPoint.Client.Models.ClOrdID.ClOrdID() -> void
 B3.EntryPoint.Client.Models.ClOrdID.ClOrdID(ulong value) -> void
 B3.EntryPoint.Client.Models.ClOrdID.Equals(B3.EntryPoint.Client.Models.ClOrdID other) -> bool
 B3.EntryPoint.Client.Models.ClOrdID.Value.get -> ulong
+B3.EntryPoint.Client.Models.ClOrdIDJsonConverter
+B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.ClOrdIDJsonConverter() -> void
 B3.EntryPoint.Client.Models.CrossLeg
 B3.EntryPoint.Client.Models.CrossLeg.<Clone>$() -> B3.EntryPoint.Client.Models.CrossLeg!
 B3.EntryPoint.Client.Models.CrossLeg.Account.get -> ulong?
@@ -903,11 +911,11 @@ B3.EntryPoint.Client.State.InboundDelta.InboundDelta(ulong SeqNum) -> void
 B3.EntryPoint.Client.State.InboundDelta.SeqNum.get -> ulong
 B3.EntryPoint.Client.State.InboundDelta.SeqNum.init -> void
 B3.EntryPoint.Client.State.OrderClosedDelta
-B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.get -> string!
+B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
 B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.init -> void
-B3.EntryPoint.Client.State.OrderClosedDelta.Deconstruct(out string! ClOrdID) -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.Deconstruct(out B3.EntryPoint.Client.Models.ClOrdID ClOrdID) -> void
 B3.EntryPoint.Client.State.OrderClosedDelta.Equals(B3.EntryPoint.Client.State.OrderClosedDelta? other) -> bool
-B3.EntryPoint.Client.State.OrderClosedDelta.OrderClosedDelta(string! ClOrdID) -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.OrderClosedDelta(B3.EntryPoint.Client.Models.ClOrdID ClOrdID) -> void
 B3.EntryPoint.Client.State.OutboundDelta
 B3.EntryPoint.Client.State.OutboundDelta.ClOrdID.get -> string!
 B3.EntryPoint.Client.State.OutboundDelta.ClOrdID.init -> void
@@ -1010,6 +1018,8 @@ override B3.EntryPoint.Client.Models.CancelOrderRequest.GetHashCode() -> int
 override B3.EntryPoint.Client.Models.CancelOrderRequest.ToString() -> string!
 override B3.EntryPoint.Client.Models.ClOrdID.GetHashCode() -> int
 override B3.EntryPoint.Client.Models.ClOrdID.ToString() -> string!
+override B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> B3.EntryPoint.Client.Models.ClOrdID
+override B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, B3.EntryPoint.Client.Models.ClOrdID value, System.Text.Json.JsonSerializerOptions! options) -> void
 override B3.EntryPoint.Client.Models.CrossLeg.Equals(object? obj) -> bool
 override B3.EntryPoint.Client.Models.CrossLeg.GetHashCode() -> int
 override B3.EntryPoint.Client.Models.CrossLeg.ToString() -> string!
