@@ -250,6 +250,31 @@ internal sealed class FixpClientSession : IAsyncDisposable
     public ulong NextOutboundSeqNum() =>
         (ulong)System.Threading.Interlocked.Increment(ref _outboundSeqNum);
 
+    /// <summary>
+    /// Reads the last outbound MsgSeqNum that was assigned via <see cref="NextOutboundSeqNum"/>
+    /// without mutating the counter. Returns 0 when no outbound frame has been assigned yet.
+    /// </summary>
+    /// <remarks>
+    /// "Assigned" means the seq slot was reserved for an outbound send attempt. The frame
+    /// may not have been successfully flushed to the wire if the underlying write failed.
+    /// </remarks>
+    public ulong LastAssignedOutboundSeqNum() =>
+        (ulong)System.Threading.Interlocked.Read(ref _outboundSeqNum);
+
+    /// <summary>
+    /// Returns the value the next call to <see cref="NextOutboundSeqNum"/> would produce
+    /// (i.e. the announce-only "next NextSeqNo" used by FIXP <c>Sequence</c> frames),
+    /// without mutating the counter.
+    /// </summary>
+    /// <remarks>
+    /// Note: callers that read this value and then write it to the wire on a separate
+    /// path (e.g. <c>KeepAliveScheduler</c>) can race with concurrent application sends
+    /// that allocate a new seq between the peek and the wire write. Tracked separately
+    /// in the outbound-serialization follow-up.
+    /// </remarks>
+    public ulong PeekNextOutboundSeqNum() =>
+        (ulong)System.Threading.Interlocked.Read(ref _outboundSeqNum) + 1UL;
+
     /// <summary>Sends a single FIXP <c>Sequence</c> frame announcing <paramref name="nextSeqNo"/>.</summary>
     public async Task SendSequenceAsync(ulong nextSeqNo, CancellationToken ct)
     {

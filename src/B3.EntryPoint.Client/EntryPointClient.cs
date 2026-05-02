@@ -168,7 +168,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         _keepAlive = new KeepAliveScheduler(
             _options.KeepAliveInterval,
             sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
-            nextSeqNo: () => _session.NextOutboundSeqNum());
+            nextSeqNo: () => _session.PeekNextOutboundSeqNum());
         _session.OnInboundSequence = nextSeq =>
         {
             _lastInboundUtc = DateTime.UtcNow;
@@ -360,7 +360,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         SessionId = _options.SessionId,
         SessionVerId = _options.SessionVerId,
-        LastOutboundSeqNum = _session is null ? 0UL : _session.NextOutboundSeqNum() - 1UL,
+        LastOutboundSeqNum = _session is null ? 0UL : _session.LastAssignedOutboundSeqNum(),
         LastInboundSeqNum = _lastInboundSeqNum,
         CapturedAt = DateTimeOffset.UtcNow,
         OutstandingOrders = new Dictionary<string, ulong>(_outstandingOrders),
