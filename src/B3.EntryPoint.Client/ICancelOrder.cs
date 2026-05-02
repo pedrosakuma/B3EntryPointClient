@@ -6,9 +6,6 @@ namespace B3.EntryPoint.Client;
 /// Cancel previously submitted orders, individually or via mass action.
 /// Implemented by <see cref="EntryPointClient"/>.
 /// </summary>
-/// <remarks>
-/// API surface only — the SBE encoding lands in a follow-up PR (issue #8).
-/// </remarks>
 public interface ICancelOrder
 {
     /// <summary>Submit an <c>OrderCancelRequest</c>.</summary>

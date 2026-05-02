@@ -597,7 +597,9 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
     /// <summary>
     /// Send a graceful <c>Terminate</c> to the peer and tear down the session.
-    /// API surface only — the wire-level encode lands in a follow-up PR (issue #6).
+    /// Records an <c>entrypoint.terminate</c> activity, increments the
+    /// terminations counter, and raises the <see cref="Terminated"/> event
+    /// before returning.
     /// </summary>
     public async Task TerminateAsync(TerminationCode code, CancellationToken ct = default)
     {
@@ -656,9 +658,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     }
 
     /// <summary>
-    /// Async stream of unsolicited events (ER/Reject/BusinessReject). The
-    /// typed event family lands with issue #9; today the stream completes
-    /// immediately.
+    /// Async stream of unsolicited events from the peer
+    /// (<see cref="OrderAccepted"/>, <see cref="OrderRejected"/>,
+    /// <see cref="OrderTrade"/>, <see cref="OrderCancelled"/>,
+    /// <see cref="OrderModified"/>, <see cref="BusinessReject"/>, etc.).
+    /// Backed by a bounded channel; consumers that fall behind block the
+    /// inbound decoder, so drain promptly.
     /// </summary>
     public async IAsyncEnumerable<EntryPointEvent> Events([EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -687,9 +692,9 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     }
 
     /// <summary>
-    /// Test/internal hook — surface a <see cref="Terminated"/> notification
-    /// through the public event. Replaced by the real wire-level handler in
-    /// the follow-up implementation PR.
+    /// Internal hook used by <see cref="TerminateAsync"/> and the inbound
+    /// <c>Terminate</c> handler to surface a <see cref="Terminated"/>
+    /// notification through the public event.
     /// </summary>
     internal void RaiseTerminated(TerminationCode code, string? reason, bool initiatedByClient) =>
         Terminated?.Invoke(this, new TerminatedEventArgs(code, reason, initiatedByClient));

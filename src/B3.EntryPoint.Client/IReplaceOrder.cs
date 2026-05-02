@@ -7,9 +7,6 @@ namespace B3.EntryPoint.Client;
 /// Replace previously submitted orders. Implemented by
 /// <see cref="EntryPointClient"/>.
 /// </summary>
-/// <remarks>
-/// API surface only — the SBE encoding lands in a follow-up PR (issue #7).
-/// </remarks>
 public interface IReplaceOrder
 {
     /// <summary>Submit an <c>OrderCancelReplaceRequest</c>.</summary>

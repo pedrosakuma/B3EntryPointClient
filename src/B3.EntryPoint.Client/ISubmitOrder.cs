@@ -8,10 +8,6 @@ namespace B3.EntryPoint.Client;
 /// <see cref="EntryPointClient"/> when the session profile is
 /// <c>SessionProfile.OrderEntry</c>.
 /// </summary>
-/// <remarks>
-/// API surface only — the SBE encoding and outbound sequencing land in a
-/// follow-up PR (issue #4).
-/// </remarks>
 public interface ISubmitOrder
 {
     /// <summary>Submit a <c>NewOrderSingle</c>.</summary>

@@ -6,12 +6,6 @@ namespace B3.EntryPoint.Client.Fixp;
 /// transitions throw <see cref="InvalidFixpTransitionException"/> — callers that
 /// want lenient behavior should query <see cref="CanFire"/> first.
 /// </summary>
-/// <remarks>
-/// Implements the subset of the spec required for the bootstrap acceptance
-/// (Disconnected → TcpConnected → Negotiating → Negotiated → Establishing →
-/// Established, plus Terminate from any state). Suspended/recovery flow is
-/// modeled as a state but transitions into/out of it land in follow-up issues.
-/// </remarks>
 public sealed class FixpClientStateMachine
 {
     public FixpClientState State { get; private set; } = FixpClientState.Disconnected;

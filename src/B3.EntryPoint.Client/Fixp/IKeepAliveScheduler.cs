@@ -7,10 +7,6 @@ namespace B3.EntryPoint.Client.Fixp;
 /// frames, and is the natural place to detect peer keep-alive timeouts and
 /// hand off to the §4.7 retransmit handler when a gap is detected.
 /// </summary>
-/// <remarks>
-/// API surface only — the wire-level send/receive loop is wired in a
-/// follow-up PR. See issue #3.
-/// </remarks>
 public interface IKeepAliveScheduler
 {
     /// <summary>Interval used for outbound <c>Sequence</c> frames.</summary>

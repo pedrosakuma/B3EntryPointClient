@@ -83,19 +83,15 @@ public class TestPeerScenarioTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(cts.Token);
 
-        try
+        await client.SubmitAsync(new NewOrderRequest
         {
-            await client.SubmitAsync(new NewOrderRequest
-            {
-                ClOrdID = (ClOrdID)123UL,
-                SecurityId = 1001,
-                Side = Side.Buy,
-                OrderType = OrderType.Limit,
-                Price = 10m,
-                OrderQty = 10,
-            }, cts.Token);
-        }
-        catch (NotImplementedException) { /* submit path not yet wired in some builds */ }
+            ClOrdID = (ClOrdID)123UL,
+            SecurityId = 1001,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            Price = 10m,
+            OrderQty = 10,
+        }, cts.Token);
 
         var drainCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
         var saw = false;
@@ -117,22 +113,16 @@ public class TestPeerScenarioTests
         Assert.NotNull(TestPeerScenarios.RejectAll());
     }
 
-    private static async Task SubmitOrderAsync(EntryPointClient client, ulong clOrdId, ulong securityId, ulong qty, decimal price, CancellationToken ct)
-    {
-        try
+    private static Task SubmitOrderAsync(EntryPointClient client, ulong clOrdId, ulong securityId, ulong qty, decimal price, CancellationToken ct)
+        => client.SubmitAsync(new NewOrderRequest
         {
-            await client.SubmitAsync(new NewOrderRequest
-            {
-                ClOrdID = (ClOrdID)clOrdId,
-                SecurityId = securityId,
-                Side = Side.Buy,
-                OrderType = OrderType.Limit,
-                Price = price,
-                OrderQty = qty,
-            }, ct);
-        }
-        catch (NotImplementedException) { /* submit path not yet wired in some builds */ }
-    }
+            ClOrdID = (ClOrdID)clOrdId,
+            SecurityId = securityId,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            Price = price,
+            OrderQty = qty,
+        }, ct);
 
     private static async Task<List<EntryPointEvent>> DrainAsync(EntryPointClient client, int expected, TimeSpan timeout)
     {
@@ -228,17 +218,13 @@ public class TestPeerScenarioTests
         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(connectCts.Token);
 
-        try
+        await client.CancelAsync(new CancelOrderRequest
         {
-            await client.CancelAsync(new CancelOrderRequest
-            {
-                ClOrdID = (ClOrdID)801UL,
-                OrigClOrdID = (ClOrdID)800UL,
-                SecurityId = 2001UL,
-                Side = Side.Buy,
-            }, connectCts.Token);
-        }
-        catch (NotImplementedException) { }
+            ClOrdID = (ClOrdID)801UL,
+            OrigClOrdID = (ClOrdID)800UL,
+            SecurityId = 2001UL,
+            Side = Side.Buy,
+        }, connectCts.Token);
 
         var events = await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2));
         var rejected = events.OfType<OrderRejected>().FirstOrDefault();
@@ -259,17 +245,13 @@ public class TestPeerScenarioTests
         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(connectCts.Token);
 
-        try
+        await client.CancelAsync(new CancelOrderRequest
         {
-            await client.CancelAsync(new CancelOrderRequest
-            {
-                ClOrdID = (ClOrdID)901UL,
-                OrigClOrdID = (ClOrdID)900UL,
-                SecurityId = 3001UL,
-                Side = Side.Sell,
-            }, connectCts.Token);
-        }
-        catch (NotImplementedException) { }
+            ClOrdID = (ClOrdID)901UL,
+            OrigClOrdID = (ClOrdID)900UL,
+            SecurityId = 3001UL,
+            Side = Side.Sell,
+        }, connectCts.Token);
 
         var events = await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2));
         Assert.Contains(events, e => e is OrderCancelled);
@@ -287,20 +269,16 @@ public class TestPeerScenarioTests
         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(connectCts.Token);
 
-        try
+        await client.ReplaceAsync(new ReplaceOrderRequest
         {
-            await client.ReplaceAsync(new ReplaceOrderRequest
-            {
-                ClOrdID = (ClOrdID)1101UL,
-                OrigClOrdID = (ClOrdID)1100UL,
-                SecurityId = 4001UL,
-                Side = Side.Buy,
-                OrderType = OrderType.Limit,
-                Price = 12.34m,
-                OrderQty = 10UL,
-            }, connectCts.Token);
-        }
-        catch (NotImplementedException) { }
+            ClOrdID = (ClOrdID)1101UL,
+            OrigClOrdID = (ClOrdID)1100UL,
+            SecurityId = 4001UL,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            Price = 12.34m,
+            OrderQty = 10UL,
+        }, connectCts.Token);
 
         var events = await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2));
         var rejected = events.OfType<OrderRejected>().FirstOrDefault();
