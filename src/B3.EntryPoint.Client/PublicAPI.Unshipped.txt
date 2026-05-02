@@ -1,5 +1,1 @@
 #nullable enable
-B3.EntryPoint.Client.EntryPointClient.FlushAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.get -> bool
-B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.set -> void
-B3.EntryPoint.Client.IEntryPointClient.FlushAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

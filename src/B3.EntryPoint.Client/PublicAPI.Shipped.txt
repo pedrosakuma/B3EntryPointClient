@@ -28,6 +28,7 @@ B3.EntryPoint.Client.EntryPointClient.ConnectAsync(System.Threading.Cancellation
 B3.EntryPoint.Client.EntryPointClient.DisposeAsync() -> System.Threading.Tasks.ValueTask
 B3.EntryPoint.Client.EntryPointClient.EntryPointClient(B3.EntryPoint.Client.EntryPointClientOptions! options) -> void
 B3.EntryPoint.Client.EntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
+B3.EntryPoint.Client.EntryPointClient.FlushAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 B3.EntryPoint.Client.EntryPointClient.GetHealth() -> B3.EntryPoint.Client.Telemetry.ClientHealth
 B3.EntryPoint.Client.EntryPointClient.KeepAlive.get -> B3.EntryPoint.Client.Fixp.IKeepAliveScheduler?
 B3.EntryPoint.Client.EntryPointClient.MassActionAsync(B3.EntryPoint.Client.Models.MassActionRequest! request, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.MassActionReport!>!
@@ -45,6 +46,8 @@ B3.EntryPoint.Client.EntryPointClient.SubmitSimpleAsync(B3.EntryPoint.Client.Mod
 B3.EntryPoint.Client.EntryPointClient.TerminateAsync(B3.EntryPoint.Client.TerminationCode code, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 B3.EntryPoint.Client.EntryPointClient.Terminated -> System.EventHandler<B3.EntryPoint.Client.TerminatedEventArgs!>?
 B3.EntryPoint.Client.EntryPointClientOptions
+B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.get -> bool
+B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.get -> B3.EntryPoint.Client.CancelOnDisconnectType
 B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ClientAppName.get -> string!
@@ -201,6 +204,7 @@ B3.EntryPoint.Client.ICancelOrder.MassActionAsync(B3.EntryPoint.Client.Models.Ma
 B3.EntryPoint.Client.IEntryPointClient
 B3.EntryPoint.Client.IEntryPointClient.ConnectAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 B3.EntryPoint.Client.IEntryPointClient.Events(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<B3.EntryPoint.Client.Models.EntryPointEvent!>!
+B3.EntryPoint.Client.IEntryPointClient.FlushAsync(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 B3.EntryPoint.Client.IEntryPointClient.GetHealth() -> B3.EntryPoint.Client.Telemetry.ClientHealth
 B3.EntryPoint.Client.IEntryPointClient.KeepAlive.get -> B3.EntryPoint.Client.Fixp.IKeepAliveScheduler?
 B3.EntryPoint.Client.IEntryPointClient.ReconnectAsync(uint nextSessionVerId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
