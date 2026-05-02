@@ -127,6 +127,18 @@ internal static partial class LogMessages
         Message = "Session teardown: background task '{Task}' did not complete within {Timeout}; abandoning")]
     public static partial void SessionTeardownTimeout(this ILogger logger, string task, TimeSpan timeout);
 
+    [LoggerMessage(EventId = 4010, Level = LogLevel.Warning,
+        Message = "Inbound app-frame gap detected: expected {Expected}, received {Received}; auto-issuing RetransmitRequest fromSeqNo={FromSeqNo} count={Count}")]
+    public static partial void InboundGapDetected(this ILogger logger, ulong expected, ulong received, ulong fromSeqNo, uint count);
+
+    [LoggerMessage(EventId = 4011, Level = LogLevel.Warning,
+        Message = "Failed to auto-issue RetransmitRequest for inbound gap fromSeqNo={FromSeqNo} count={Count}")]
+    public static partial void InboundGapRequestFailed(this ILogger logger, Exception ex, ulong fromSeqNo, uint count);
+
+    [LoggerMessage(EventId = 4012, Level = LogLevel.Warning,
+        Message = "Reconnect carries unrecovered inbound gap from prior session ver={PriorSessionVerId}: fromSeqNo={FromSeqNo} count={Count} — out-of-band reconciliation required")]
+    public static partial void InboundGapAtReconnect(this ILogger logger, ulong priorSessionVerId, ulong fromSeqNo, uint count);
+
     // ---------------- Error (5000–5999) ----------------
 
     [LoggerMessage(EventId = 5000, Level = LogLevel.Error,

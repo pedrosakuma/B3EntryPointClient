@@ -40,7 +40,22 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
     private readonly ConcurrentDictionary<string, ulong> _outstandingOrders = new(StringComparer.Ordinal);
     private long _deltasSinceCompact;
-    private ulong _lastInboundSeqNum;
+
+    // ---- Inbound gap detection (#138) ---------------------------------------
+    // _lastContiguousInboundSeqNum is the last inbound app-frame seq we know
+    // arrived contiguously from seq 1 (or from the persisted snapshot's
+    // contiguous tail). Persisted into SessionSnapshot.LastInboundSeqNum.
+    // _highestInboundSeqNum is the running max of any inbound seq we've seen,
+    // including frames that landed past a gap. The two diverge while a gap is
+    // outstanding. _pendingInboundSeqs holds the post-gap seqs received so we
+    // can advance _lastContiguousInboundSeqNum incrementally as the missing
+    // frames arrive (typically via Retransmission). _gapRequestInFlight caps
+    // concurrent outstanding RetransmitRequests at one.
+    private readonly object _inboundGapGate = new();
+    private ulong _lastContiguousInboundSeqNum;
+    private ulong _highestInboundSeqNum;
+    private readonly SortedSet<ulong> _pendingInboundSeqs = new();
+    private bool _gapRequestInFlight;
 
     /// <summary>
     /// Persistence operation enqueued from the inbound loop and drained by a
@@ -100,6 +115,16 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// required to resume.
     /// </summary>
     public event EventHandler<TerminatedEventArgs>? Terminated;
+
+    /// <summary>
+    /// Raised exactly once per <see cref="ReconnectAsync"/> call when the prior
+    /// session terminated with an unrecovered inbound app-frame gap. The peer
+    /// bumps <c>SessionVerID</c> on reconnect and resets its outbound counter
+    /// to 1, so the missing range cannot be served by a §4.7 <c>RetransmitRequest</c>
+    /// against the new session. Consumers should reconcile out-of-band (e.g.
+    /// via a business-layer order-status query). (#138)
+    /// </summary>
+    public event EventHandler<InboundGapAtReconnectEventArgs>? InboundGapAtReconnect;
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
@@ -196,11 +221,22 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
         {
             _lastInboundUtc = DateTime.UtcNow;
+            // The peer's reply to our outstanding RetransmitRequest. Whether
+            // it carries frames (count>0) or is an empty completion (count=0,
+            // observed against TestPeer / some gateway error paths), we clear
+            // the in-flight flag so a future gap can issue a new request.
+            // The retransmitted frames themselves flow through the inbound
+            // loop and OnInboundEventForPersistence advances the contiguous
+            // tail accordingly. (#138)
+            lock (_inboundGapGate) { _gapRequestInFlight = false; }
             _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
         };
         _session.OnInboundRetransmitReject = (code, reqNanos) =>
         {
             _lastInboundUtc = DateTime.UtcNow;
+            // Reject clears the in-flight flag — a later gap may need to
+            // re-request after a transient peer-side condition lifts. (#138)
+            lock (_inboundGapGate) { _gapRequestInFlight = false; }
             _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
         };
         _session.OnInboundNotApplied = (from, count) =>
@@ -331,7 +367,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             return;
         }
         _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
-        _lastInboundSeqNum = snapshot.LastInboundSeqNum;
+        lock (_inboundGapGate)
+        {
+            _lastContiguousInboundSeqNum = snapshot.LastInboundSeqNum;
+            _highestInboundSeqNum = snapshot.LastInboundSeqNum;
+            _pendingInboundSeqs.Clear();
+            _gapRequestInFlight = false;
+        }
         _outstandingOrders.Clear();
         foreach (var (clordid, secId) in snapshot.OutstandingOrders)
             _outstandingOrders[clordid] = secId;
@@ -371,19 +413,101 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
     }
 
-    private SessionSnapshot BuildSnapshot() => new()
+    private SessionSnapshot BuildSnapshot()
     {
-        SessionId = _options.SessionId,
-        SessionVerId = _options.SessionVerId,
-        LastOutboundSeqNum = _session is null ? 0UL : _session.LastAssignedOutboundSeqNum(),
-        LastInboundSeqNum = _lastInboundSeqNum,
-        CapturedAt = DateTimeOffset.UtcNow,
-        OutstandingOrders = new Dictionary<string, ulong>(_outstandingOrders),
-    };
+        ulong contiguous;
+        lock (_inboundGapGate) { contiguous = _lastContiguousInboundSeqNum; }
+        return new()
+        {
+            SessionId = _options.SessionId,
+            SessionVerId = _options.SessionVerId,
+            LastOutboundSeqNum = _session is null ? 0UL : _session.LastAssignedOutboundSeqNum(),
+            // #138: persist the last *contiguous* inbound seq, never the
+            // running max. A snapshot captured while a gap is outstanding
+            // would otherwise silently lose the missing range on resume.
+            LastInboundSeqNum = contiguous,
+            CapturedAt = DateTimeOffset.UtcNow,
+            OutstandingOrders = new Dictionary<string, ulong>(_outstandingOrders),
+        };
+    }
 
     private void OnInboundEventForPersistence(EntryPointEvent evt)
     {
-        if (evt.SeqNum > _lastInboundSeqNum) _lastInboundSeqNum = evt.SeqNum;
+        ulong contiguousAfter;
+        bool requestGap = false;
+        ulong gapFrom = 0UL;
+        uint gapCount = 0u;
+        ulong gapTriggerSeq = 0UL;
+        ulong gapExpectedSeq = 0UL;
+
+        lock (_inboundGapGate)
+        {
+            var seq = evt.SeqNum;
+            if (seq > _highestInboundSeqNum) _highestInboundSeqNum = seq;
+
+            if (seq == _lastContiguousInboundSeqNum + 1UL)
+            {
+                _lastContiguousInboundSeqNum = seq;
+                // Drain any post-gap seqs that are now contiguous.
+                while (_pendingInboundSeqs.Count > 0)
+                {
+                    var min = _pendingInboundSeqs.Min;
+                    if (min != _lastContiguousInboundSeqNum + 1UL) break;
+                    _lastContiguousInboundSeqNum = min;
+                    _pendingInboundSeqs.Remove(min);
+                }
+                if (_lastContiguousInboundSeqNum >= _highestInboundSeqNum)
+                    _gapRequestInFlight = false;
+            }
+            else if (seq > _lastContiguousInboundSeqNum + 1UL)
+            {
+                // Gap. Buffer the post-gap seq for later contiguity tracking;
+                // the frame itself is still surfaced to consumers immediately
+                // by the inbound loop (any duplicates that arrive via the
+                // Retransmission reply are detected as already-contiguous and
+                // ignored for advancement, but still flow to consumers). #138
+                _pendingInboundSeqs.Add(seq);
+                if (!_gapRequestInFlight)
+                {
+                    gapFrom = _lastContiguousInboundSeqNum + 1UL;
+                    var missing = seq - gapFrom;
+                    gapCount = (uint)Math.Min(missing, RetransmitRequestHandler.MaxCountPerRequest);
+                    gapExpectedSeq = gapFrom;
+                    gapTriggerSeq = seq;
+                    _gapRequestInFlight = true;
+                    requestGap = true;
+                }
+            }
+            // else: duplicate (seq <= _lastContiguousInboundSeqNum). Already
+            // contiguous; persistence below is still safe — it operates on
+            // ClOrdID set membership.
+
+            contiguousAfter = _lastContiguousInboundSeqNum;
+        }
+
+        if (requestGap)
+        {
+            _options.Logger.InboundGapDetected(gapExpectedSeq, gapTriggerSeq, gapFrom, gapCount);
+            var handler = _retransmit;
+            if (handler is not null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await handler.RequestRetransmitAsync(gapFrom, gapCount).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Reset in-flight on send failure so a later frame can
+                        // re-trigger the request.
+                        lock (_inboundGapGate) { _gapRequestInFlight = false; }
+                        _options.Logger.InboundGapRequestFailed(ex, gapFrom, gapCount);
+                    }
+                });
+            }
+        }
+
         var store = _options.SessionStateStore;
         if (store is null) return;
 
@@ -398,7 +522,9 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         if (closedClOrdId is null) return;
         _outstandingOrders.TryRemove(closedClOrdId, out _);
 
-        EnqueuePersistOp(new PersistOp(closedClOrdId, evt.SeqNum));
+        // #138: persist the contiguous tail, not the raw evt.SeqNum, so the
+        // replayed snapshot's LastInboundSeqNum matches BuildSnapshot semantics.
+        EnqueuePersistOp(new PersistOp(closedClOrdId, contiguousAfter));
     }
 
     /// <summary>
@@ -446,6 +572,24 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         => EnqueuePersistOp(new PersistOp(clOrdID, inboundSeqNum));
     internal Task StopActiveSessionForTestingAsync(CancellationToken ct = default)
         => StopActiveSessionAsync(ct);
+
+    internal void HandleInboundEventForTesting(EntryPointEvent evt) => OnInboundEventForPersistence(evt);
+    internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
+    internal (ulong contiguous, ulong highest, int pending, bool gapInFlight) GetInboundGapStateForTesting()
+    {
+        lock (_inboundGapGate)
+            return (_lastContiguousInboundSeqNum, _highestInboundSeqNum, _pendingInboundSeqs.Count, _gapRequestInFlight);
+    }
+    internal void RaiseInboundGapAtReconnectForTesting(ulong fromSeqNo, uint count, ulong priorSessionVerId)
+        => InboundGapAtReconnect?.Invoke(this, new InboundGapAtReconnectEventArgs(fromSeqNo, count, priorSessionVerId));
+    internal void SetInboundGapStateForTesting(ulong contiguous, ulong highest)
+    {
+        lock (_inboundGapGate)
+        {
+            _lastContiguousInboundSeqNum = contiguous;
+            _highestInboundSeqNum = highest;
+        }
+    }
 
     private void StartPersistenceWorkerCore()
     {
@@ -734,6 +878,26 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             throw new ArgumentOutOfRangeException(nameof(nextSessionVerId),
                 "Next SessionVerID must be strictly greater than the current one.");
 
+        // #138: capture an outstanding inbound gap from the prior session
+        // before any state is reset. The peer bumps SessionVerID on reconnect
+        // and resets its outbound to 1, so the missing range is unrecoverable
+        // in-band — surface it via InboundGapAtReconnect after the new
+        // session is up so consumers can reconcile out-of-band.
+        ulong gapFrom = 0UL;
+        uint gapCount = 0u;
+        var priorSessionVerId = (ulong)_options.SessionVerId;
+        lock (_inboundGapGate)
+        {
+            if (_highestInboundSeqNum > _lastContiguousInboundSeqNum)
+            {
+                gapFrom = _lastContiguousInboundSeqNum + 1UL;
+                var window = _highestInboundSeqNum - _lastContiguousInboundSeqNum;
+                // window includes both missing and post-gap-buffered seqs;
+                // subtract the latter to get the true missing count.
+                gapCount = (uint)(window - (ulong)_pendingInboundSeqs.Count);
+            }
+        }
+
         // Best-effort graceful Terminate before tearing the active session down.
         try
         {
@@ -747,8 +911,26 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         // one (#124).
         await StopActiveSessionAsync(ct).ConfigureAwait(false);
 
+        // Reset inbound seq tracking — the new session starts at peer seq 1.
+        // HydrateFromSnapshotAsync (called from the next ConnectAsync) will
+        // overwrite this from the persisted snapshot for warm-restart paths.
+        lock (_inboundGapGate)
+        {
+            _lastContiguousInboundSeqNum = 0UL;
+            _highestInboundSeqNum = 0UL;
+            _pendingInboundSeqs.Clear();
+            _gapRequestInFlight = false;
+        }
+
         _options.SessionVerId = nextSessionVerId;
         await ConnectAsync(ct).ConfigureAwait(false);
+
+        if (gapCount > 0u)
+        {
+            _options.Logger.InboundGapAtReconnect(priorSessionVerId, gapFrom, gapCount);
+            InboundGapAtReconnect?.Invoke(this,
+                new InboundGapAtReconnectEventArgs(gapFrom, gapCount, priorSessionVerId));
+        }
     }
 
     /// <summary>

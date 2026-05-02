@@ -1,1 +1,7 @@
 #nullable enable
+B3.EntryPoint.Client.EntryPointClient.InboundGapAtReconnect -> System.EventHandler<B3.EntryPoint.Client.InboundGapAtReconnectEventArgs!>?
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.InboundGapAtReconnectEventArgs(ulong fromSeqNo, uint count, ulong priorSessionVerId) -> void
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.FromSeqNo.get -> ulong
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.Count.get -> uint
+B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.PriorSessionVerId.get -> ulong

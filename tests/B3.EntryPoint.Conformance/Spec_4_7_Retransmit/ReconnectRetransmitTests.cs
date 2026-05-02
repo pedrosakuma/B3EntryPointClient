@@ -78,6 +78,14 @@ public class ReconnectRetransmitTests
         await using var client = new EntryPointClient(options);
         await client.ConnectAsync();
 
+        // #138 — the client now auto-detects inbound gaps and emits a §4.7
+        // RetransmitRequest. Register the listener BEFORE submitting orders
+        // so we don't race the asynchronous request issued from the inbound
+        // loop the moment the post-gap frame (ER seq 4) arrives.
+        var retransmitRequested = new TaskCompletionSource<RetransmitRequestedEventArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Retransmit!.RetransmitRequested += (_, args) => retransmitRequested.TrySetResult(args);
+
         // 2. Submit 5 NewOrderSingle requests sequentially.
         for (ulong i = 1; i <= 5; i++)
         {
@@ -163,18 +171,12 @@ public class ReconnectRetransmitTests
         }
         Assert.Equal(6u, await seenSix.Task);
 
-        // 8. Pending #138 follow-up — production gap: the client does not
-        //    detect the inbound gap (peer→client ER seq 3 was dropped) and
-        //    does not auto-emit a §4.7 RetransmitRequest, in the live session
-        //    or after reconnect. When that gap is closed, re-enable the
-        //    assertion below.
-        //
-        // var retransmitRequested = new TaskCompletionSource<RetransmitRequestedEventArgs>(
-        //     TaskCreationOptions.RunContinuationsAsynchronously);
-        // client.Retransmit!.RetransmitRequested += (_, args) => retransmitRequested.TrySetResult(args);
-        // var rr = await retransmitRequested.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        // Assert.Equal(3UL, rr.FromSeqNo);
-        // Assert.Equal(1u, rr.Count);
+        // 8. #138 — assert the auto-emitted RetransmitRequest from step 2's
+        //    gap detection (ER seq 3 was dropped). Listener was wired up
+        //    front so we don't race the inbound loop's async send.
+        var rr = await retransmitRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(3UL, rr.FromSeqNo);
+        Assert.Equal(1u, rr.Count);
     }
 
     private static async Task<List<ulong>> DrainEventsAsync(EntryPointClient client, int expected, TimeSpan timeout)
