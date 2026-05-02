@@ -1,4 +1,5 @@
 #nullable enable
+
 B3.EntryPoint.Client.TestPeer.CancelContext
 B3.EntryPoint.Client.TestPeer.CancelContext.CancelContext() -> void
 B3.EntryPoint.Client.TestPeer.CancelContext.CancelContext(uint SessionId, ulong SecurityId, string! ClOrdId, string! OrigClOrdId) -> void
@@ -32,12 +33,14 @@ B3.EntryPoint.Client.TestPeer.ITestPeerScenario
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnCancel(B3.EntryPoint.Client.TestPeer.CancelContext context) -> B3.EntryPoint.Client.TestPeer.CancelResponse!
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnModify(B3.EntryPoint.Client.TestPeer.ModifyContext context) -> B3.EntryPoint.Client.TestPeer.ModifyResponse!
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnNewOrder(B3.EntryPoint.Client.TestPeer.NewOrderContext context) -> B3.EntryPoint.Client.TestPeer.NewOrderResponse!
+B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnOutboundFrame(B3.EntryPoint.Client.TestPeer.OutboundFrameContext context) -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction!
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.Endpoint.get -> System.Net.IPEndPoint!
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer() -> void
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer(B3.EntryPoint.Client.TestPeer.TestPeerOptions! options) -> void
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InProcessFixpTestPeer(System.Security.Cryptography.X509Certificates.X509Certificate2? serverCertificate) -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InjectNotAppliedAsync(uint fromSeqNo, uint count, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.LocalEndpoint.get -> System.Net.IPEndPoint!
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.MessageReceived -> System.EventHandler<B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs!>?
 B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.Options.get -> B3.EntryPoint.Client.TestPeer.TestPeerOptions!
@@ -116,6 +119,39 @@ B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Reason.init -> voi
 B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejReason.get -> uint?
 B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejReason.init -> void
 B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.RejectBusiness(string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Deconstruct(out System.TimeSpan Delay, out B3.EntryPoint.Client.TestPeer.OutboundFrameAction! Then) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Delay.get -> System.TimeSpan
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Delay.init -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.DelayThen(System.TimeSpan Delay, B3.EntryPoint.Client.TestPeer.OutboundFrameAction! Then) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen? other) -> bool
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Then.get -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction!
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Then.init -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.Drop() -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop? other) -> bool
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.OutboundFrameAction(B3.EntryPoint.Client.TestPeer.OutboundFrameAction! original) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send? other) -> bool
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.Send() -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Deconstruct(out uint Skip) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq? other) -> bool
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Skip.get -> uint
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Skip.init -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.SkipSeq(uint Skip) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.Deconstruct(out uint TemplateId, out ulong MsgSeqNum, out int FrameLength) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameContext other) -> bool
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.FrameLength.get -> int
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.FrameLength.init -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.MsgSeqNum.get -> ulong
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.MsgSeqNum.init -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.OutboundFrameContext() -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.OutboundFrameContext(uint TemplateId, ulong MsgSeqNum, int FrameLength) -> void
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.TemplateId.get -> uint
+B3.EntryPoint.Client.TestPeer.OutboundFrameContext.TemplateId.init -> void
 B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs
 B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.Payload.get -> System.ReadOnlyMemory<byte>
 B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.TemplateId.get -> ushort
@@ -123,8 +159,14 @@ B3.EntryPoint.Client.TestPeer.TestPeerMessageEventArgs.TestPeerMessageEventArgs(
 B3.EntryPoint.Client.TestPeer.TestPeerOptions
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.Credentials.get -> System.Collections.Generic.IReadOnlyDictionary<uint, byte[]!>?
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.Credentials.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectAfter.get -> int?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectAfter.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectCodeOverride.get -> B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectCodeOverride.set -> void
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.ResponseLatency.get -> System.TimeSpan
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.ResponseLatency.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RetransmitRejectCode.get -> B3.Entrypoint.Fixp.Sbe.V6.RetransmitRejectCode?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RetransmitRejectCode.set -> void
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.Scenario.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.Scenario.set -> void
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.ServerCertificate.get -> System.Security.Cryptography.X509Certificates.X509Certificate2?
@@ -134,6 +176,7 @@ B3.EntryPoint.Client.TestPeer.TestPeerScenarios
 abstract B3.EntryPoint.Client.TestPeer.CancelResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.CancelResponse!
 abstract B3.EntryPoint.Client.TestPeer.ModifyResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.ModifyResponse!
 abstract B3.EntryPoint.Client.TestPeer.NewOrderResponse.<Clone>$() -> B3.EntryPoint.Client.TestPeer.NewOrderResponse!
+abstract B3.EntryPoint.Client.TestPeer.OutboundFrameAction.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction!
 override B3.EntryPoint.Client.TestPeer.CancelContext.GetHashCode() -> int
 override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.<Clone>$() -> B3.EntryPoint.Client.TestPeer.CancelResponse.Accept!
 override B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Equals(object? obj) -> bool
@@ -174,6 +217,26 @@ override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Equals(ob
 override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.GetHashCode() -> int
 override B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.ToString() -> string!
 override B3.EntryPoint.Client.TestPeer.NewOrderResponse.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Equals(object? obj) -> bool
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.GetHashCode() -> int
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.ToString() -> string!
+override B3.EntryPoint.Client.TestPeer.OutboundFrameContext.GetHashCode() -> int
 override sealed B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
 override sealed B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
 override sealed B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.Equals(B3.EntryPoint.Client.TestPeer.ModifyResponse? other) -> bool
@@ -181,6 +244,10 @@ override sealed B3.EntryPoint.Client.TestPeer.ModifyResponse.Reject.Equals(B3.En
 override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAndFill.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
 override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.AcceptAsNew.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
 override sealed B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? other) -> bool
+override sealed B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? other) -> bool
 static B3.EntryPoint.Client.TestPeer.CancelContext.operator !=(B3.EntryPoint.Client.TestPeer.CancelContext left, B3.EntryPoint.Client.TestPeer.CancelContext right) -> bool
 static B3.EntryPoint.Client.TestPeer.CancelContext.operator ==(B3.EntryPoint.Client.TestPeer.CancelContext left, B3.EntryPoint.Client.TestPeer.CancelContext right) -> bool
 static B3.EntryPoint.Client.TestPeer.CancelResponse.Accept.operator !=(B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Accept? right) -> bool
@@ -209,9 +276,22 @@ static B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.operator !=
 static B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse.RejectBusiness? right) -> bool
 static B3.EntryPoint.Client.TestPeer.NewOrderResponse.operator !=(B3.EntryPoint.Client.TestPeer.NewOrderResponse? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse? right) -> bool
 static B3.EntryPoint.Client.TestPeer.NewOrderResponse.operator ==(B3.EntryPoint.Client.TestPeer.NewOrderResponse? left, B3.EntryPoint.Client.TestPeer.NewOrderResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Drop? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Send? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction.SkipSeq? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameAction.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? left, B3.EntryPoint.Client.TestPeer.OutboundFrameAction? right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameContext.operator !=(B3.EntryPoint.Client.TestPeer.OutboundFrameContext left, B3.EntryPoint.Client.TestPeer.OutboundFrameContext right) -> bool
+static B3.EntryPoint.Client.TestPeer.OutboundFrameContext.operator ==(B3.EntryPoint.Client.TestPeer.OutboundFrameContext left, B3.EntryPoint.Client.TestPeer.OutboundFrameContext right) -> bool
 static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.AcceptAll.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
 static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.FillImmediately.get -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
 static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.RejectAll(string! reason = "rejected by test peer") -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
+static B3.EntryPoint.Client.TestPeer.TestPeerScenarios.WithSequenceFaults(B3.EntryPoint.Client.TestPeer.ITestPeerScenario! inner, System.Collections.Generic.IReadOnlyDictionary<int, B3.EntryPoint.Client.TestPeer.OutboundFrameAction!>! schedule) -> B3.EntryPoint.Client.TestPeer.ITestPeerScenario!
 virtual B3.EntryPoint.Client.TestPeer.CancelResponse.EqualityContract.get -> System.Type!
 virtual B3.EntryPoint.Client.TestPeer.CancelResponse.Equals(B3.EntryPoint.Client.TestPeer.CancelResponse? other) -> bool
 virtual B3.EntryPoint.Client.TestPeer.CancelResponse.PrintMembers(System.Text.StringBuilder! builder) -> bool
@@ -221,9 +301,14 @@ virtual B3.EntryPoint.Client.TestPeer.ModifyResponse.PrintMembers(System.Text.St
 virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.EqualityContract.get -> System.Type!
 virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.Equals(B3.EntryPoint.Client.TestPeer.NewOrderResponse? other) -> bool
 virtual B3.EntryPoint.Client.TestPeer.NewOrderResponse.PrintMembers(System.Text.StringBuilder! builder) -> bool
+virtual B3.EntryPoint.Client.TestPeer.OutboundFrameAction.EqualityContract.get -> System.Type!
+virtual B3.EntryPoint.Client.TestPeer.OutboundFrameAction.Equals(B3.EntryPoint.Client.TestPeer.OutboundFrameAction? other) -> bool
+virtual B3.EntryPoint.Client.TestPeer.OutboundFrameAction.PrintMembers(System.Text.StringBuilder! builder) -> bool
 ~override B3.EntryPoint.Client.TestPeer.CancelContext.Equals(object obj) -> bool
 ~override B3.EntryPoint.Client.TestPeer.CancelContext.ToString() -> string
 ~override B3.EntryPoint.Client.TestPeer.ModifyContext.Equals(object obj) -> bool
 ~override B3.EntryPoint.Client.TestPeer.ModifyContext.ToString() -> string
 ~override B3.EntryPoint.Client.TestPeer.NewOrderContext.Equals(object obj) -> bool
 ~override B3.EntryPoint.Client.TestPeer.NewOrderContext.ToString() -> string
+~override B3.EntryPoint.Client.TestPeer.OutboundFrameContext.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.TestPeer.OutboundFrameContext.ToString() -> string

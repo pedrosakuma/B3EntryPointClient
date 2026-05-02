@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-02
+
 ### Changed
 - Tests (#115): hardened the two timing-sensitive tests flagged in the v0.10.x discovery — `KeepAliveSchedulerPeriodicTests.Start_WithBoundTransport_InvokesSendCallbackPeriodically` now uses a `TaskCompletionSource` that fires on the second tick instead of polling on a wall-clock deadline, and `Spec_4_6_Sequence.SequenceHeartbeatTests.KeepAlive_Sequence_Frames_Are_Exchanged` switches the keep-alive interval from 1s → 250ms and waits via `Task.WhenAll(sentTcs, receivedTcs)` capped at 5×interval instead of an unconditional `Task.Delay(3s)`. Conformance test wall time drops from ~3s to ~320ms; both tests pass 5/5 stress runs.
 
