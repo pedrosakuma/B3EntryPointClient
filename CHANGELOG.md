@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-02
+
 ### Changed
 - CI (#129): bumped `actions/checkout` to v6, `actions/setup-dotnet` to v5, and `actions/upload-artifact` to v7 in `bench.yml` and `publish.yml` to drop the deprecated Node 20 runtime (Node 20 is removed from GitHub Actions runners on 2026-09-16). Other workflows were already on these versions.
 - **client (#126)**: the inbound event channel backing `IEntryPointClient.Events()` (and `SegmentedEntryPointClient.Events()`) is now actually bounded, matching its long-standing XML doc. Capacity is configurable via the new `EntryPointClientOptions.EventChannelCapacity` (default 4096), and the channel uses `BoundedChannelFullMode.Wait` — when the buffer fills, the inbound decoder awaits a free slot rather than dropping events or growing memory unboundedly. A slow consumer therefore applies backpressure all the way to the wire reader. Previous behavior used `Channel.CreateUnbounded`, which contradicted the docs and could grow without limit on a stalled consumer.
