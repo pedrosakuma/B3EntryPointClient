@@ -22,18 +22,18 @@ public class SessionStateStoreWiringTests
                 LastOutboundSeqNum = 100UL,
                 LastInboundSeqNum = 50UL,
                 CapturedAt = DateTimeOffset.UtcNow,
-                OutstandingOrders = new() { ["CL-1"] = 7UL, ["CL-2"] = 9UL },
+                OutstandingOrders = new() { ["CL-1"] = 7UL, ["CL-2"] = 9UL, ["1"] = 7UL },
             });
             await store.AppendDeltaAsync(new OutboundDelta(101UL, "CL-3", 11UL));
             await store.AppendDeltaAsync(new OutboundDelta(102UL, "CL-4", 12UL));
-            await store.AppendDeltaAsync(new OrderClosedDelta("CL-1"));
+            await store.AppendDeltaAsync(new OrderClosedDelta(new B3.EntryPoint.Client.Models.ClOrdID(1)));
             await store.AppendDeltaAsync(new InboundDelta(60UL));
 
             var replay = await store.ReplayAsync();
             Assert.NotNull(replay);
             Assert.Equal(102UL, replay!.LastOutboundSeqNum);
             Assert.Equal(60UL, replay.LastInboundSeqNum);
-            Assert.False(replay.OutstandingOrders.ContainsKey("CL-1"));
+            Assert.False(replay.OutstandingOrders.ContainsKey("1"));
             Assert.True(replay.OutstandingOrders.ContainsKey("CL-3"));
             Assert.True(replay.OutstandingOrders.ContainsKey("CL-4"));
         }

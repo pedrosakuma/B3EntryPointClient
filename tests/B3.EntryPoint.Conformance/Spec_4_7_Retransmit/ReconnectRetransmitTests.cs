@@ -256,7 +256,7 @@ public class ReconnectRetransmitTests
                         inboundSeq = Math.Max(inboundSeq, i.SeqNum);
                         break;
                     case OrderClosedDelta c:
-                        outstanding.Remove(c.ClOrdID);
+                        outstanding.Remove(c.ClOrdID.ToString());
                         break;
                 }
             }

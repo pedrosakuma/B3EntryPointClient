@@ -42,7 +42,7 @@ public class ReconnectTeardownTests
         // Burst of close-event persistence ops on the active session's worker.
         const int burst = 50;
         for (int i = 0; i < burst; i++)
-            client.EnqueuePersistOpForTesting($"a-{i}", (ulong)(i + 1));
+            client.EnqueuePersistOpForTesting(new B3.EntryPoint.Client.Models.ClOrdID((ulong)(i + 1)), (ulong)(i + 1));
 
         // Reconnect with a bumped SessionVerID. Before this returns the old
         // session's persistence worker MUST have drained every enqueued op,
@@ -55,12 +55,11 @@ public class ReconnectTeardownTests
         // had not yet been drained would not appear here.
         var closedAtReconnect = store.Deltas.OfType<OrderClosedDelta>()
             .Select(d => d.ClOrdID)
-            .Where(id => id.StartsWith("a-", StringComparison.Ordinal))
             .ToHashSet();
 
         Assert.Equal(burst, closedAtReconnect.Count);
         for (int i = 0; i < burst; i++)
-            Assert.Contains($"a-{i}", closedAtReconnect);
+            Assert.Contains(new B3.EntryPoint.Client.Models.ClOrdID((ulong)(i + 1)), closedAtReconnect);
     }
 
     private sealed class RecordingStore : ISessionStateStore

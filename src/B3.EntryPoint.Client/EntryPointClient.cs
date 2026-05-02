@@ -38,7 +38,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private CancellationTokenSource? _persistCts;
     private Task? _persistWorker;
 
-    private readonly ConcurrentDictionary<string, ulong> _outstandingOrders = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<ClOrdID, ulong> _outstandingOrders = new();
+
+    /// <summary>
+    /// Outstanding non-order outbound IDs (quote/cross flows where the
+    /// identifier is an arbitrary <see cref="string"/>, not a numeric
+    /// <see cref="ClOrdID"/>). Kept separate so the order-tracking dict can
+    /// use the strongly-typed <see cref="ClOrdID"/> key without paying a
+    /// per-event <c>ToString()</c> allocation on the close-event hot path
+    /// (#128).
+    /// </summary>
+    private readonly ConcurrentDictionary<string, ulong> _outstandingQuoteFlowIds = new(StringComparer.Ordinal);
+
     private long _deltasSinceCompact;
 
     // ---- Inbound gap detection (#138) ---------------------------------------
@@ -62,9 +73,11 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// single dedicated worker per session lifetime. Replaces the legacy
     /// fire-and-forget <c>Task.Run</c> in
     /// <see cref="OnInboundEventForPersistence"/> so persistence work is
-    /// tracked and deterministically drained on teardown (#121).
+    /// tracked and deterministically drained on teardown (#121). Carries a
+    /// strongly-typed <see cref="ClOrdID"/> to avoid a per-event string
+    /// allocation (#128).
     /// </summary>
-    private readonly record struct PersistOp(string ClOrdID, ulong InboundSeqNum);
+    private readonly record struct PersistOp(ClOrdID ClOrdID, ulong InboundSeqNum);
 
     /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IKeepAliveScheduler? KeepAlive => _keepAlive;
@@ -375,16 +388,43 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _gapRequestInFlight = false;
         }
         _outstandingOrders.Clear();
-        foreach (var (clordid, secId) in snapshot.OutstandingOrders)
-            _outstandingOrders[clordid] = secId;
-        _options.Logger.SnapshotRecovered((uint)snapshot.LastOutboundSeqNum, _outstandingOrders.Count);
+        _outstandingQuoteFlowIds.Clear();
+        foreach (var (idText, secId) in snapshot.OutstandingOrders)
+        {
+            // ClOrdID is a uint64 wire type. Numeric keys hydrate into the typed
+            // order dict; arbitrary strings (quote/cross IDs) hydrate into the
+            // string-keyed quote-flow dict. (#128)
+            if (ulong.TryParse(idText, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var ord) && ord != 0UL)
+                _outstandingOrders[new ClOrdID(ord)] = secId;
+            else
+                _outstandingQuoteFlowIds[idText] = secId;
+        }
+        _options.Logger.SnapshotRecovered((uint)snapshot.LastOutboundSeqNum,
+            _outstandingOrders.Count + _outstandingQuoteFlowIds.Count);
+    }
+
+    private async ValueTask AppendOutboundOrderDeltaAsync(ulong seq, ClOrdID clordid, string clordidText, ulong securityId, CancellationToken ct)
+    {
+        var store = _options.SessionStateStore;
+        if (store is null) return;
+        _outstandingOrders[clordid] = securityId;
+        try
+        {
+            await store.AppendDeltaAsync(new OutboundDelta(seq, clordidText, securityId), ct).ConfigureAwait(false);
+            await MaybeCompactAsync(store, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _options.Logger.AppendDeltaFailed(ex, clordidText);
+        }
     }
 
     private async ValueTask AppendOutboundDeltaAsync(ulong seq, string clordid, ulong securityId, CancellationToken ct)
     {
         var store = _options.SessionStateStore;
         if (store is null) return;
-        _outstandingOrders[clordid] = securityId;
+        _outstandingQuoteFlowIds[clordid] = securityId;
         try
         {
             await store.AppendDeltaAsync(new OutboundDelta(seq, clordid, securityId), ct).ConfigureAwait(false);
@@ -417,7 +457,16 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         ulong contiguous;
         lock (_inboundGapGate) { contiguous = _lastContiguousInboundSeqNum; }
-        return new()
+        // Merge the typed order dict and the string-keyed quote-flow dict into
+        // a single string-keyed serialization shape for backward compat with
+        // pre-#128 SessionSnapshot wire format. ClOrdID.ToString() runs only
+        // here (snapshot/compact boundary), not on the per-event hot path.
+        var outstanding = new Dictionary<string, ulong>(_outstandingOrders.Count + _outstandingQuoteFlowIds.Count);
+        foreach (var kv in _outstandingOrders)
+            outstanding[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _outstandingQuoteFlowIds)
+            outstanding[kv.Key] = kv.Value;
+        return new SessionSnapshot
         {
             SessionId = _options.SessionId,
             SessionVerId = _options.SessionVerId,
@@ -427,7 +476,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             // would otherwise silently lose the missing range on resume.
             LastInboundSeqNum = contiguous,
             CapturedAt = DateTimeOffset.UtcNow,
-            OutstandingOrders = new Dictionary<string, ulong>(_outstandingOrders),
+            OutstandingOrders = outstanding,
         };
     }
 
@@ -511,20 +560,22 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var store = _options.SessionStateStore;
         if (store is null) return;
 
-        string? closedClOrdId = evt switch
+        // Strongly-typed close key — ClOrdID is a readonly record struct
+        // wrapping a ulong, so this carries no allocation. (#128)
+        ClOrdID? closedClOrdId = evt switch
         {
-            OrderCancelled c => c.ClOrdID.Value.ToString(),
-            OrderRejected r => r.ClOrdID.Value.ToString(),
-            OrderTrade t when t.LeavesQty == 0UL => t.ClOrdID.Value.ToString(),
+            OrderCancelled c => c.ClOrdID,
+            OrderRejected r => r.ClOrdID,
+            OrderTrade t when t.LeavesQty == 0UL => t.ClOrdID,
             _ => null,
         };
 
         if (closedClOrdId is null) return;
-        _outstandingOrders.TryRemove(closedClOrdId, out _);
+        _outstandingOrders.TryRemove(closedClOrdId.Value, out _);
 
         // #138: persist the contiguous tail, not the raw evt.SeqNum, so the
         // replayed snapshot's LastInboundSeqNum matches BuildSnapshot semantics.
-        EnqueuePersistOp(new PersistOp(closedClOrdId, contiguousAfter));
+        EnqueuePersistOp(new PersistOp(closedClOrdId.Value, contiguousAfter));
     }
 
     /// <summary>
@@ -568,7 +619,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     // Test hooks (internals visible to B3.EntryPoint.Client.Tests) so the
     // persistence worker can be exercised directly without a live FIXP session.
     internal void StartPersistenceWorkerForTesting() => StartPersistenceWorkerCore();
-    internal void EnqueuePersistOpForTesting(string clOrdID, ulong inboundSeqNum)
+    internal void EnqueuePersistOpForTesting(ClOrdID clOrdID, ulong inboundSeqNum)
         => EnqueuePersistOp(new PersistOp(clOrdID, inboundSeqNum));
     internal Task StopActiveSessionForTestingAsync(CancellationToken ct = default)
         => StopActiveSessionAsync(ct);
@@ -625,7 +676,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 catch (Exception ex)
                 {
                     // Log and continue — a transient store failure must not take down the worker.
-                    _options.Logger.OrderClosedPersistFailed(ex, op.ClOrdID);
+                    _options.Logger.OrderClosedPersistFailed(ex, op.ClOrdID.ToString());
                 }
             }
         }
@@ -645,7 +696,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
-        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrder"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
         return request.ClOrdID;
@@ -664,7 +715,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
-        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "SimpleNewOrder"));
         RecordLatency(startTs, OutboundRequestKind.SimpleNewOrder);
         return request.ClOrdID;
@@ -683,7 +734,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
-        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "Replace"));
         RecordLatency(startTs, OutboundRequestKind.Replace);
         return request.ClOrdID;
@@ -702,7 +753,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
         var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
-        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "SimpleReplace"));
         RecordLatency(startTs, OutboundRequestKind.SimpleReplace);
         return request.ClOrdID;
@@ -721,7 +772,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
         var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
         await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
-        await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
+        await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersCancelled.Add(1);
         RecordLatency(startTs, OutboundRequestKind.Cancel);
     }
@@ -743,7 +794,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
             var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, seq);
             await _session.SendApplicationFrameAsync(buffer, len, token).ConfigureAwait(false);
-            await AppendOutboundDeltaAsync(seq, clordid, req.SecurityId ?? 0UL, token).ConfigureAwait(false);
+            await AppendOutboundOrderDeltaAsync(seq, req.ClOrdID, clordid, req.SecurityId ?? 0UL, token).ConfigureAwait(false);
             EntryPointTelemetry.MassActions.Add(1);
             RecordLatency(startTs, OutboundRequestKind.MassAction);
             return new MassActionReport

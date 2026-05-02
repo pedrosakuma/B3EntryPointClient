@@ -53,6 +53,14 @@ public sealed class EntryPointClientOptions
     /// — the safest choice for a participant that must not leave open orders
     /// after losing the session.
     /// </summary>
+    /// <remarks>
+    /// Marked <see cref="System.Diagnostics.CodeAnalysis.ExperimentalAttribute"/>
+    /// (#130): the value is currently <em>not</em> wired into the FIXP
+    /// <c>Negotiate</c> frame, so changing it has no observable effect on
+    /// the negotiated cancel-on-disconnect contract. Suppress
+    /// <c>B3EP_COD</c> at the call site to opt-in.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.Experimental("B3EP_COD")]
     public CancelOnDisconnectType CancelOnDisconnect { get; set; } =
         CancelOnDisconnectType.CancelOnDisconnectOrTerminate;
 

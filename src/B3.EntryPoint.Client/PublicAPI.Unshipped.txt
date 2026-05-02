@@ -5,3 +5,13 @@ B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.InboundGapAtReconnectEventAr
 B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.FromSeqNo.get -> ulong
 B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.Count.get -> uint
 B3.EntryPoint.Client.InboundGapAtReconnectEventArgs.PriorSessionVerId.get -> ulong
+B3.EntryPoint.Client.Models.ClOrdIDJsonConverter
+B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.ClOrdIDJsonConverter() -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.State.OrderClosedDelta.Deconstruct(out B3.EntryPoint.Client.Models.ClOrdID ClOrdID) -> void
+B3.EntryPoint.Client.State.OrderClosedDelta.OrderClosedDelta(B3.EntryPoint.Client.Models.ClOrdID ClOrdID) -> void
+override B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> B3.EntryPoint.Client.Models.ClOrdID
+override B3.EntryPoint.Client.Models.ClOrdIDJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, B3.EntryPoint.Client.Models.ClOrdID value, System.Text.Json.JsonSerializerOptions! options) -> void
+*REMOVED*B3.EntryPoint.Client.State.OrderClosedDelta.ClOrdID.get -> string!
+*REMOVED*B3.EntryPoint.Client.State.OrderClosedDelta.Deconstruct(out string! ClOrdID) -> void
+*REMOVED*B3.EntryPoint.Client.State.OrderClosedDelta.OrderClosedDelta(string! ClOrdID) -> void

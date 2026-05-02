@@ -45,18 +45,18 @@ public class FileSessionStateStoreTests
                 SessionVerId = 1,
                 LastOutboundSeqNum = 10,
                 LastInboundSeqNum = 5,
-                OutstandingOrders = new() { ["X"] = 100 },
+                OutstandingOrders = new() { ["X"] = 100, ["24"] = 100 },
             });
             await store.AppendDeltaAsync(new OutboundDelta(11, "Y", 200));
             await store.AppendDeltaAsync(new OutboundDelta(12, "Z", 300));
             await store.AppendDeltaAsync(new InboundDelta(7));
-            await store.AppendDeltaAsync(new OrderClosedDelta("X"));
+            await store.AppendDeltaAsync(new OrderClosedDelta(new B3.EntryPoint.Client.Models.ClOrdID(24)));
 
             var rebuilt = await store.ReplayAsync();
             Assert.NotNull(rebuilt);
             Assert.Equal(12UL, rebuilt!.LastOutboundSeqNum);
             Assert.Equal(7UL, rebuilt.LastInboundSeqNum);
-            Assert.False(rebuilt.OutstandingOrders.ContainsKey("X"));
+            Assert.False(rebuilt.OutstandingOrders.ContainsKey("24"));
             Assert.Equal(200UL, rebuilt.OutstandingOrders["Y"]);
             Assert.Equal(300UL, rebuilt.OutstandingOrders["Z"]);
         }
