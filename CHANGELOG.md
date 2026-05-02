@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **client (#138)**: new `EntryPointClient.InboundGapAtReconnect` event (with `InboundGapAtReconnectEventArgs` payload carrying `FromSeqNo`, `Count`, `PriorSessionVerId`). Raised exactly once per `ReconnectAsync` call when the prior session terminated with an outstanding inbound app-frame gap that cannot be served in-band — the peer bumps `SessionVerID` on reconnect and resets its outbound counter to 1, so the missing range from the prior session is unrecoverable via §4.7. Consumers should reconcile out-of-band (e.g. via a business-layer order-status query). New structured-log events `4010` (`InboundGapDetected`), `4011` (`InboundGapRequestFailed`), `4012` (`InboundGapAtReconnect`).
+
+### Fixed
+- **client (#138)**: `EntryPointClient` no longer silently swallows inbound app-frame gaps. The single `_lastInboundSeqNum` running-max counter is replaced by a `_lastContiguousInboundSeqNum` (last contiguous tail from seq 1) plus a `_highestInboundSeqNum` (running max). When an inbound app frame arrives with `SeqNum > contiguous + 1`, the client now auto-issues a §4.7 `RetransmitRequest(fromSeqNo = contiguous + 1, count = missing)` via the existing `RetransmitRequestHandler`. Concurrent gap requests are capped at one in-flight (cleared on `Retransmission` reply or `RetransmitReject`); subsequent in-order frames continue to flow to consumers immediately. Frames that arrive past a gap are buffered for contiguity tracking and the contiguous tail advances as missing seqs arrive (typically via Retransmission). The persisted `SessionSnapshot.LastInboundSeqNum` is now the contiguous tail rather than the running max — pre-0.14.0 snapshots may carry an inflated `LastInboundSeqNum`; on resume the gap is "lost" silently (same warning pattern as the v0.11.1 outbound seq fix). The persistence-worker `OrderClosedDelta`/`InboundDelta` pair now persists the contiguous tail at the time of enqueue, matching `BuildSnapshot` semantics.
+
 ## [0.13.0] - 2026-05-02
 
 ### Added
