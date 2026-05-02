@@ -1,1 +1,4 @@
 #nullable enable
+B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions
+static B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions.AddInProcessFixpTestPeer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.TestPeer.TestPeerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions.AddInProcessFixpTestPeerHosted(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.TestPeer.TestPeerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
