@@ -85,14 +85,62 @@ peer.MessageReceived += (_, e) =>
 
 The handler runs on the peer's connection task — keep it cheap, don't block.
 
-## Limitations (v0.8.0)
+## Use from a generic host
 
-- `AcceptAndFill` currently emits a single `ExecutionReport_New`; the
-  follow-up `ExecutionReport_Trade` is on the roadmap.
-- `RejectBusiness` does not yet emit a `BusinessMessageReject` frame; the
-  reason is surfaced via the scenario callback for assertion only.
+For integration tests that already wire everything through DI, the
+`B3.EntryPoint.Client.TestPeer.DependencyInjection` namespace ships two
+extension methods:
+
+```csharp
+using B3.EntryPoint.Client.TestPeer.DependencyInjection;
+
+// Bare registration: caller controls Start()/StopAsync.
+services.AddInProcessFixpTestPeer(o => o.Scenario = TestPeerScenarios.AcceptAll);
+
+// Hosted: an IHostedService starts the peer on host.StartAsync()
+// and stops it on host.StopAsync().
+services.AddInProcessFixpTestPeerHosted(o => o.Scenario = TestPeerScenarios.AcceptAll);
+```
+
+The hosted variant is the recommended shape for fixtures that resolve
+the EntryPoint client against the peer's bound endpoint. Wiring is
+two-phase — the listener only binds inside `host.StartAsync()`, so the
+client must be configured *after* the host has started:
+
+```csharp
+var peerHost = Host.CreateApplicationBuilder();
+peerHost.Services.AddInProcessFixpTestPeerHosted(o =>
+    o.Scenario = TestPeerScenarios.AcceptAll);
+
+using var host = peerHost.Build();
+await host.StartAsync(ct);
+
+var peer = host.Services.GetRequiredService<InProcessFixpTestPeer>();
+// peer.LocalEndpoint is non-null here.
+
+var clientServices = new ServiceCollection();
+clientServices.AddEntryPointClient(o =>
+{
+    o.Endpoint = peer.LocalEndpoint;
+    o.SessionId = 1u;
+    o.SessionVerId = 1u;
+    o.EnteringFirm = 1234u;
+    o.Credentials = Credentials.FromUtf8("demo-key");
+});
+await using var clientProvider = clientServices.BuildServiceProvider();
+var client = clientProvider.GetRequiredService<IEntryPointClient>();
+
+await client.ConnectAsync(ct);
+// ... exercise the client ...
+await host.StopAsync(ct); // hosted service calls peer.StopAsync(ct).
+```
+
+A working sample lives in `tests/Samples/B3.EntryPoint.Client.TestPeer.Sample/HostedSample.cs`.
+
+## Limitations
+
 - Drop / sequence-gap injection is not yet implemented; only
-  `ResponseLatency` is wired in this release.
+  `ResponseLatency` is wired today.
 
 These will land in subsequent versions without changing the public API
 shape established here.
