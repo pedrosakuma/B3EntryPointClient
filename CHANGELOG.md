@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **client (#123)**: new `EntryPointClientOptions.AutoFlushOutboundFrames` (default `true`) controls whether `FixpClientSession.SendApplicationFrameAsync` flushes the underlying transport after every outbound application frame. The default preserves prior latency-sensitive behavior; set to `false` for throughput-sensitive batching over buffered transports (e.g. `SslStream`) and pair with the new `EntryPointClient.FlushAsync(CancellationToken)` / `IEntryPointClient.FlushAsync(CancellationToken)` at batch boundaries.
 
+### Tests
+- Conformance (#125): new `ReconnectRetransmitTests.Reconnect_With_Persisted_State_Resumes_Outbound_SeqNum_After_Drop` end-to-end exercises the full send → drop (peer-side) → terminate → reconnect → resume flow against an `ISessionStateStore`-backed warm-restart. Covers the v0.11.1 `LastAssignedOutboundSeqNum` snapshot fix across a terminate boundary (next `MsgSeqNum` after reconnect is contiguous, e.g. 6) using a new in-memory `ISessionStateStore` test fixture and the `WithSequenceFaults` peer scenario from #113. The companion `RetransmitRequest`-on-gap-detect assertion is included as a commented-out pending block referencing the production gap filed as #138.
+
 ## [0.12.0] - 2026-05-02
 
 ### Changed
