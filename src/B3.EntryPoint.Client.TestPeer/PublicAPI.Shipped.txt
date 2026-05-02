@@ -27,6 +27,7 @@ B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Reason.init -> void
 B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.RejReason.get -> uint?
 B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.RejReason.init -> void
 B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.Reject(string! Reason) -> void
+B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnCancel(B3.EntryPoint.Client.TestPeer.CancelContext context) -> B3.EntryPoint.Client.TestPeer.CancelResponse!
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnModify(B3.EntryPoint.Client.TestPeer.ModifyContext context) -> B3.EntryPoint.Client.TestPeer.ModifyResponse!
@@ -188,6 +189,8 @@ static B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.operator !=(B3.EntryP
 static B3.EntryPoint.Client.TestPeer.CancelResponse.Reject.operator ==(B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? left, B3.EntryPoint.Client.TestPeer.CancelResponse.Reject? right) -> bool
 static B3.EntryPoint.Client.TestPeer.CancelResponse.operator !=(B3.EntryPoint.Client.TestPeer.CancelResponse? left, B3.EntryPoint.Client.TestPeer.CancelResponse? right) -> bool
 static B3.EntryPoint.Client.TestPeer.CancelResponse.operator ==(B3.EntryPoint.Client.TestPeer.CancelResponse? left, B3.EntryPoint.Client.TestPeer.CancelResponse? right) -> bool
+static B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions.AddInProcessFixpTestPeer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.TestPeer.TestPeerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static B3.EntryPoint.Client.TestPeer.DependencyInjection.InProcessFixpTestPeerServiceCollectionExtensions.AddInProcessFixpTestPeerHosted(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<B3.EntryPoint.Client.TestPeer.TestPeerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static B3.EntryPoint.Client.TestPeer.ModifyContext.operator !=(B3.EntryPoint.Client.TestPeer.ModifyContext left, B3.EntryPoint.Client.TestPeer.ModifyContext right) -> bool
 static B3.EntryPoint.Client.TestPeer.ModifyContext.operator ==(B3.EntryPoint.Client.TestPeer.ModifyContext left, B3.EntryPoint.Client.TestPeer.ModifyContext right) -> bool
 static B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept.operator !=(B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? left, B3.EntryPoint.Client.TestPeer.ModifyResponse.Accept? right) -> bool
