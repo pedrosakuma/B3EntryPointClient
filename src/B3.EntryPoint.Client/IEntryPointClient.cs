@@ -44,6 +44,15 @@ public interface IEntryPointClient :
     /// <summary>Sends a <c>Terminate</c> frame and closes the session.</summary>
     Task TerminateAsync(TerminationCode code, CancellationToken ct = default);
 
+    /// <summary>
+    /// Flushes any bytes buffered by the underlying transport. Required at
+    /// batch boundaries when
+    /// <see cref="EntryPointClientOptions.AutoFlushOutboundFrames"/> is
+    /// <see langword="false"/>; a no-op when the client is not connected.
+    /// Issue #123.
+    /// </summary>
+    Task FlushAsync(CancellationToken ct = default);
+
     /// <summary>Reconnects with a bumped <c>SessionVerId</c>.</summary>
     Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default);
 

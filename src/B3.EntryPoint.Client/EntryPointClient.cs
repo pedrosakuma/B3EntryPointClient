@@ -685,6 +685,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     }
 
     /// <summary>
+    /// Flushes any bytes buffered by the underlying transport. Pair with
+    /// <see cref="EntryPointClientOptions.AutoFlushOutboundFrames"/> = <c>false</c>
+    /// at batch boundaries; safe to call when not connected (no-op). Issue #123.
+    /// </summary>
+    public Task FlushAsync(CancellationToken ct = default) =>
+        _session is { } s ? s.FlushOutboundAsync(ct) : Task.CompletedTask;
+
+    /// <summary>
     /// Send a graceful <c>Terminate</c> to the peer and tear down the session.
     /// Records an <c>entrypoint.terminate</c> activity, increments the
     /// terminations counter, and raises the <see cref="Terminated"/> event
