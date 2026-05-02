@@ -56,9 +56,10 @@ public enum AccountType : byte
 }
 
 /// <summary>
-/// Logical request shape for <c>NewOrderSingle</c> (schema §6). The library
-/// converts user-friendly fields (decimal <see cref="Price"/>) to wire
-/// encodings (price /10000 mantissa) when the SBE wiring lands.
+/// Logical request shape for <c>NewOrderSingle</c> (schema §6). The client
+/// converts user-friendly fields (decimal <see cref="Price"/>) to the wire
+/// encoding (fixed-point mantissa with exponent -4, i.e. <c>price × 10_000</c>)
+/// when serialising the SBE message.
 /// </summary>
 public sealed record NewOrderRequest
 {

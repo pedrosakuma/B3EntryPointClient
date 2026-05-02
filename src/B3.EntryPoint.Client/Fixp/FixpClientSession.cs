@@ -18,11 +18,6 @@ namespace B3.EntryPoint.Client.Fixp;
 /// pure <see cref="FixpClientStateMachine"/>, and exposes async hooks for the
 /// outer <see cref="EntryPointClient"/>.
 /// </summary>
-/// <remarks>
-/// Bootstrap scope: only Negotiate→NegotiateResponse and Establish→EstablishmentAck
-/// are implemented end-to-end. Heartbeats, Sequence/Retransmit, and the
-/// application-message flow ride on top of this in follow-up issues.
-/// </remarks>
 internal sealed class FixpClientSession : IAsyncDisposable
 {
     private const int SofhSize = SofhFrameReader.HeaderSize;

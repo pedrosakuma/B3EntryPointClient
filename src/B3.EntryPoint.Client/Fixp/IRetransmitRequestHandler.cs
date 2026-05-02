@@ -6,9 +6,6 @@ namespace B3.EntryPoint.Client.Fixp;
 /// <c>NotApplied</c> notifications from the peer. The §4.6 keep-alive scheduler
 /// drives gap detection and calls <see cref="RequestRetransmitAsync"/>.
 /// </summary>
-/// <remarks>
-/// API surface only — wire-level send/receive lands in a follow-up PR (issue #5).
-/// </remarks>
 public interface IRetransmitRequestHandler
 {
     event EventHandler<RetransmitRequestedEventArgs>? RetransmitRequested;

@@ -36,20 +36,16 @@ public class EndToEndSample
         await client.ConnectAsync(cts.Token);
         Assert.Equal(FixpClientState.Established, client.State);
 
-        try
+        var clOrdId = await client.SubmitAsync(new NewOrderRequest
         {
-            var clOrdId = await client.SubmitAsync(new NewOrderRequest
-            {
-                ClOrdID = (ClOrdID)42UL,
-                SecurityId = 1001,
-                Side = Side.Buy,
-                OrderType = OrderType.Limit,
-                Price = 12.34m,
-                OrderQty = 100,
-            }, cts.Token);
-            Assert.Equal(42UL, clOrdId.Value);
-        }
-        catch (NotImplementedException) { /* submit path may still be wiring */ }
+            ClOrdID = (ClOrdID)42UL,
+            SecurityId = 1001,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            Price = 12.34m,
+            OrderQty = 100,
+        }, cts.Token);
+        Assert.Equal(42UL, clOrdId.Value);
 
         await client.TerminateAsync(B3.EntryPoint.Client.TerminationCode.Finished, cts.Token);
     }

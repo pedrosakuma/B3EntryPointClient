@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-05-02
+
+### Changed
+- Documentation cleanup: removed stale `<remarks>` blocks on `ISubmitOrder`, `IReplaceOrder`, `ICancelOrder`, `IKeepAliveScheduler`, `IRetransmitRequestHandler`, `FixpClientSession`, `FixpClientState`, `FixpClientStateMachine`, `NewOrderRequest`, `EntryPointClient.TerminateAsync`, `EntryPointClient.Events`, and `EntryPointClient.RaiseTerminated` that referred to wire-up as "follow-up PR" / "API surface only" — those features have been live since v0.5.0–v0.7.0. The new prose describes current behavior. No public API change.
+
+### Tests
+- Removed dead `catch (NotImplementedException)` swallows in `TestPeerScenarioTests`, `EndToEndSample`, and the `SubmitOrderAsync`/`CancelAsync`/`ReplaceAsync` paths — `SubmitAsync`/`CancelAsync`/`ReplaceAsync` have been wired since v0.5.0 and the catches were masking potential regressions.
+
 ## [0.10.0] - 2026-05-02
 
 ### Added
