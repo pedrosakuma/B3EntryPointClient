@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- TestPeer (#113): `ITestPeerScenario.OnOutboundFrame(OutboundFrameContext)` default-interface hook plus `OutboundFrameAction` discriminated union (`Send` / `Drop` / `SkipSeq` / `DelayThen`) for injecting drops, sequence gaps, and per-frame delays into the peer's outbound app-frame path. `OutboundFrameContext` carries `TemplateId`, `MsgSeqNum`, and `FrameLength`. New `TestPeerScenarios.WithSequenceFaults(inner, schedule)` helper applies a deterministic `Dictionary<int, OutboundFrameAction>` schedule (1-based outbound app-frame ordinal). `docs/TEST-PEER.md` gets a "Sequence-fault simulation" section.
+
 ## [0.10.1] - 2026-05-02
 
 ### Changed
