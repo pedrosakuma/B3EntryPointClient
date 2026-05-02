@@ -43,4 +43,29 @@ public sealed class TestPeerOptions
     /// is accepted, mirroring the historical behaviour.
     /// </summary>
     public IReadOnlyDictionary<uint, byte[]>? Credentials { get; set; }
+
+    /// <summary>
+    /// When set, the peer responds to the N-th and subsequent
+    /// <c>Establish</c> frames (1-based) with an <c>EstablishReject</c>
+    /// carrying <see cref="EstablishRejectCodeOverride"/> instead of an
+    /// <c>EstablishmentAck</c>. Counts across all connections within this
+    /// peer instance. Defaults to <c>null</c> (always ack). Use
+    /// <c>EstablishRejectAfter = 2</c> to test the reconnect-rejected path.
+    /// </summary>
+    public int? EstablishRejectAfter { get; set; }
+
+    /// <summary>
+    /// <see cref="B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode"/> value
+    /// returned when <see cref="EstablishRejectAfter"/> triggers a reject.
+    /// Defaults to <c>INVALID_SESSIONVERID</c>.
+    /// </summary>
+    public B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode EstablishRejectCodeOverride { get; set; }
+        = B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.INVALID_SESSIONVERID;
+
+    /// <summary>
+    /// When set, the peer responds to inbound <c>RetransmitRequest</c>
+    /// frames with a <c>RetransmitReject</c> carrying this code instead of
+    /// the (empty) <c>Retransmission</c> reply. Defaults to <c>null</c>.
+    /// </summary>
+    public B3.Entrypoint.Fixp.Sbe.V6.RetransmitRejectCode? RetransmitRejectCode { get; set; }
 }

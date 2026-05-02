@@ -1,5 +1,6 @@
 #nullable enable
 B3.EntryPoint.Client.TestPeer.ITestPeerScenario.OnOutboundFrame(B3.EntryPoint.Client.TestPeer.OutboundFrameContext context) -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction!
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.InjectNotAppliedAsync(uint fromSeqNo, uint count, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 B3.EntryPoint.Client.TestPeer.OutboundFrameAction
 B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen
 B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Deconstruct(out System.TimeSpan Delay, out B3.EntryPoint.Client.TestPeer.OutboundFrameAction! Then) -> void
@@ -33,6 +34,12 @@ B3.EntryPoint.Client.TestPeer.OutboundFrameContext.OutboundFrameContext() -> voi
 B3.EntryPoint.Client.TestPeer.OutboundFrameContext.OutboundFrameContext(uint TemplateId, ulong MsgSeqNum, int FrameLength) -> void
 B3.EntryPoint.Client.TestPeer.OutboundFrameContext.TemplateId.get -> uint
 B3.EntryPoint.Client.TestPeer.OutboundFrameContext.TemplateId.init -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectAfter.get -> int?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectAfter.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectCodeOverride.get -> B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishRejectCodeOverride.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RetransmitRejectCode.get -> B3.Entrypoint.Fixp.Sbe.V6.RetransmitRejectCode?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RetransmitRejectCode.set -> void
 abstract B3.EntryPoint.Client.TestPeer.OutboundFrameAction.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction!
 override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.<Clone>$() -> B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen!
 override B3.EntryPoint.Client.TestPeer.OutboundFrameAction.DelayThen.Equals(object? obj) -> bool

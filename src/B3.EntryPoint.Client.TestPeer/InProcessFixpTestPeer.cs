@@ -24,7 +24,9 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _connections = new();
+    private readonly List<ActiveConnection> _activeConnections = new();
     private readonly TestPeerOptions _options;
+    private int _establishAttempts;
     private Task? _acceptLoop;
 
     public InProcessFixpTestPeer() : this(new TestPeerOptions()) { }
@@ -107,6 +109,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         public CancellationTokenSource? KeepAliveCts;
         public readonly SemaphoreSlim SendLock = new(1, 1);
     }
+
+    private sealed record ActiveConnection(Stream Stream, ConnectionState State, B3.Entrypoint.Fixp.Sbe.V6.SessionID SessionId);
 
     /// <summary>
     /// Single point of egress for every outbound frame. Serializes writes per
@@ -211,6 +215,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         {
             try { state.KeepAliveCts?.Cancel(); } catch { }
             state.KeepAliveCts?.Dispose();
+            lock (_activeConnections) _activeConnections.RemoveAll(c => ReferenceEquals(c.State, state));
         }
     }
 
@@ -367,6 +372,13 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             return;
         ref readonly var req = ref reader.Data;
 
+        var attempt = System.Threading.Interlocked.Increment(ref _establishAttempts);
+        if (_options.EstablishRejectAfter is int threshold && attempt >= threshold)
+        {
+            await SendEstablishRejectAsync(stream, state, req.SessionID, req.SessionVerID, req.Timestamp, _options.EstablishRejectCodeOverride, ct).ConfigureAwait(false);
+            return;
+        }
+
         var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + EstablishAckData.MESSAGE_SIZE;
         var buffer = new byte[totalSize];
         SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
@@ -382,10 +394,14 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             LastIncomingSeqNo = new SeqNum(req.NextSeqNo.Value > 0u ? req.NextSeqNo.Value - 1u : 0u),
         };
         var keepAliveMs = req.KeepAliveInterval.Time;
+        var sessionIdLocal = req.SessionID;
         if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
         await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+
+        var entry = new ActiveConnection(stream, state, sessionIdLocal);
+        lock (_activeConnections) _activeConnections.Add(entry);
 
         // Spec §4.6: peer-side keep-alive. Emit Sequence frames at the
         // negotiated interval so the client can observe inbound heartbeats.
@@ -394,6 +410,26 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
         }
+    }
+
+    private async Task SendEstablishRejectAsync(Stream stream, ConnectionState state, B3.Entrypoint.Fixp.Sbe.V6.SessionID sessionId, B3.Entrypoint.Fixp.Sbe.V6.SessionVerID sessionVerId, B3.Entrypoint.Fixp.Sbe.V6.UTCTimestampNanos requestTs, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code, CancellationToken ct)
+    {
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + EstablishRejectData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        EstablishRejectData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var msg = new EstablishRejectData
+        {
+            SessionID = sessionId,
+            SessionVerID = sessionVerId,
+            RequestTimestamp = requestTs,
+            EstablishmentRejectCode = code,
+        };
+        msg.SetLastIncomingSeqNo(0u);
+        if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
 
     private async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
@@ -672,6 +708,12 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         var requestTs = reader.Data.Timestamp;
         var fromSeqNo = reader.Data.FromSeqNo;
 
+        if (_options.RetransmitRejectCode is { } rejectCode)
+        {
+            await SendRetransmitRejectAsync(stream, state, sessionId, requestTs, rejectCode, ct).ConfigureAwait(false);
+            return;
+        }
+
         var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + RetransmissionData.MESSAGE_SIZE;
         var buffer = new byte[totalSize];
         SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
@@ -688,6 +730,61 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             return;
 
         await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendRetransmitRejectAsync(Stream stream, ConnectionState state, B3.Entrypoint.Fixp.Sbe.V6.SessionID sessionId, B3.Entrypoint.Fixp.Sbe.V6.UTCTimestampNanos requestTs, B3.Entrypoint.Fixp.Sbe.V6.RetransmitRejectCode code, CancellationToken ct)
+    {
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + RetransmitRejectData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        RetransmitRejectData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var msg = new RetransmitRejectData
+        {
+            SessionID = sessionId,
+            RequestTimestamp = requestTs,
+            RetransmitRejectCode = code,
+        };
+        if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a session-layer <c>NotApplied</c> frame on every currently
+    /// established connection. Used by negative-path conformance/unit tests
+    /// to simulate the server informing the client about messages it could
+    /// not apply (idempotency / format violation). Returns the number of
+    /// connections the frame was written to.
+    /// </summary>
+    public async Task<int> InjectNotAppliedAsync(uint fromSeqNo, uint count, CancellationToken ct = default)
+    {
+        ActiveConnection[] snapshot;
+        lock (_activeConnections) snapshot = _activeConnections.ToArray();
+
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + NotAppliedData.MESSAGE_SIZE;
+        var sent = 0;
+        foreach (var c in snapshot)
+        {
+            var buffer = new byte[totalSize];
+            SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+            NotAppliedData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+            var msg = new NotAppliedData
+            {
+                FromSeqNo = new SeqNum(fromSeqNo),
+                Count = new MessageCounter(count),
+            };
+            if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+                continue;
+            try
+            {
+                await SendFrameAsync(c.Stream, c.State, buffer, totalSize, ct).ConfigureAwait(false);
+                sent++;
+            }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
+        }
+        return sent;
     }
 
     private static long _orderIdSeq;
