@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-02
+
 ### Added
 - `B3.EntryPoint.Client.TestPeer.DependencyInjection` namespace (#104) with `AddInProcessFixpTestPeer(IServiceCollection, Action<TestPeerOptions>)` (singleton registration via the standard Options pattern) and `AddInProcessFixpTestPeerHosted(IServiceCollection, Action<TestPeerOptions>)` (registers an `IHostedService` that drives `peer.Start()`/`peer.StopAsync(ct)` from the generic-host lifecycle). New package references on TestPeer: `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Hosting.Abstractions` (10.0.7). `docs/TEST-PEER.md` gets a "Use from a generic host" snippet and a working sample test in `tests/Samples/B3.EntryPoint.Client.TestPeer.Sample/HostedSample.cs`.
 
