@@ -75,9 +75,19 @@ public class KeepAliveSchedulerPeriodicTests
     {
         var ticks = new List<ulong>();
         ulong nextSeq = 0;
+        // Fires once two ticks have arrived so the test wakes up immediately
+        // instead of polling on a wall-clock deadline.
+        var twoTicks = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task SendAsync(ulong seq, CancellationToken ct)
         {
-            lock (ticks) ticks.Add(seq);
+            int count;
+            lock (ticks)
+            {
+                ticks.Add(seq);
+                count = ticks.Count;
+            }
+            if (count >= 2)
+                twoTicks.TrySetResult();
             return Task.CompletedTask;
         }
         var ctorInfo = typeof(B3.EntryPoint.Client.Fixp.KeepAliveScheduler).GetConstructors(
@@ -90,16 +100,10 @@ public class KeepAliveSchedulerPeriodicTests
             (Func<ulong>)(() => System.Threading.Interlocked.Increment(ref nextSeq)),
         });
         scheduler.Start();
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline)
-        {
-            int count;
-            lock (ticks) count = ticks.Count;
-            if (count >= 2) break;
-            await Task.Delay(20);
-        }
+        var completed = await Task.WhenAny(twoTicks.Task, Task.Delay(TimeSpan.FromSeconds(5)));
         scheduler.Stop();
         scheduler.Dispose();
+        Assert.Same(twoTicks.Task, completed);
         int finalCount;
         lock (ticks) finalCount = ticks.Count;
         Assert.True(finalCount >= 2, $"expected >=2 ticks, got {finalCount}");

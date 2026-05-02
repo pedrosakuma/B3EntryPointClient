@@ -23,18 +23,30 @@ public class SequenceHeartbeatTests
             SessionVerId = peer.SessionVerId,
             EnteringFirm = peer.EnteringFirm,
             Credentials = Credentials.FromUtf8(peer.AccessKey),
-            KeepAliveIntervalMs = 1000,
+            KeepAliveIntervalMs = 250,
         });
 
         await client.ConnectAsync();
+        Assert.NotNull(client.KeepAlive);
+
+        var sentTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var receivedTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var sentCount = 0;
         var receivedCount = 0;
-        if (client.KeepAlive is not null)
+        client.KeepAlive!.SequenceFrameSent += (_, _) =>
         {
-            client.KeepAlive.SequenceFrameSent += (_, _) => Interlocked.Increment(ref sentCount);
-            client.KeepAlive.SequenceFrameReceived += (_, _) => Interlocked.Increment(ref receivedCount);
-        }
-        await Task.Delay(TimeSpan.FromSeconds(3));
+            if (Interlocked.Increment(ref sentCount) >= 1) sentTcs.TrySetResult();
+        };
+        client.KeepAlive.SequenceFrameReceived += (_, _) =>
+        {
+            if (Interlocked.Increment(ref receivedCount) >= 1) receivedTcs.TrySetResult();
+        };
+
+        // Cap the wait at 5×interval so a stalled scheduler fails fast.
+        var timeout = TimeSpan.FromMilliseconds(250 * 5);
+        var both = Task.WhenAll(sentTcs.Task, receivedTcs.Task);
+        var completed = await Task.WhenAny(both, Task.Delay(timeout));
+        Assert.Same(both, completed);
         Assert.True(sentCount >= 1, $"Expected at least one Sequence frame sent, got {sentCount}");
         Assert.True(receivedCount >= 1, $"Expected at least one Sequence frame received, got {receivedCount}");
     }
