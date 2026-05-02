@@ -34,10 +34,22 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private DateTime _lastInboundUtc;
     private CancellationTokenSource? _idleCts;
     private Task? _idleWatchdog;
+    private Channel<PersistOp>? _persistChannel;
+    private CancellationTokenSource? _persistCts;
+    private Task? _persistWorker;
 
     private readonly ConcurrentDictionary<string, ulong> _outstandingOrders = new(StringComparer.Ordinal);
     private long _deltasSinceCompact;
     private ulong _lastInboundSeqNum;
+
+    /// <summary>
+    /// Persistence operation enqueued from the inbound loop and drained by a
+    /// single dedicated worker per session lifetime. Replaces the legacy
+    /// fire-and-forget <c>Task.Run</c> in
+    /// <see cref="OnInboundEventForPersistence"/> so persistence work is
+    /// tracked and deterministically drained on teardown (#121).
+    /// </summary>
+    private readonly record struct PersistOp(string ClOrdID, ulong InboundSeqNum);
 
     /// <summary>Keep-alive scheduler for this client. Bound after <see cref="ConnectAsync"/>.</summary>
     public IKeepAliveScheduler? KeepAlive => _keepAlive;
@@ -161,6 +173,8 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
 
         await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
+
+        StartPersistenceWorker();
 
         _session.OnInboundEvent = OnInboundEventForPersistence;
 
@@ -384,20 +398,94 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         if (closedClOrdId is null) return;
         _outstandingOrders.TryRemove(closedClOrdId, out _);
 
-        // Fire-and-forget so the inbound loop is never blocked by I/O.
-        _ = Task.Run(async () =>
+        EnqueuePersistOp(new PersistOp(closedClOrdId, evt.SeqNum));
+    }
+
+    /// <summary>
+    /// Enqueues a persistence op onto the bounded channel drained by
+    /// <see cref="RunPersistenceWorkerAsync"/>. When the channel is saturated
+    /// the producer blocks (<see cref="BoundedChannelFullMode.Wait"/>),
+    /// intentionally backpressuring the inbound loop so persistence cannot
+    /// silently drop close-events. A Trace log is emitted on saturation. (#121)
+    /// </summary>
+    private void EnqueuePersistOp(PersistOp op)
+    {
+        var channel = _persistChannel;
+        if (channel is null) return;
+        try
         {
-            try
-            {
-                await store.AppendDeltaAsync(new OrderClosedDelta(closedClOrdId)).ConfigureAwait(false);
-                await store.AppendDeltaAsync(new InboundDelta(evt.SeqNum)).ConfigureAwait(false);
-                await MaybeCompactAsync(store, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _options.Logger.OrderClosedPersistFailed(ex, closedClOrdId);
-            }
+            if (channel.Writer.TryWrite(op)) return;
+
+            if (_options.Logger.IsEnabled(LogLevel.Trace))
+                _options.Logger.PersistenceChannelSaturated(_options.PersistenceQueueCapacity);
+
+            // Block synchronously to backpressure the inbound loop. The
+            // inbound dispatcher invokes this callback in-line, so awaiting
+            // here is what makes BoundedChannelFullMode.Wait actually surface
+            // backpressure all the way back to the wire reader.
+            var cts = _persistCts;
+            channel.Writer.WriteAsync(op, cts?.Token ?? CancellationToken.None)
+                .AsTask().GetAwaiter().GetResult();
+        }
+        catch (ChannelClosedException)
+        {
+            // Worker completed during teardown — drop is expected.
+        }
+        catch (OperationCanceledException)
+        {
+            // Persistence CTS cancelled during teardown — drop is expected.
+        }
+    }
+
+    private void StartPersistenceWorker() => StartPersistenceWorkerCore();
+
+    // Test hooks (internals visible to B3.EntryPoint.Client.Tests) so the
+    // persistence worker can be exercised directly without a live FIXP session.
+    internal void StartPersistenceWorkerForTesting() => StartPersistenceWorkerCore();
+    internal void EnqueuePersistOpForTesting(string clOrdID, ulong inboundSeqNum)
+        => EnqueuePersistOp(new PersistOp(clOrdID, inboundSeqNum));
+    internal Task StopActiveSessionForTestingAsync(CancellationToken ct = default)
+        => StopActiveSessionAsync(ct);
+
+    private void StartPersistenceWorkerCore()
+    {
+        var store = _options.SessionStateStore;
+        if (store is null) return;
+
+        var capacity = Math.Max(1, _options.PersistenceQueueCapacity);
+        var channel = Channel.CreateBounded<PersistOp>(new BoundedChannelOptions(capacity)
+        {
+            SingleReader = true,
+            SingleWriter = true,
+            FullMode = BoundedChannelFullMode.Wait,
         });
+        var cts = new CancellationTokenSource();
+        _persistChannel = channel;
+        _persistCts = cts;
+        _persistWorker = Task.Run(() => RunPersistenceWorkerAsync(channel.Reader, store, cts.Token));
+    }
+
+    private async Task RunPersistenceWorkerAsync(ChannelReader<PersistOp> reader, ISessionStateStore store, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var op in reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                try
+                {
+                    await store.AppendDeltaAsync(new OrderClosedDelta(op.ClOrdID), ct).ConfigureAwait(false);
+                    await store.AppendDeltaAsync(new InboundDelta(op.InboundSeqNum), ct).ConfigureAwait(false);
+                    await MaybeCompactAsync(store, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    // Log and continue — a transient store failure must not take down the worker.
+                    _options.Logger.OrderClosedPersistFailed(ex, op.ClOrdID);
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* shutdown */ }
     }
 
     /// <inheritdoc />
@@ -638,21 +726,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             throw new ArgumentOutOfRangeException(nameof(nextSessionVerId),
                 "Next SessionVerID must be strictly greater than the current one.");
 
-        // Tear down current session/socket if any, then bump SessionVerID and re-handshake.
+        // Best-effort graceful Terminate before tearing the active session down.
         try
         {
             if (_session is not null)
                 await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
         }
         catch { /* best-effort */ }
-        _keepAlive?.Dispose();
-        _keepAlive = null;
-        _retransmit = null;
-        if (_session is not null)
-            await _session.DisposeAsync().ConfigureAwait(false);
-        _tcp?.Dispose();
-        _session = null;
-        _tcp = null;
+
+        // Drain background work + dispose transport BEFORE Establishing the new
+        // session, so old persistence/idle/keep-alive cannot race with the new
+        // one (#124).
+        await StopActiveSessionAsync(ct).ConfigureAwait(false);
 
         _options.SessionVerId = nextSessionVerId;
         await ConnectAsync(ct).ConfigureAwait(false);
@@ -680,21 +765,79 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
     public async ValueTask DisposeAsync()
     {
+        await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
+        _events.Writer.TryComplete();
+    }
+
+    /// <summary>
+    /// Centralized teardown for the active session. Cancels session-scoped
+    /// cancellation sources, completes the persistence channel writer, awaits
+    /// background tasks (idle watchdog + persistence worker) under a hard
+    /// timeout (<see cref="EntryPointClientOptions.SessionTeardownTimeout"/>),
+    /// then disposes keep-alive, the FIXP session (which awaits its inbound
+    /// loop), the TCP transport and the retransmit handler. Shared by
+    /// <see cref="ReconnectAsync"/> and <see cref="DisposeAsync"/> so the
+    /// same ordering applies in both paths (#124).
+    /// </summary>
+    private async Task StopActiveSessionAsync(CancellationToken ct)
+    {
+        var timeout = _options.SessionTeardownTimeout;
+        if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
+
+        // 1. Cancel session-scoped CTSs and complete the persistence channel
+        //    so its worker drains the in-flight queue and exits.
         try { _idleCts?.Cancel(); } catch { }
-        if (_idleWatchdog is not null)
+        _persistChannel?.Writer.TryComplete();
+
+        // 2. Await background tasks under a hard timeout. Timed-out tasks are
+        //    logged and abandoned (the persistence CT is cancelled below to
+        //    unblock any I/O it may still be holding).
+        await AwaitWithTimeoutAsync("idle-watchdog", _idleWatchdog, timeout).ConfigureAwait(false);
+        await AwaitWithTimeoutAsync("persistence-worker", _persistWorker, timeout).ConfigureAwait(false);
+
+        // Cancel the persistence CT after the drain attempt so any store call
+        // still in flight after the timeout is force-cancelled.
+        try { _persistCts?.Cancel(); } catch { }
+
+        // 3. Dispose transport-layer resources in order:
+        //    keep-alive scheduler -> FIXP session (awaits inbound loop) ->
+        //    TCP socket. The retransmit handler holds no resources.
+        try { _keepAlive?.Dispose(); } catch { }
+        if (_session is not null)
         {
-            try { await _idleWatchdog.ConfigureAwait(false); } catch { }
+            try { await _session.DisposeAsync().ConfigureAwait(false); } catch { }
         }
-        _idleCts?.Dispose();
+        try { _tcp?.Dispose(); } catch { }
+
+        // 4. Reset references so a subsequent Connect/Reconnect starts clean.
+        try { _idleCts?.Dispose(); } catch { }
+        try { _persistCts?.Dispose(); } catch { }
         _idleCts = null;
         _idleWatchdog = null;
-        _keepAlive?.Dispose();
+        _persistChannel = null;
+        _persistCts = null;
+        _persistWorker = null;
         _keepAlive = null;
-        if (_session is not null)
-            await _session.DisposeAsync().ConfigureAwait(false);
-        _tcp?.Dispose();
+        _retransmit = null;
         _session = null;
         _tcp = null;
+    }
+
+    private async Task AwaitWithTimeoutAsync(string name, Task? task, TimeSpan timeout)
+    {
+        if (task is null) return;
+        if (task.IsCompleted)
+        {
+            try { await task.ConfigureAwait(false); } catch { }
+            return;
+        }
+        var winner = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+        if (winner != task)
+        {
+            _options.Logger.SessionTeardownTimeout(name, timeout);
+            return;
+        }
+        try { await task.ConfigureAwait(false); } catch { }
     }
 
     /// <summary>
