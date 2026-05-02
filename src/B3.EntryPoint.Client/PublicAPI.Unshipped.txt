@@ -1,3 +1,7 @@
 #nullable enable
 B3.EntryPoint.Client.EntryPointClientOptions.EventChannelCapacity.get -> int
 B3.EntryPoint.Client.EntryPointClientOptions.EventChannelCapacity.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.PersistenceQueueCapacity.get -> int
+B3.EntryPoint.Client.EntryPointClientOptions.PersistenceQueueCapacity.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.SessionTeardownTimeout.get -> System.TimeSpan
+B3.EntryPoint.Client.EntryPointClientOptions.SessionTeardownTimeout.set -> void

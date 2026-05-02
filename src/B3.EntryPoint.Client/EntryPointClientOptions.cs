@@ -111,6 +111,28 @@ public sealed class EntryPointClientOptions
     /// Set to <c>0</c> to disable automatic compaction. Defaults to 1024.</summary>
     public int StateCompactEveryDeltas { get; set; } = 1024;
 
+    /// <summary>
+    /// Capacity of the bounded channel used to enqueue persistence operations
+    /// produced by the inbound loop (terminal <c>ExecutionReport</c> deltas).
+    /// A single dedicated worker per session lifetime drains the channel.
+    /// When the channel is full the producer (inbound loop) blocks
+    /// (<see cref="System.Threading.Channels.BoundedChannelFullMode.Wait"/>),
+    /// which is the desired backpressure: persistence falling behind must
+    /// not silently drop close-events. Defaults to 256. Issue #121.
+    /// </summary>
+    public int PersistenceQueueCapacity { get; set; } = 256;
+
+    /// <summary>
+    /// Hard timeout for awaiting session-scoped background tasks (idle
+    /// watchdog, persistence worker) during
+    /// <see cref="EntryPointClient.ReconnectAsync"/> and
+    /// <see cref="EntryPointClient.DisposeAsync"/>. Tasks still running after
+    /// this deadline are logged (event 4009) and abandoned; the underlying
+    /// cancellation tokens are then cancelled to unblock any I/O. Defaults to
+    /// 5 seconds. Issue #124.
+    /// </summary>
+    public TimeSpan SessionTeardownTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
     /// <summary>TLS configuration for the FIXP transport. Disabled by default.</summary>
     public TlsOptions Tls { get; set; } = new();
 

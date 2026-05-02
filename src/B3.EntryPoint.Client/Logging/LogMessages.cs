@@ -29,6 +29,10 @@ internal static partial class LogMessages
         Message = "FIXP inbound frame template={TemplateId} length={Length}")]
     public static partial void InboundFrame(this ILogger logger, int templateId, int length);
 
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Trace,
+        Message = "Persistence channel saturated (capacity={Capacity}); inbound loop will block until the worker drains an item")]
+    public static partial void PersistenceChannelSaturated(this ILogger logger, int capacity);
+
     // ---------------- Debug (2000–2999) ----------------
 
     [LoggerMessage(EventId = 2000, Level = LogLevel.Debug,
@@ -118,6 +122,10 @@ internal static partial class LogMessages
     [LoggerMessage(EventId = 4008, Level = LogLevel.Warning,
         Message = "Retransmit reject received reason={Reason}")]
     public static partial void RetransmitRejectReceived(this ILogger logger, int reason);
+
+    [LoggerMessage(EventId = 4009, Level = LogLevel.Warning,
+        Message = "Session teardown: background task '{Task}' did not complete within {Timeout}; abandoning")]
+    public static partial void SessionTeardownTimeout(this ILogger logger, string task, TimeSpan timeout);
 
     // ---------------- Error (5000–5999) ----------------
 
