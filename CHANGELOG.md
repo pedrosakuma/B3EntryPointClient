@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-02
+
 ### Added
 - TestPeer (#105): `RejectBusiness` now emits a real `BusinessMessageReject` (template 206) with `Text` and bounded `BusinessRejectReason`, decoded by the client into `BusinessReject.Text`.
 - TestPeer (#105): `AcceptAndFill` now emits a real `ExecutionReport_Trade` (template 203) with full/partial-fill semantics — `FillQty`/`FillPrice` honored, `LeavesQty` derived, status set to `FILLED` or `PARTIALLY_FILLED`.
