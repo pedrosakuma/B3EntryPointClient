@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Tests (#115): hardened the two timing-sensitive tests flagged in the v0.10.x discovery — `KeepAliveSchedulerPeriodicTests.Start_WithBoundTransport_InvokesSendCallbackPeriodically` now uses a `TaskCompletionSource` that fires on the second tick instead of polling on a wall-clock deadline, and `Spec_4_6_Sequence.SequenceHeartbeatTests.KeepAlive_Sequence_Frames_Are_Exchanged` switches the keep-alive interval from 1s → 250ms and waits via `Task.WhenAll(sentTcs, receivedTcs)` capped at 5×interval instead of an unconditional `Task.Delay(3s)`. Conformance test wall time drops from ~3s to ~320ms; both tests pass 5/5 stress runs.
+
 ### Added
 - TestPeer (#114): peer-side support for negative-path conformance — `TestPeerOptions.EstablishRejectAfter` (+ `EstablishRejectCodeOverride`) makes the peer respond to the N-th and subsequent `Establish` frames with `EstablishReject` instead of `EstablishmentAck`; `TestPeerOptions.RetransmitRejectCode` makes the peer answer `RetransmitRequest` with `RetransmitReject` carrying the configured code; `InProcessFixpTestPeer.InjectNotAppliedAsync(fromSeqNo, count, ct)` writes a session-layer `NotApplied` frame to every established connection (returns the count of writes).
 - Conformance (#114): six new `[ConformanceFact]`/`[TestPeerOnlyConformanceFact]` tests covering `BusinessReject` text round-trip, `ExecutionReport_Reject` for cancel and replace, reconnect rejection (`FixpRejectedException` from `EstablishReject(INVALID_SESSIONVERID)`), `RetransmitReject`, and `NotApplied`.
