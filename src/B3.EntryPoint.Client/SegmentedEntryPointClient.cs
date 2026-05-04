@@ -78,7 +78,23 @@ public sealed class SegmentedEntryPointClient : IAsyncDisposable, ISubmitOrder, 
     {
         if (_connected)
             throw new InvalidOperationException("SegmentedEntryPointClient is already connected.");
-        await Task.WhenAll(_clients.Values.Select(c => c.ConnectAsync(ct))).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(_clients.Values.Select(c => c.ConnectAsync(ct))).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Partial fan-out failure: some segments may have established
+            // successfully while others threw. Tear them all down so we don't
+            // leak per-segment TCP sockets and background tasks. Each
+            // EntryPointClient self-cleans on a single failed ConnectAsync, so
+            // we only need to dispose siblings that succeeded.
+            foreach (var c in _clients.Values)
+            {
+                try { await c.DisposeAsync().ConfigureAwait(false); } catch { }
+            }
+            throw;
+        }
         foreach (var (_, client) in _clients)
             _pumps.Add(Task.Run(() => PumpAsync(client, _pumpCts.Token)));
         _connected = true;

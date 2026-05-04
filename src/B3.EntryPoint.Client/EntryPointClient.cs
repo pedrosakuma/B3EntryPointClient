@@ -196,77 +196,93 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
 
         _tcp = tcp;
-        var transportStream = await EstablishTransportStreamAsync(tcp, ct).ConfigureAwait(false);
-        _session = new FixpClientSession(transportStream, _options);
-
-        using (var negotiate = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.negotiate", ActivityKind.Client))
+        try
         {
-            await _session.NegotiateAsync(ct).ConfigureAwait(false);
-            _options.Logger.Negotiated(_options.Endpoint);
+            var transportStream = await EstablishTransportStreamAsync(tcp, ct).ConfigureAwait(false);
+            _session = new FixpClientSession(transportStream, _options);
+
+            using (var negotiate = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.negotiate", ActivityKind.Client))
+            {
+                await _session.NegotiateAsync(ct).ConfigureAwait(false);
+                _options.Logger.Negotiated(_options.Endpoint);
+            }
+            using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish", ActivityKind.Client))
+            {
+                await _session.EstablishAsync(ct).ConfigureAwait(false);
+                _options.Logger.Established(_options.Endpoint);
+            }
+
+            await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
+
+            StartPersistenceWorker();
+
+            _session.OnInboundEvent = OnInboundEventForPersistence;
+
+            _session.StartInboundLoop(_events.Writer);
+
+            _keepAlive = new KeepAliveScheduler(
+                _options.KeepAliveInterval,
+                sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
+                nextSeqNo: () => _session.PeekNextOutboundSeqNum());
+            _session.OnInboundSequence = nextSeq =>
+            {
+                _lastInboundUtc = DateTime.UtcNow;
+                _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
+            };
+            _keepAlive.Start();
+
+            _retransmit = new RetransmitRequestHandler(
+                sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
+            _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
+            {
+                _lastInboundUtc = DateTime.UtcNow;
+                // The peer's reply to our outstanding RetransmitRequest. Whether
+                // it carries frames (count>0) or is an empty completion (count=0,
+                // observed against TestPeer / some gateway error paths), we clear
+                // the in-flight flag so a future gap can issue a new request.
+                // The retransmitted frames themselves flow through the inbound
+                // loop and OnInboundEventForPersistence advances the contiguous
+                // tail accordingly. (#138)
+                lock (_inboundGapGate) { _gapRequestInFlight = false; }
+                _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
+            };
+            _session.OnInboundRetransmitReject = (code, reqNanos) =>
+            {
+                _lastInboundUtc = DateTime.UtcNow;
+                // Reject clears the in-flight flag — a later gap may need to
+                // re-request after a transient peer-side condition lifts. (#138)
+                lock (_inboundGapGate) { _gapRequestInFlight = false; }
+                _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
+            };
+            _session.OnInboundNotApplied = (from, count) =>
+            {
+                _lastInboundUtc = DateTime.UtcNow;
+                _retransmit!.RaiseNotAppliedReceived(from, count);
+            };
+            _session.OnInboundTerminate = code =>
+            {
+                _lastInboundUtc = DateTime.UtcNow;
+                _options.Logger.InboundTerminate(code);
+                EntryPointTelemetry.Terminations.Add(1,
+                    new KeyValuePair<string, object?>("direction", "inbound"),
+                    new KeyValuePair<string, object?>("code", code.ToString()));
+                RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
+            };
+            _lastInboundUtc = DateTime.UtcNow;
         }
-        using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish", ActivityKind.Client))
+        catch
         {
-            await _session.EstablishAsync(ct).ConfigureAwait(false);
-            _options.Logger.Established(_options.Endpoint);
+            // Any failure after the TCP connect has succeeded leaves a partially
+            // initialized session: _tcp, _session (maybe), the persistence
+            // worker, keep-alive and inbound loop may all be live. Without this
+            // cleanup, the outer ConnectAsync retry loop would create a brand
+            // new TcpClient and orphan everything started here. StopActive-
+            // SessionAsync is idempotent and null-safe across all these fields,
+            // and intentionally does NOT complete _events.Writer (#144) so the
+            // event channel survives across reconnect attempts.
+            await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
         }
-
-        await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
-
-        StartPersistenceWorker();
-
-        _session.OnInboundEvent = OnInboundEventForPersistence;
-
-        _session.StartInboundLoop(_events.Writer);
-
-        _keepAlive = new KeepAliveScheduler(
-            _options.KeepAliveInterval,
-            sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
-            nextSeqNo: () => _session.PeekNextOutboundSeqNum());
-        _session.OnInboundSequence = nextSeq =>
-        {
-            _lastInboundUtc = DateTime.UtcNow;
-            _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
-        };
-        _keepAlive.Start();
-
-        _retransmit = new RetransmitRequestHandler(
-            sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
-        _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
-        {
-            _lastInboundUtc = DateTime.UtcNow;
-            // The peer's reply to our outstanding RetransmitRequest. Whether
-            // it carries frames (count>0) or is an empty completion (count=0,
-            // observed against TestPeer / some gateway error paths), we clear
-            // the in-flight flag so a future gap can issue a new request.
-            // The retransmitted frames themselves flow through the inbound
-            // loop and OnInboundEventForPersistence advances the contiguous
-            // tail accordingly. (#138)
-            lock (_inboundGapGate) { _gapRequestInFlight = false; }
-            _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
-        };
-        _session.OnInboundRetransmitReject = (code, reqNanos) =>
-        {
-            _lastInboundUtc = DateTime.UtcNow;
-            // Reject clears the in-flight flag — a later gap may need to
-            // re-request after a transient peer-side condition lifts. (#138)
-            lock (_inboundGapGate) { _gapRequestInFlight = false; }
-            _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
-        };
-        _session.OnInboundNotApplied = (from, count) =>
-        {
-            _lastInboundUtc = DateTime.UtcNow;
-            _retransmit!.RaiseNotAppliedReceived(from, count);
-        };
-        _session.OnInboundTerminate = code =>
-        {
-            _lastInboundUtc = DateTime.UtcNow;
-            _options.Logger.InboundTerminate(code);
-            EntryPointTelemetry.Terminations.Add(1,
-                new KeyValuePair<string, object?>("direction", "inbound"),
-                new KeyValuePair<string, object?>("code", code.ToString()));
-            RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
-        };
-        _lastInboundUtc = DateTime.UtcNow;
     }
 
     private async Task<System.IO.Stream> EstablishTransportStreamAsync(TcpClient tcp, CancellationToken ct)
@@ -626,6 +642,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
     internal void HandleInboundEventForTesting(EntryPointEvent evt) => OnInboundEventForPersistence(evt);
     internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
+    internal bool HasActiveSessionForTesting => _session is not null || _tcp is not null;
     internal (ulong contiguous, ulong highest, int pending, bool gapInFlight) GetInboundGapStateForTesting()
     {
         lock (_inboundGapGate)
