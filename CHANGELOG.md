@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-05-04
+
+### Fixed
+- **client (#146)**: `EntryPointClient.ReconnectAsync` no longer leaves the
+  application-facing event stream permanently closed. The shared
+  `_events` channel was being completed by `FixpClientSession.RunInboundLoopAsync`
+  on peer Terminate / loop exit / faulted paths, which closed it for every
+  subsequent session bound to the same client. The session loop no longer
+  touches the writer's lifecycle; only `EntryPointClient.DisposeAsync`
+  completes it. Inbound-loop fault telemetry is preserved.
+- **client (#147)**: `OrderEntryEncoder.EncodeOrderCancelReplace` no longer
+  clobbers `OrigClOrdID` with `long.MinValue` (PriceNull bit pattern). Five
+  hand-coded `BinaryPrimitives.Write*` calls were writing at offsets `-8` from
+  the actual V6 SBE struct layout (template id 104), because they predated
+  the addition of `orderID@76` to the schema and never moved. The offending
+  writes now go through the generated SBE setters
+  (`SetMinQty`/`SetMaxFloor`/`SetAccountType`/`SetExpireDate`); `StopPx` —
+  the only remaining raw mantissa write — moved from the wrong offset 84 to
+  the correct offset 92. Receivers that validated OCRR (e.g. requiring
+  `OrigClOrdID`) previously rejected every Replace; they now accept.
+
 ## [0.14.0] - 2026-05-02
 
 ### Added
