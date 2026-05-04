@@ -1,11 +1,23 @@
 using System.Buffers.Binary;
 using System.Net;
+using System.Runtime.InteropServices;
+using System.Text;
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
 using SbeOcrr = B3.Entrypoint.Fixp.Sbe.V6.OrderCancelReplaceRequestData;
 using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
+using SbeNewOrderCross = B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData;
+using SbeQuoteRequest = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestData;
+using SbeQuote = B3.Entrypoint.Fixp.Sbe.V6.QuoteData;
+using SbeSide = B3.Entrypoint.Fixp.Sbe.V6.Side;
+using SbeSettlType = B3.Entrypoint.Fixp.Sbe.V6.SettlType;
+using SbeCrossType = B3.Entrypoint.Fixp.Sbe.V6.CrossType;
+using SbeCrossPrioritization = B3.Entrypoint.Fixp.Sbe.V6.CrossPrioritization;
+using SbeExecuteUnderlyingTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecuteUnderlyingTrade;
+using SbeSenderLocation = B3.Entrypoint.Fixp.Sbe.V6.SenderLocation;
+using SbeTrader = B3.Entrypoint.Fixp.Sbe.V6.Trader;
 
 namespace B3.EntryPoint.Client.Tests.Fixp;
 
@@ -195,5 +207,262 @@ public class OrderEntryEncoderTests
         var (sofhLen, tid) = ReadFrameHeader(buffer);
         Assert.Equal(len, sofhLen);
         Assert.Equal((ushort)701, tid);
+    }
+
+    // --- Round-trip coverage for cross/quote families (audit follow-up) ----
+    // Encode via the client's encoder, decode via the generated SBE TryParse,
+    // and verify every field — including all optional fields — survives the
+    // wire round-trip. Catches mis-aligned offsets, wrong null sentinels, and
+    // wrong group encoding the same way the OCRR regression in #145 did.
+
+    private const int SofhSize = 4;
+    private const int SbeHeaderSize = 8;
+
+    private static string TrimAscii(ReadOnlySpan<byte> span)
+    {
+        var idx = span.IndexOf((byte)0);
+        if (idx >= 0) span = span.Slice(0, idx);
+        while (span.Length > 0 && span[^1] == (byte)' ')
+            span = span.Slice(0, span.Length - 1);
+        return Encoding.ASCII.GetString(span);
+    }
+
+    // SBE InlineArray fixed-strings (Trader, SenderLocation) returned by struct
+    // properties are temporaries; copy bytes through MemoryMarshal so we don't
+    // hit "may not be passed by reference" scoping errors.
+    private static string SenderLocStr(SbeSenderLocation v)
+    {
+        Span<byte> tmp = stackalloc byte[10];
+        MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref v, 1)).CopyTo(tmp);
+        return TrimAscii(tmp);
+    }
+
+    private static string TraderStr(SbeTrader v)
+    {
+        Span<byte> tmp = stackalloc byte[5];
+        MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref v, 1)).CopyTo(tmp);
+        return TrimAscii(tmp);
+    }
+
+    [Fact]
+    public void EncodeNewOrderCross_RoundTrips_AllFieldsAndMultiLeg_ToSbeDecoder()
+    {
+        var legs = new List<CrossLeg>
+        {
+            new()
+            {
+                ClOrdID = new ClOrdID(0xAAAA1111UL),
+                Side = Side.Buy,
+                OrderQty = 40,
+                Account = 12345UL,
+            },
+            new()
+            {
+                ClOrdID = new ClOrdID(0xBBBB2222UL),
+                Side = Side.Sell,
+                OrderQty = 60,
+                Account = 67890UL,
+            },
+        };
+
+        var req = new NewOrderCrossRequest
+        {
+            CrossId = "9876543210",
+            SecurityId = 4242UL,
+            CrossType = CrossType.VwapCross,
+            Prioritization = CrossPrioritization.SellSidePrioritized,
+            Price = 10.55m,
+            Legs = legs,
+        };
+
+        var opts = Opts();
+        var buffer = new byte[1024];
+        var len = OrderEntryEncoder.EncodeNewOrderCross(buffer, req, opts, msgSeqNum: 11);
+        var (sofhLen, tid) = ReadFrameHeader(buffer);
+        Assert.Equal(len, sofhLen);
+        Assert.Equal((ushort)106, tid);
+
+        var payload = buffer.AsSpan(SofhSize + SbeHeaderSize, len - SofhSize - SbeHeaderSize);
+        Assert.True(SbeNewOrderCross.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal(opts.SessionId, data.BusinessHeader.SessionID.Value);
+        Assert.Equal(11U, data.BusinessHeader.MsgSeqNum.Value);
+        Assert.Equal(opts.DefaultMarketSegmentId, data.BusinessHeader.MarketSegmentID.Value);
+        Assert.Equal(9876543210UL, data.CrossID.Value);
+        Assert.Equal(opts.SenderLocation, SenderLocStr(data.SenderLocation));
+        Assert.Equal(opts.EnteringTrader, TraderStr(data.EnteringTrader));
+        Assert.Equal(req.SecurityId, data.SecurityID.Value);
+        Assert.Equal(100UL, data.OrderQty.Value); // 40 + 60
+        Assert.Equal(105_500L, data.Price.Mantissa); // 10.55 * 1e4
+        Assert.Equal(SbeCrossType.VWAP_CROSS, data.CrossType);
+        Assert.Equal(SbeCrossPrioritization.SELL_SIDE_IS_PRIORITIZED, data.CrossPrioritization);
+
+        var decodedLegs = new List<(SbeSide side, uint account, uint firm, ulong clord)>();
+        foreach (ref readonly var leg in reader.NoSides)
+        {
+            decodedLegs.Add((leg.Side, leg.Account.Value!.Value, leg.EnteringFirm.Value!.Value, leg.ClOrdID.Value));
+        }
+        Assert.Equal(2, decodedLegs.Count);
+        Assert.Equal(SbeSide.BUY, decodedLegs[0].side);
+        Assert.Equal(12345U, decodedLegs[0].account);
+        Assert.Equal(opts.EnteringFirm, decodedLegs[0].firm);
+        Assert.Equal(0xAAAA1111UL, decodedLegs[0].clord);
+        Assert.Equal(SbeSide.SELL, decodedLegs[1].side);
+        Assert.Equal(67890U, decodedLegs[1].account);
+        Assert.Equal(opts.EnteringFirm, decodedLegs[1].firm);
+        Assert.Equal(0xBBBB2222UL, decodedLegs[1].clord);
+    }
+
+    [Fact]
+    public void EncodeQuoteRequest_RoundTrips_AllOptionalFieldsPopulated_ToSbeDecoder()
+    {
+        var req = new QuoteRequestMessage
+        {
+            QuoteReqId = "1122334455",
+            SecurityId = 7777UL,
+            Side = Side.Buy, // not present on wire; DTO field is unused on encode.
+            Price = 12.34567890m,
+            OrderQty = 250,
+            SettlType = SettlementType.Mutual,
+            DaysToSettlement = 30,
+            ContraBroker = 9988U,
+            FixedRate = 0.0125m,
+            QuoteId = "55667788",
+            TradeId = 424242U,
+            ExecuteUnderlyingTrade = ExecuteUnderlyingTrade.UnderlyingOpposingTrade,
+        };
+
+        var opts = Opts();
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeQuoteRequest(buffer, req, opts, msgSeqNum: 21);
+        var (sofhLen, tid) = ReadFrameHeader(buffer);
+        Assert.Equal(len, sofhLen);
+        Assert.Equal((ushort)401, tid);
+
+        var payload = buffer.AsSpan(SofhSize + SbeHeaderSize, len - SofhSize - SbeHeaderSize);
+        Assert.True(SbeQuoteRequest.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal(opts.SessionId, data.BusinessHeader.SessionID.Value);
+        Assert.Equal(21U, data.BusinessHeader.MsgSeqNum.Value);
+        Assert.Equal(req.SecurityId, data.SecurityID.Value);
+        Assert.Equal(1122334455UL, data.QuoteReqID.Value);
+        Assert.Equal(55667788UL, data.QuoteID);
+        Assert.Equal(424242U, data.TradeID);
+        Assert.Equal(req.ContraBroker, data.ContraBroker.Value);
+        Assert.Equal(1_234_567_890L, data.Price.Mantissa); // 12.34567890 * 1e8
+        Assert.Equal(SbeSettlType.MUTUAL, data.SettlType);
+        Assert.Equal(SbeExecuteUnderlyingTrade.UNDERLYING_OPPOSING_TRADE, data.ExecuteUnderlyingTrade);
+        Assert.Equal(req.OrderQty, data.OrderQty.Value);
+        Assert.Equal(opts.SenderLocation, SenderLocStr(data.SenderLocation));
+        Assert.Equal(opts.EnteringTrader, TraderStr(data.EnteringTrader));
+        Assert.Equal(opts.EnteringTrader, TraderStr(data.ExecutingTrader));
+        Assert.Equal(1_250_000L, data.FixedRate.Mantissa); // 0.0125 * 1e8
+        Assert.Equal(req.DaysToSettlement, data.DaysToSettlement.Value);
+    }
+
+    [Fact]
+    public void EncodeQuoteRequest_RoundTrips_OmittedOptionalsAreNull_ToSbeDecoder()
+    {
+        var req = new QuoteRequestMessage
+        {
+            QuoteReqId = "1",
+            SecurityId = 1UL,
+            Side = Side.Sell,
+            Price = 1m,
+            OrderQty = 1,
+            SettlType = SettlementType.BuyersDiscretion,
+            DaysToSettlement = 16,
+            ContraBroker = 1U,
+            // QuoteId / TradeId / ExecuteUnderlyingTrade left null
+        };
+
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeQuoteRequest(buffer, req, Opts(), msgSeqNum: 22);
+        var payload = buffer.AsSpan(SofhSize + SbeHeaderSize, len - SofhSize - SbeHeaderSize);
+        Assert.True(SbeQuoteRequest.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Null(data.QuoteID);
+        Assert.Null(data.TradeID);
+        Assert.Null(data.ExecuteUnderlyingTrade);
+    }
+
+    [Fact]
+    public void EncodeQuote_RoundTrips_AllOptionalFieldsPopulated_ToSbeDecoder()
+    {
+        var quote = new QuoteMessage
+        {
+            QuoteId = "1357924680",
+            SecurityId = 5555UL,
+            Side = Side.Sell,
+            OrderQty = 333,
+            SettlType = SettlementType.SellersDiscretion,
+            DaysToSettlement = 60,
+            Price = 99.87654321m,
+            FixedRate = 0.0250m,
+            QuoteReqId = "9988776655",
+            Account = 7777U,
+            TradingSubAccount = 8888U,
+            ExecuteUnderlyingTrade = ExecuteUnderlyingTrade.NoUnderlyingTrade,
+        };
+
+        var opts = Opts();
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeQuote(buffer, quote, opts, msgSeqNum: 31);
+        var (sofhLen, tid) = ReadFrameHeader(buffer);
+        Assert.Equal(len, sofhLen);
+        Assert.Equal((ushort)403, tid);
+
+        var payload = buffer.AsSpan(SofhSize + SbeHeaderSize, len - SofhSize - SbeHeaderSize);
+        Assert.True(SbeQuote.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal(opts.SessionId, data.BusinessHeader.SessionID.Value);
+        Assert.Equal(31U, data.BusinessHeader.MsgSeqNum.Value);
+        Assert.Equal(quote.SecurityId, data.SecurityID.Value);
+        Assert.Equal(9988776655UL, data.QuoteReqID.Value);
+        Assert.Equal(1357924680UL, data.QuoteID.Value);
+        Assert.Equal(9_987_654_321L, data.Price.Mantissa); // 99.87654321 * 1e8
+        Assert.Equal(quote.OrderQty, data.OrderQty.Value);
+        Assert.Equal(SbeSide.SELL, data.Side);
+        Assert.Equal(SbeSettlType.SELLERS_DISCRETION, data.SettlType);
+        Assert.Equal(7777U, data.Account);
+        Assert.Equal(opts.SenderLocation, SenderLocStr(data.SenderLocation));
+        Assert.Equal(opts.EnteringTrader, TraderStr(data.EnteringTrader));
+        Assert.Equal(opts.EnteringTrader, TraderStr(data.ExecutingTrader));
+        Assert.Equal(2_500_000L, data.FixedRate.Mantissa); // 0.025 * 1e8
+        Assert.Equal(SbeExecuteUnderlyingTrade.NO_UNDERLYING_TRADE, data.ExecuteUnderlyingTrade);
+        Assert.Equal(quote.DaysToSettlement, data.DaysToSettlement.Value);
+        Assert.Equal(8888U, data.TradingSubAccount);
+    }
+
+    [Fact]
+    public void EncodeQuote_RoundTrips_NullPriceUsesNullSentinel_ToSbeDecoder()
+    {
+        // Quote with no price (e.g. pass-back style); encoder writes long.MinValue
+        // at offset 52, decoder must surface it as Mantissa==null.
+        var quote = new QuoteMessage
+        {
+            QuoteId = "1",
+            SecurityId = 1UL,
+            Side = Side.Buy,
+            OrderQty = 1,
+            SettlType = SettlementType.BuyersDiscretion,
+            DaysToSettlement = 16,
+            FixedRate = 0m,
+            // Price, QuoteReqId, Account, TradingSubAccount, ExecuteUnderlyingTrade all null
+        };
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeQuote(buffer, quote, Opts(), msgSeqNum: 32);
+        var payload = buffer.AsSpan(SofhSize + SbeHeaderSize, len - SofhSize - SbeHeaderSize);
+        Assert.True(SbeQuote.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Null(data.Price.Mantissa);
+        Assert.Null(data.Account);
+        Assert.Null(data.TradingSubAccount);
+        Assert.Null(data.ExecuteUnderlyingTrade);
     }
 }
