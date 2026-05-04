@@ -216,8 +216,10 @@ internal sealed class FixpClientSession : IAsyncDisposable
                                 var code = payload[12];
                                 OnInboundTerminate?.Invoke(code);
                             }
-                            // peer is shutting us down — exit loop
-                            _eventWriter?.TryComplete();
+                            // peer is shutting us down — exit loop. Do NOT
+                            // complete the shared event channel writer: it
+                            // outlives this session and is owned by the outer
+                            // EntryPointClient (see #144).
                             return;
                     }
                 }
@@ -228,11 +230,15 @@ internal sealed class FixpClientSession : IAsyncDisposable
         catch (IOException) { /* peer closed */ }
         catch (Exception ex)
         {
+            // Surface telemetry but do NOT poison the shared event channel:
+            // the writer is owned by the outer EntryPointClient and must
+            // remain usable across session swaps (e.g. ReconnectAsync). #144
             _options.Logger.InboundLoopFaulted(ex);
-            _eventWriter?.TryComplete(ex);
             return;
         }
-        _eventWriter?.TryComplete();
+        // Loop exiting normally (cancellation, peer closed). The shared event
+        // channel writer is intentionally NOT completed here — only
+        // EntryPointClient.DisposeAsync may complete it. #144
     }
 
     /// <summary>
