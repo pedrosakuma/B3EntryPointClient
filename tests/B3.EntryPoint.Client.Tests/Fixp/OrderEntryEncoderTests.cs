@@ -4,6 +4,8 @@ using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
+using SbeOcrr = B3.Entrypoint.Fixp.Sbe.V6.OrderCancelReplaceRequestData;
+using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
 
 namespace B3.EntryPoint.Client.Tests.Fixp;
 
@@ -105,6 +107,56 @@ public class OrderEntryEncoderTests
         var (_, tid) = ReadFrameHeader(buffer);
         Assert.True(len > 0);
         Assert.Equal((ushort)104, tid);
+    }
+
+    // Regression test for issue #145: OCRR encoder used hand-coded offsets
+    // shifted by -8 (pre-V6 layout, before orderID@76 was added), which both
+    // clobbered OrigClOrdID with the StopPx null sentinel (long.MinValue) and
+    // wrote MinQty/MaxFloor/AccountType/ExpireDate at the wrong offsets.
+    [Fact]
+    public void EncodeOrderCancelReplace_RoundTrips_OptionalFields_ToSbeDecoder()
+    {
+        const ulong OrigClOrd = 0x1122334455667788UL;
+        var expireDate = new DateTimeOffset(2030, 12, 31, 0, 0, 0, TimeSpan.Zero);
+        var expireDays = (ushort)((expireDate - DateTimeOffset.UnixEpoch).Days);
+
+        var req = new ReplaceOrderRequest
+        {
+            ClOrdID = new ClOrdID(2UL),
+            OrigClOrdID = new ClOrdID(OrigClOrd),
+            SecurityId = 7,
+            Side = Side.Sell,
+            OrderType = OrderType.StopLimit,
+            OrderQty = 50,
+            Price = 12.34m,
+            StopPrice = 11.50m,
+            MinQty = 10UL,
+            MaxFloor = 25UL,
+            AccountType = AccountType.RegularAccount,
+            ExpireDate = expireDate,
+        };
+
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, req, Opts(), msgSeqNum: 4);
+        Assert.True(len > 0);
+
+        // Frame layout: SOFH (4) + MessageHeader (8) + payload.
+        var payload = buffer.AsSpan(4 + 8, len - 4 - 8);
+        Assert.True(SbeOcrr.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal(OrigClOrd, data.OrigClOrdID);
+        Assert.NotEqual(unchecked((ulong)long.MinValue), data.OrigClOrdID);
+        Assert.Equal(115_000L, data.StopPx.Mantissa);
+        Assert.Equal(10UL, data.MinQty);
+        Assert.Equal(25UL, data.MaxFloor);
+        Assert.Equal(SbeAccountType.REGULAR_ACCOUNT, data.AccountType);
+        Assert.Equal(expireDays, data.ExpireDate);
+        // Sanity: also confirm the basic fields encoded correctly.
+        Assert.Equal(2UL, data.ClOrdID.Value);
+        Assert.Equal(7UL, data.SecurityID.Value);
+        Assert.Equal(50UL, data.OrderQty.Value);
+        Assert.Equal(123_400L, data.Price.Mantissa);
     }
 
     [Fact]

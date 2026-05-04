@@ -255,23 +255,23 @@ internal static class OrderEntryEncoder
         msg.OrdType = (SbeOrdType)(byte)request.OrderType;
         msg.SetTimeInForce((SbeTimeInForce)(byte)request.TimeInForce);
         msg.OrderQty = new Quantity(request.OrderQty);
+        // Price@68 is PriceOptional (composite): no public setter, write mantissa directly.
         if (request.Price.HasValue)
             BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 68, 8), PriceMantissa(request.Price.Value));
         else
             BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 68, 8), long.MinValue);
+        // OrderID@76 left unset (NullValue=0). OrigClOrdID@84 set via generated setter.
         msg.SetOrigClOrdID(request.OrigClOrdID.Value);
+        // StopPx@92 is PriceOptional (composite): no public setter, write mantissa directly.
         if (request.StopPrice.HasValue)
-            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 84, 8), PriceMantissa(request.StopPrice.Value));
+            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 92, 8), PriceMantissa(request.StopPrice.Value));
         else
-            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 84, 8), long.MinValue);
-        if (request.MinQty.HasValue)
-            BinaryPrimitives.WriteUInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 92, 8), request.MinQty.Value);
-        if (request.MaxFloor.HasValue)
-            BinaryPrimitives.WriteUInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 100, 8), request.MaxFloor.Value);
-        MemoryMarshalAsBytes(ref msg, 113, 1)[0] = (byte)request.AccountType;
+            BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 92, 8), long.MinValue);
+        msg.SetMinQty(request.MinQty);
+        msg.SetMaxFloor(request.MaxFloor);
+        msg.SetAccountType((SbeAccountType)(byte)request.AccountType);
         if (request.ExpireDate.HasValue)
-            BinaryPrimitives.WriteUInt16LittleEndian(MemoryMarshalAsBytes(ref msg, 114, 2),
-                (ushort)((request.ExpireDate.Value - DateTimeOffset.UnixEpoch).Days));
+            msg.SetExpireDate((ushort)((request.ExpireDate.Value - DateTimeOffset.UnixEpoch).Days));
 
         if (!OrderCancelReplaceRequestData.TryEncode(msg, buffer.Slice(SofhSize + SbeHeaderSize),
                 ReadOnlySpan<byte>.Empty, memoBytes, out _))
