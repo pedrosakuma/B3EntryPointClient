@@ -278,8 +278,38 @@ internal sealed class FixpClientSession : IAsyncDisposable
     public Task FlushOutboundAsync(CancellationToken ct) => _stream.FlushAsync(ct);
 
     /// <summary>Returns the next outbound MsgSeqNum and increments the counter.</summary>
-    public ulong NextOutboundSeqNum() =>
-        (ulong)System.Threading.Interlocked.Increment(ref _outboundSeqNum);
+    /// <remarks>
+    /// Throws <see cref="InvalidOperationException"/> when the counter would exceed
+    /// <see cref="SeqNumGuard.MaxWireSeqNum"/> — FIXP <c>MsgSeqNum</c> is scoped to
+    /// a single <c>SessionID</c>/<c>SessionVerID</c> pair and must not wrap. The
+    /// counter is rolled back so the failed allocation does not consume a slot.
+    /// Logs a one-shot warning when crossing
+    /// <see cref="SeqNumGuard.NearExhaustionThreshold"/> so operators can rotate
+    /// <c>SessionVerID</c> proactively via <c>ReconnectAsync</c>.
+    /// </remarks>
+    public ulong NextOutboundSeqNum()
+    {
+        var next = (ulong)System.Threading.Interlocked.Increment(ref _outboundSeqNum);
+        if (next > SeqNumGuard.MaxWireSeqNum)
+        {
+            // Roll back so the counter never reports a value that cannot be encoded.
+            System.Threading.Interlocked.Decrement(ref _outboundSeqNum);
+            throw new InvalidOperationException(
+                $"Outbound MsgSeqNum {next} exceeds the FIXP wire SeqNum (uint32) limit " +
+                $"of {SeqNumGuard.MaxWireSeqNum}. Per schema v8.4.2, MsgSeqNum is scoped " +
+                "to a single SessionID/SessionVerID pair and must not wrap. Rotate by " +
+                "calling EntryPointClient.ReconnectAsync(nextSessionVerId, ...) with a " +
+                "strictly greater SessionVerID before exhausting the counter.");
+        }
+        if (next >= SeqNumGuard.NearExhaustionThreshold &&
+            System.Threading.Interlocked.Exchange(ref _seqNumNearExhaustionLogged, 1) == 0)
+        {
+            _options.Logger.OutboundSeqNumNearExhaustion(next, SeqNumGuard.MaxWireSeqNum);
+        }
+        return next;
+    }
+
+    private int _seqNumNearExhaustionLogged;
 
     /// <summary>
     /// Reads the last outbound MsgSeqNum that was assigned via <see cref="NextOutboundSeqNum"/>
@@ -315,7 +345,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         SequenceData.WriteHeader(buffer.AsSpan(SofhSize));
         var payload = new SequenceData
         {
-            NextSeqNo = new SeqNum(checked((uint)nextSeqNo)),
+            NextSeqNo = SeqNumGuard.ToWireSeqNum(nextSeqNo),
         };
         if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
             throw new InvalidOperationException("Failed to encode Sequence payload.");
@@ -335,7 +365,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         {
             SessionID = _options.SessionId,
             Timestamp = new UTCTimestampNanos { Time = (ulong)NowUnixNanos() },
-            FromSeqNo = new SeqNum(checked((uint)fromSeqNo)),
+            FromSeqNo = SeqNumGuard.ToWireSeqNum(fromSeqNo),
             Count = new MessageCounter(count),
         };
         if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
