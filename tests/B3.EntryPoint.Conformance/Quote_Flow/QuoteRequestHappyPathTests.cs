@@ -15,7 +15,7 @@ namespace B3.EntryPoint.Conformance.Quote_Flow;
 [Trait("Category", "Conformance")]
 public class QuoteRequestHappyPathTests
 {
-    [ConformanceFact]
+    [ExternalPeerOnlyConformanceFact]
     public async Task Send_QuoteRequest_Receives_Quote_Or_Reject()
     {
         var peer = PeerEndpoint.TryResolve()!;

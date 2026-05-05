@@ -15,7 +15,7 @@ namespace B3.EntryPoint.Conformance.OrderEntry_Cross;
 [Trait("Category", "Conformance")]
 public class NewOrderCrossHappyPathTests
 {
-    [ConformanceFact]
+    [ExternalPeerOnlyConformanceFact]
     public async Task Submit_NewOrderCross_TwoLegs_Receives_Accepted_For_Each_Leg()
     {
         var peer = PeerEndpoint.TryResolve()!;
