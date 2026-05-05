@@ -214,6 +214,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
             await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
 
+            // #152: persist the session identity (SessionId/SessionVerId) at
+            // lifecycle boundaries, not on a delta count. Writing immediately
+            // after a successful Establish guarantees `snapshot.json` exists
+            // even if the host restarts before `StateCompactEveryDeltas`
+            // appends accumulate, so warm-restart and Reconnect can resolve
+            // the verId the peer actually accepted.
+            await PersistSnapshotAsync(ct).ConfigureAwait(false);
+
             StartPersistenceWorker();
 
             _session.OnInboundEvent = OnInboundEventForPersistence;
@@ -462,6 +470,35 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         {
             await store.SaveAsync(BuildSnapshot(), ct).ConfigureAwait(false);
             await store.CompactAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _options.Logger.SnapshotCompactionFailed(ex);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort persistence of the current <see cref="SessionSnapshot"/>
+    /// at a lifecycle boundary (post-Establish, pre-teardown). Unlike
+    /// <see cref="MaybeCompactAsync"/> this is unconditional — it does not
+    /// gate on <see cref="EntryPointClientOptions.StateCompactEveryDeltas"/>
+    /// — and is therefore the mechanism that makes <c>SessionId</c> /
+    /// <c>SessionVerId</c> durable across restarts even when fewer than
+    /// <c>StateCompactEveryDeltas</c> deltas have been appended (#152).
+    /// Failures are logged via <see cref="LogMessages.SnapshotCompactionFailed"/>
+    /// and swallowed: persistence is advisory and must never break the
+    /// connect or teardown path.
+    /// </summary>
+    private async ValueTask PersistSnapshotAsync(CancellationToken ct)
+    {
+        var store = _options.SessionStateStore;
+        if (store is null || _session is null) return;
+        try
+        {
+            await store.SaveAsync(BuildSnapshot(), ct).ConfigureAwait(false);
+            // SaveAsync subsumes the delta log; reset the in-memory counter
+            // so the next MaybeCompactAsync threshold is measured from here.
+            System.Threading.Interlocked.Exchange(ref _deltasSinceCompact, 0);
         }
         catch (Exception ex)
         {
@@ -1041,6 +1078,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         var timeout = _options.SessionTeardownTimeout;
         if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
+
+        // 0. Flush a final snapshot before tearing down. This must happen
+        //    while `_session` is still live (BuildSnapshot reads
+        //    `_session.LastAssignedOutboundSeqNum()`) and before the persist
+        //    CTS below is cancelled. Guarantees the on-disk snapshot is
+        //    contiguous with the last in-memory state on graceful shutdown
+        //    and on Reconnect (#152).
+        await PersistSnapshotAsync(ct).ConfigureAwait(false);
 
         // 1. Cancel session-scoped CTSs and complete the persistence channel
         //    so its worker drains the in-flight queue and exits.
