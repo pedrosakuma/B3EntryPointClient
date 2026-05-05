@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 
@@ -29,9 +28,18 @@ public class TerminateApiTests
     public async Task ReconnectAsync_AcceptsIncreasingVerId_AttemptsTcpConnect()
     {
         await using var c = MakeClient(sessionVerId: 5);
-        // No socket listening on port 9999 → TCP connect must fail. The point is
-        // that the version check passes and ReconnectAsync proceeds to ConnectAsync.
-        await Assert.ThrowsAnyAsync<SocketException>(() => c.ReconnectAsync(6));
+        // The point is that the version check passes and ReconnectAsync
+        // proceeds to ConnectAsync. We deliberately do not assert on a
+        // specific exception type: depending on what (if anything) is
+        // listening on the unused port, the post-validation failure may
+        // surface as SocketException (connection refused), EndOfStreamException
+        // (a stray peer that closes immediately), or another transport
+        // exception. The validation guard, in contrast, throws
+        // ArgumentOutOfRangeException synchronously before any I/O — so
+        // observing anything else proves we got past it. (#157)
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => c.ReconnectAsync(6));
+        Assert.IsNotType<ArgumentOutOfRangeException>(ex);
+        Assert.IsNotType<InvalidOperationException>(ex);
     }
 
     [Fact]

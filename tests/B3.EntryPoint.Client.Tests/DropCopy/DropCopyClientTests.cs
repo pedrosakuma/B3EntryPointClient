@@ -28,8 +28,17 @@ public class DropCopyClientTests
     public async Task ConnectAsync_AttemptsTcpConnect()
     {
         await using var c = new DropCopyClient(Opts(SessionProfile.DropCopy));
-        // No socket listening on port 9999 → TCP connect must fail. Confirms the
-        // delegating wire-up to EntryPointClient.ConnectAsync is in place.
-        await Assert.ThrowsAnyAsync<System.Net.Sockets.SocketException>(() => c.ConnectAsync());
+        // Confirms the delegating wire-up to EntryPointClient.ConnectAsync is
+        // in place. We deliberately do not assert on a specific exception
+        // type: depending on what (if anything) is listening on the unused
+        // port, the post-validation failure may surface as SocketException
+        // (connection refused), EndOfStreamException (a stray peer that
+        // closes immediately), or another transport exception. The profile
+        // guard, in contrast, throws ArgumentException synchronously in the
+        // constructor — so observing anything else here proves we got past
+        // construction and into the connect path. (#157)
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => c.ConnectAsync());
+        Assert.IsNotType<ArgumentException>(ex);
+        Assert.IsNotType<InvalidOperationException>(ex);
     }
 }
