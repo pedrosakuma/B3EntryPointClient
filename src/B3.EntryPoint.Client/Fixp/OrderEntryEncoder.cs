@@ -39,7 +39,7 @@ internal static class OrderEntryEncoder
     {
         var header = default(InboundBusinessHeader);
         header.SessionID = new SessionID(options.SessionId);
-        header.MsgSeqNum = new SeqNum(checked((uint)msgSeqNum));
+        header.MsgSeqNum = SeqNumGuard.ToWireSeqNum(msgSeqNum);
         header.SendingTime = default;
         header.MarketSegmentID = new MarketSegmentID(options.DefaultMarketSegmentId);
         return header;
@@ -49,7 +49,7 @@ internal static class OrderEntryEncoder
     {
         var header = default(BidirectionalBusinessHeader);
         header.SessionID = new SessionID(options.SessionId);
-        header.MsgSeqNum = new SeqNum(checked((uint)msgSeqNum));
+        header.MsgSeqNum = SeqNumGuard.ToWireSeqNum(msgSeqNum);
         header.SendingTime = default;
         // MarketSegmentID is optional on bidirectional messages; left at NullValue (0) to mean "not set".
         if (options.DefaultMarketSegmentId != 0)

@@ -139,6 +139,10 @@ internal static partial class LogMessages
         Message = "Reconnect carries unrecovered inbound gap from prior session ver={PriorSessionVerId}: fromSeqNo={FromSeqNo} count={Count} — out-of-band reconciliation required")]
     public static partial void InboundGapAtReconnect(this ILogger logger, ulong priorSessionVerId, ulong fromSeqNo, uint count);
 
+    [LoggerMessage(EventId = 4013, Level = LogLevel.Warning,
+        Message = "Outbound MsgSeqNum approaching uint32 boundary (assigned={Assigned}, max={Max}); rotate SessionVerID via ReconnectAsync before exhaustion")]
+    public static partial void OutboundSeqNumNearExhaustion(this ILogger logger, ulong assigned, ulong max);
+
     // ---------------- Error (5000–5999) ----------------
 
     [LoggerMessage(EventId = 5000, Level = LogLevel.Error,
