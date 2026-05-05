@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-05-05
+
+### Fixed
+- **client (#149)**: `EntryPointClient` now throws a deterministic
+  `InvalidOperationException` ("outbound MsgSeqNum exhausted; reconnect with
+  next SessionVerID") when the outbound counter would exceed `uint.MaxValue`,
+  instead of surfacing an opaque `OverflowException` from a deeply nested
+  `checked` cast inside the encoder. The four `new SeqNum(checked((uint)x))`
+  call sites in `FixpClientSession` and `OrderEntryEncoder` now share a
+  single guard so the failure mode is named and points the host at the right
+  recovery (Reconnect with the next `SessionVerID`).
+- **client (#150)**: `ConnectOnceAsync` no longer leaks partial-connect
+  resources when a post-TCP step (TLS handshake, Negotiate, Establish,
+  snapshot hydrate, worker startup) throws. Previously `_tcp`/`_session`/
+  `_keepAlive`/`_retransmit`/`_persistWorker` stayed bound to the dead
+  attempt, and the next retry overwrote those fields and orphaned the prior
+  socket / background tasks. Failures now route through
+  `StopActiveSessionAsync` before the exception propagates, so retry attempts
+  start from a clean slate.
+- **client (#152)**: `EntryPointClient` now persists the
+  `SessionSnapshot` at lifecycle boundaries (immediately after Establish, and
+  again on graceful teardown) instead of only after
+  `StateCompactEveryDeltas` (default 1024) appends. Hosts that restarted
+  before the threshold previously lost `SessionId`/`SessionVerId` because
+  `snapshot.json` never existed — `LoadAsync` returned `null`, the host
+  reused the configured verId, and the matching peer rejected the next
+  Establish with `InvalidSessionVerId`. The new `PersistSnapshotAsync`
+  helper is unconditional and best-effort (failures logged via
+  `SnapshotCompactionFailed`); it covers initial Establish, the Reconnect
+  path (which routes through `ConnectAsync` after the verId bump), and
+  graceful shutdown / pre-Reconnect teardown. No public API surface change;
+  no protocol-visible behaviour change.
+
+### Tests
+- **conformance, client (#151)**: added round-trip encoder coverage for
+  `NewOrderCross` (template 106) and `Quote`/`QuoteRequest` (templates
+  401/403) plus matching conformance scenarios. Audit follow-up to #147 —
+  these templates had public encoder/API surface but no wire-level offset
+  test would have caught a bug analogous to the OCRR one.
+
 ## [0.14.1] - 2026-05-04
 
 ### Fixed
