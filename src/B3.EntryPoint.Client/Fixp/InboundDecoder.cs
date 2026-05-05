@@ -143,7 +143,11 @@ internal static class InboundDecoder
             SeqNum = msg.BusinessHeader.MsgSeqNum.Value,
             SendingTime = ToDateTime(msg.BusinessHeader.SendingTime.Time),
             ClOrdID = new ClientClOrdID(msg.ClOrdID.Value),
-            OrigClOrdID = null,
+            // #155: surface OrigClOrdID from the wire (ClOrdIDOptional id=41,
+            // present in v6.3 schema). Previously hard-coded to null, which
+            // forced participants to maintain a cancel-side → original map
+            // out-of-band to resolve cancel acks back to the working order.
+            OrigClOrdID = msg.OrigClOrdID is { } orig ? new ClientClOrdID(orig) : null,
             OrderId = msg.OrderID.Value,
             OrderStatus = (OrderStatus)(byte)msg.OrdStatus,
             TransactTime = ToDateTime(msg.TransactTime.Time),
