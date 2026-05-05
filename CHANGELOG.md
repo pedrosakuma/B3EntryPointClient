@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-05-05
+
+### Fixed
+- **client (#155)**: `InboundDecoder.DecodeCancel` now surfaces
+  `OrigClOrdID` from the wire instead of hard-coding it to `null`.
+  `ExecutionReport_Cancel` (template 202, schema 8.4.2) carries
+  `origClOrdID` (id=41, `ClOrdIDOptional`, present since v6.3 of the
+  schema); the decoder previously dropped it, so participants routing
+  ER lookups by the original ClOrdID — every sane implementation,
+  since the cancel-side ClOrdID is request-only and was never
+  registered as an order — could not resolve cancel acks back to the
+  working order. Orders stayed `Working` forever from the
+  participant's perspective even after the matching engine removed
+  them from the book. Decoder now reads `msg.OrigClOrdID` from the SBE
+  binding (`ulong?`, `NullValue = 0`) and maps it to the model:
+  present → `new ClOrdID(value)`, absent → `null` (preserves the
+  legitimate-null path for unsolicited cancellations from Market
+  Operations / Cancel On Disconnect, which omit the field). No public
+  API surface change; `OrderCancelled.OrigClOrdID` was already typed
+  `ClOrdID?`. Behaviour change is strictly additive.
+
+### Tests
+- **client (#157)**: relaxed the two `Assert.ThrowsAnyAsync<SocketException>`
+  assertions in `DropCopyClientTests.ConnectAsync_AttemptsTcpConnect`
+  and `TerminateApiTests.ReconnectAsync_AcceptsIncreasingVerId_AttemptsTcpConnect`
+  to *any non-validation exception*. The original assertions assumed
+  TCP port 9999 was unbound, which holds on CI but fails on dev
+  machines with anything listening there (TCP connect succeeds →
+  `EndOfStreamException` from the negotiate FIN). The documented
+  intent of both tests is just "the version/profile guard passed and
+  we proceeded into the connect path"; the failure type is irrelevant.
+  No production code touched.
+
 ## [0.14.2] - 2026-05-05
 
 ### Fixed
