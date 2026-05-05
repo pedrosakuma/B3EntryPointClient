@@ -165,6 +165,77 @@ public class InboundDecoderTests
     }
 
     [Fact]
+    public void TryDecode_ExecutionReportCancel_PopulatesOrigClOrdID()
+    {
+        // Regression for #155: DecodeCancel previously hard-coded
+        // OrigClOrdID = null, dropping the original-order identity that
+        // every B3 ExecutionReport_Cancel carries on the wire (id=41,
+        // ClOrdIDOptional, present since v6.3 of the schema).
+        var msg = new ExecutionReport_CancelData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = 1,
+                MsgSeqNum = new SeqNum(99),
+            },
+            Side = B3.Entrypoint.Fixp.Sbe.V6.Side.BUY,
+            OrdStatus = OrdStatus.CANCELED,
+            ClOrdID = new B3.Entrypoint.Fixp.Sbe.V6.ClOrdID(2UL), // cancel-side ClOrdID
+            OrderID = new OrderID(123456UL),
+            TransactTime = new UTCTimestampNanos { Time = 1_700_000_000_000_000_000UL },
+        };
+        msg.SetOrigClOrdID(1UL); // original order ClOrdID
+        msg.SetMassActionReportID(null);
+
+        var frame = BuildFrame(ExecutionReport_CancelData.MESSAGE_ID, ExecutionReport_CancelData.MESSAGE_SIZE, span =>
+        {
+            if (!ExecutionReport_CancelData.TryEncode(msg, span, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out _))
+                throw new InvalidOperationException("encode failed");
+        });
+
+        Assert.True(InboundDecoder.TryDecode(frame, out var evt));
+        var cancelled = Assert.IsType<OrderCancelled>(evt);
+        Assert.Equal(99UL, cancelled.SeqNum);
+        Assert.Equal(2UL, cancelled.ClOrdID.Value);
+        Assert.NotNull(cancelled.OrigClOrdID);
+        Assert.Equal(1UL, cancelled.OrigClOrdID!.Value.Value);
+        Assert.Equal(123456UL, cancelled.OrderId);
+    }
+
+    [Fact]
+    public void TryDecode_ExecutionReportCancel_OrigClOrdIDAbsent_StaysNull()
+    {
+        // Unsolicited cancellations (Market Operations / Cancel On Disconnect)
+        // may legitimately omit OrigClOrdID; the decoder must still surface
+        // null in that case, not a synthetic ClOrdID(0).
+        var msg = new ExecutionReport_CancelData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = 1,
+                MsgSeqNum = new SeqNum(100),
+            },
+            Side = B3.Entrypoint.Fixp.Sbe.V6.Side.SELL,
+            OrdStatus = OrdStatus.CANCELED,
+            ClOrdID = new B3.Entrypoint.Fixp.Sbe.V6.ClOrdID(5UL),
+            OrderID = new OrderID(654321UL),
+            TransactTime = new UTCTimestampNanos { Time = 1_700_000_000_000_000_000UL },
+        };
+        msg.SetOrigClOrdID(null);
+        msg.SetMassActionReportID(null);
+
+        var frame = BuildFrame(ExecutionReport_CancelData.MESSAGE_ID, ExecutionReport_CancelData.MESSAGE_SIZE, span =>
+        {
+            if (!ExecutionReport_CancelData.TryEncode(msg, span, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out _))
+                throw new InvalidOperationException("encode failed");
+        });
+
+        Assert.True(InboundDecoder.TryDecode(frame, out var evt));
+        var cancelled = Assert.IsType<OrderCancelled>(evt);
+        Assert.Null(cancelled.OrigClOrdID);
+    }
+
+    [Fact]
     public void TryDecode_OrderMassActionReport_ReturnsMassActionExecuted()
     {
         var msg = new OrderMassActionReportData
