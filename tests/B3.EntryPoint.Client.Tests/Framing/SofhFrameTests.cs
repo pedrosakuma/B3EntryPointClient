@@ -65,4 +65,22 @@ public class SofhFrameTests
         await Assert.ThrowsAsync<EndOfStreamException>(
             () => SofhFrameReader.ReadFrameAsync(ms, CancellationToken.None));
     }
+
+    /// <summary>
+    /// Schema §4.4 / FIX SOFH §3: only SBE 1.0 LE (encodingType 0xEB50) is
+    /// legal on a B3 EntryPoint session. Anything else must be rejected as
+    /// a framing protocol error so a malformed peer cannot trick us into
+    /// decoding garbage as a valid SBE payload.
+    /// </summary>
+    [Fact]
+    public async Task ReadFrameAsync_Throws_WhenEncodingTypeIsNotSbeLittleEndian()
+    {
+        // 12-byte frame with a bogus encodingType (zero).
+        var frame = new byte[12];
+        SofhFrameWriter.WriteHeader(frame, messageLength: 12, encodingType: 0x0000);
+        using var ms = new MemoryStream(frame);
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(
+            () => SofhFrameReader.ReadFrameAsync(ms, CancellationToken.None));
+        Assert.Contains("encodingType", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

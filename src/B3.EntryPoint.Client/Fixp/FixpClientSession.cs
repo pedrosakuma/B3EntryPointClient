@@ -284,6 +284,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
                             }
                             break;
                         case TerminateData.MESSAGE_ID:
+                            // Advance the state machine BEFORE notifying the
+                            // outer client so EnsureEstablished() (sync app
+                            // sends) sees the session as no longer Established
+                            // and refuses new outbound frames. Per schema §4.8
+                            // a Terminate signals the sender is going to
+                            // disconnect; sending app frames on the same TCP
+                            // socket after that is a protocol error.
+                            try { Fire(FixpClientTrigger.TerminateReceived); }
+                            catch (InvalidFixpTransitionException) { /* already Terminating/Terminated */ }
+
                             // SessionID(4) + SessionVerID(8) + TerminationCode(1) = 13 bytes
                             if (payload.Length >= TerminateData.MESSAGE_SIZE)
                             {
@@ -295,6 +305,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
                             // outlives this session and is owned by the outer
                             // EntryPointClient (see #144).
                             return;
+                        default:
+                            // Unknown templateId on a SOFH-framed SBE message.
+                            // Log so operators can spot a gateway protocol
+                            // version drift; intentionally do not terminate
+                            // the session (newer gateway templates may be
+                            // safely ignorable by older clients). See spec
+                            // TerminationCode.UNRECOGNIZED_MESSAGE for the
+                            // peer-side counterpart.
+                            _options.Logger.UnknownInboundTemplateId(templateId, frame.Length);
+                            break;
                     }
                 }
             }
@@ -527,6 +547,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
         EstablishData.WriteHeader(buffer.AsSpan(SofhSize));
 
+#pragma warning disable B3EP_COD // wire CancelOnDisconnect into Establish payload
         var payload = new EstablishData
         {
             SessionID = _options.SessionId,
@@ -534,7 +555,10 @@ internal sealed class FixpClientSession : IAsyncDisposable
             Timestamp = new UTCTimestampNanos { Time = (ulong)NowUnixNanos() },
             KeepAliveInterval = new DeltaInMillis { Time = _options.KeepAliveIntervalMs },
             NextSeqNo = new SeqNum(nextSeqNo),
+            CancelOnDisconnectType = (B3.Entrypoint.Fixp.Sbe.V6.CancelOnDisconnectType)_options.CancelOnDisconnect,
+            CodTimeoutWindow = new DeltaInMillis { Time = _options.CodTimeoutWindowMs },
         };
+#pragma warning restore B3EP_COD
 
         if (!EstablishData.TryEncode(payload, buffer.AsSpan(SofhSize + SbeHeaderSize), creds, out _))
             throw new InvalidOperationException("Failed to encode Establish payload.");

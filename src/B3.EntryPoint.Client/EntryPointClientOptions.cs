@@ -48,21 +48,32 @@ public sealed class EntryPointClientOptions
     public byte DefaultMarketSegmentId { get; set; } = 1;
 
     /// <summary>
-    /// Cancel-on-disconnect behaviour requested at <c>Negotiate</c>. Defaults
-    /// to <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/>
-    /// — the safest choice for a participant that must not leave open orders
+    /// Cancel-on-disconnect behaviour requested at <c>Establish</c> (schema
+    /// 8.4.2 §811, field <c>cancelOnDisconnectType</c>). Defaults to
+    /// <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/> —
+    /// the safest choice for a participant that must not leave open orders
     /// after losing the session.
     /// </summary>
     /// <remarks>
-    /// Marked <see cref="System.Diagnostics.CodeAnalysis.ExperimentalAttribute"/>
-    /// (#130): the value is currently <em>not</em> wired into the FIXP
-    /// <c>Negotiate</c> frame, so changing it has no observable effect on
-    /// the negotiated cancel-on-disconnect contract. Suppress
-    /// <c>B3EP_COD</c> at the call site to opt-in.
+    /// The value is encoded into every outbound <c>Establish</c> (both the
+    /// initial connect and spec-canonical reattach). Marked
+    /// <see cref="System.Diagnostics.CodeAnalysis.ExperimentalAttribute"/>
+    /// (#130) so callers must opt in via <c>B3EP_COD</c>; the wire encoding
+    /// is now stable but the surfaced API may still evolve.
     /// </remarks>
     [System.Diagnostics.CodeAnalysis.Experimental("B3EP_COD")]
     public CancelOnDisconnectType CancelOnDisconnect { get; set; } =
         CancelOnDisconnectType.CancelOnDisconnectOrTerminate;
+
+    /// <summary>
+    /// Grace window (milliseconds) the gateway will wait before triggering
+    /// cancel-on-disconnect, allowing a fast TCP reconnect to suppress the
+    /// cancel (schema 8.4.2 §811, field <c>codTimeoutWindow</c>). Range
+    /// <c>0..60000</c>; <c>0</c> = trigger as soon as possible. Defaults
+    /// to <c>0</c> for backward compatibility.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.Experimental("B3EP_COD")]
+    public ulong CodTimeoutWindowMs { get; set; } = 0UL;
 
     /// <summary>
     /// Profile of the FIXP session. <see cref="SessionProfile.OrderEntry"/> is

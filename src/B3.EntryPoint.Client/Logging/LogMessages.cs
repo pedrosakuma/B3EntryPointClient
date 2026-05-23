@@ -147,6 +147,10 @@ internal static partial class LogMessages
         Message = "Reuse-SessionVerID Establish rejected by peer with code={Code}; falling back to fresh Negotiate")]
     public static partial void EstablishReuseRejected(this ILogger logger, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code);
 
+    [LoggerMessage(EventId = 4015, Level = LogLevel.Warning,
+        Message = "Inbound frame with unknown SBE templateId={TemplateId} ({FrameLength} bytes) — frame dropped, session continues")]
+    public static partial void UnknownInboundTemplateId(this ILogger logger, int templateId, int frameLength);
+
     // ---------------- Error (5000–5999) ----------------
 
     [LoggerMessage(EventId = 5000, Level = LogLevel.Error,

@@ -51,8 +51,15 @@ public static class SofhFrameReader
         var header = new byte[HeaderSize];
         await stream.ReadExactlyAsync(header, ct).ConfigureAwait(false);
 
-        if (!TryParseHeader(header, out var messageLength, out _))
+        if (!TryParseHeader(header, out var messageLength, out var encodingType))
             throw new InvalidDataException("SOFH header truncated.");
+
+        // SBE 1.0 LE is the only encoding B3 EntryPoint speaks (FIX SOFH §3,
+        // schema §4.4). Refusing other encodings prevents accidentally
+        // decoding a malformed frame as a valid SBE payload.
+        if (encodingType != SbeLittleEndianEncodingType)
+            throw new InvalidDataException(
+                $"SOFH encodingType 0x{encodingType:X4} not supported (expected SBE LE 0x{SbeLittleEndianEncodingType:X4}).");
 
         if (messageLength < HeaderSize)
             throw new InvalidDataException($"SOFH messageLength {messageLength} smaller than header size {HeaderSize}.");

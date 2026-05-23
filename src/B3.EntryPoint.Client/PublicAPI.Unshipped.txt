@@ -30,3 +30,6 @@ static B3.EntryPoint.Client.ReconnectOutcome.operator !=(B3.EntryPoint.Client.Re
 static B3.EntryPoint.Client.ReconnectOutcome.operator ==(B3.EntryPoint.Client.ReconnectOutcome left, B3.EntryPoint.Client.ReconnectOutcome right) -> bool
 ~override B3.EntryPoint.Client.ReconnectOutcome.Equals(object obj) -> bool
 ~override B3.EntryPoint.Client.ReconnectOutcome.ToString() -> string
+const B3.EntryPoint.Client.Auth.Credentials.MaxLengthBytes = 128 -> int
+B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.get -> ulong
+B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.set -> void
