@@ -1147,7 +1147,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
             using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish.reuse", ActivityKind.Client))
             {
-                reuse = await _session.EstablishReuseAsync(ct).ConfigureAwait(false);
+                // Spec §4.5: Establish's NextSeqNo is the client's next
+                // outbound app MsgSeqNum. On reattach (#173) that's the prior
+                // session's last assigned + 1, NOT 1 — sending 1 would look
+                // like a sequence rewind to the gateway and corrupt the
+                // peer-side LastIncomingSeqNo accounting.
+                reuse = await _session.EstablishReuseAsync(localLastAssignedOutbound + 1UL > uint.MaxValue
+                    ? throw new InvalidOperationException("Outbound sequence overflowed uint range.")
+                    : (uint)(localLastAssignedOutbound + 1UL), ct).ConfigureAwait(false);
             }
 
             if (reuse.Accepted)
@@ -1179,12 +1186,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         catch
         {
-            await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
+            // Reuse attempt blew up (transport / decode / unexpected frame).
+            // The current _session is the freshly-built reuse session whose
+            // counters are still at 0; do NOT persist a snapshot from it
+            // because that would clobber the good snapshot saved when the
+            // prior live session was torn down before reattach.
+            await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
             throw;
         }
 
-        // Reuse rejected — tear down and decide on the fallback path.
-        await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
+        // Reuse rejected — tear down without persisting (same reason as above)
+        // and decide on the fallback path.
+        await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
 
         var code = reuse.RejectCode!.Value;
         if (!IsRecoverableEstablishReject(code))
@@ -1260,7 +1273,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// <see cref="ReconnectAsync(uint, System.Threading.CancellationToken)"/> and <see cref="DisposeAsync"/> so the
     /// same ordering applies in both paths (#124).
     /// </summary>
-    private async Task StopActiveSessionAsync(CancellationToken ct)
+    private async Task StopActiveSessionAsync(CancellationToken ct, bool persistSnapshot = true)
     {
         var timeout = _options.SessionTeardownTimeout;
         if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
@@ -1271,7 +1284,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         //    CTS below is cancelled. Guarantees the on-disk snapshot is
         //    contiguous with the last in-memory state on graceful shutdown
         //    and on Reconnect (#152).
-        await PersistSnapshotAsync(ct).ConfigureAwait(false);
+        //
+        //    #173 caller note: pass persistSnapshot=false when tearing down
+        //    a transient Establish-reuse session that never reached
+        //    Established — snapshotting its zeroed counters would corrupt
+        //    the good snapshot saved from the prior live session.
+        if (persistSnapshot)
+            await PersistSnapshotAsync(ct).ConfigureAwait(false);
 
         // 1. Cancel session-scoped CTSs and complete the persistence channel
         //    so its worker drains the in-flight queue and exits.

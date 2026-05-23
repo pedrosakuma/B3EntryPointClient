@@ -83,7 +83,9 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (_machine.State != FixpClientState.Negotiated)
             throw new InvalidOperationException($"Cannot Establish from state {_machine.State}.");
 
-        await SendEstablishAsync(ct).ConfigureAwait(false);
+        // First Establish on a fresh Negotiate-driven session: client's app
+        // outbound sequence starts at 1 per spec §4.5.
+        await SendEstablishAsync(nextSeqNo: 1u, ct).ConfigureAwait(false);
         Fire(FixpClientTrigger.SendEstablish);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -123,12 +125,20 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// reject: the rejection code is part of the normal return contract so
     /// callers can branch on it.
     /// </summary>
-    public async Task<EstablishReuseResult> EstablishReuseAsync(CancellationToken ct)
+    /// <param name="nextSeqNo">
+    /// Client-side next outbound application <c>MsgSeqNum</c> to advertise.
+    /// On a reattach the peer uses this to compute whether the client has
+    /// unconfirmed outbound frames; callers must pass
+    /// <c>localLastAssignedOutbound + 1</c> (1 when no app frame has been
+    /// sent yet under this SessionVerID).
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<EstablishReuseResult> EstablishReuseAsync(uint nextSeqNo, CancellationToken ct)
     {
         if (_machine.State != FixpClientState.TcpConnected)
             throw new InvalidOperationException($"Cannot Establish-reuse from state {_machine.State}.");
 
-        await SendEstablishAsync(ct).ConfigureAwait(false);
+        await SendEstablishAsync(nextSeqNo, ct).ConfigureAwait(false);
         Fire(FixpClientTrigger.SendEstablish);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -506,7 +516,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         await _stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task SendEstablishAsync(CancellationToken ct)
+    private async Task SendEstablishAsync(uint nextSeqNo, CancellationToken ct)
     {
         var creds = _options.Credentials.AsSpan();
 
@@ -523,7 +533,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
             SessionVerID = new SessionVerID((ulong)_options.SessionVerId),
             Timestamp = new UTCTimestampNanos { Time = (ulong)NowUnixNanos() },
             KeepAliveInterval = new DeltaInMillis { Time = _options.KeepAliveIntervalMs },
-            NextSeqNo = new SeqNum(1),
+            NextSeqNo = new SeqNum(nextSeqNo),
         };
 
         if (!EstablishData.TryEncode(payload, buffer.AsSpan(SofhSize + SbeHeaderSize), creds, out _))
@@ -591,7 +601,7 @@ public sealed class FixpEstablishRejectedException : FixpRejectedException
 internal readonly record struct EstablishResult(ulong NextSeqNo, ulong LastIncomingSeqNo);
 
 /// <summary>
-/// Outcome of <see cref="FixpClientSession.EstablishReuseAsync(System.Threading.CancellationToken)"/>:
+/// Outcome of <see cref="FixpClientSession.EstablishReuseAsync(uint, System.Threading.CancellationToken)"/>:
 /// either an <see cref="Ack"/> (peer accepted reattach) or a
 /// <see cref="RejectCode"/> (peer refused — caller decides on the fallback
 /// strategy). Exactly one of the two is non-null.
