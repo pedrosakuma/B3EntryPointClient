@@ -78,7 +78,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
         }
     }
 
-    public async Task EstablishAsync(CancellationToken ct)
+    public async Task<EstablishResult> EstablishAsync(CancellationToken ct)
     {
         if (_machine.State != FixpClientState.Negotiated)
             throw new InvalidOperationException($"Cannot Establish from state {_machine.State}.");
@@ -97,17 +97,81 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (templateId == EstablishAckData.MESSAGE_ID)
         {
             Fire(FixpClientTrigger.EstablishAckReceived);
+            return ParseEstablishAck(frame);
         }
         else if (templateId == EstablishRejectData.MESSAGE_ID)
         {
             Fire(FixpClientTrigger.EstablishRejectReceived);
-            throw new FixpRejectedException("Establish rejected by peer.");
+            var code = ParseEstablishRejectCode(frame);
+            throw new FixpEstablishRejectedException(code);
         }
         else
         {
             Fire(FixpClientTrigger.ProtocolError);
             throw new InvalidDataException($"Unexpected templateId {templateId} during Establish handshake.");
         }
+    }
+
+    /// <summary>
+    /// Spec-canonical reattach (#173). Sends an <c>Establish</c> reusing the
+    /// current <c>SessionVerID</c> on a freshly-reconnected TCP socket
+    /// (i.e. without a preceding <c>Negotiate</c>), then awaits either
+    /// <c>EstablishmentAck</c> (reattach succeeded) or <c>EstablishReject</c>
+    /// (peer cannot reattach — caller decides whether to fall back to a fresh
+    /// Negotiate based on the returned <see cref="EstablishRejectCode"/>).
+    /// Unlike <see cref="EstablishAsync"/>, this method does NOT throw on a
+    /// reject: the rejection code is part of the normal return contract so
+    /// callers can branch on it.
+    /// </summary>
+    public async Task<EstablishReuseResult> EstablishReuseAsync(CancellationToken ct)
+    {
+        if (_machine.State != FixpClientState.TcpConnected)
+            throw new InvalidOperationException($"Cannot Establish-reuse from state {_machine.State}.");
+
+        await SendEstablishAsync(ct).ConfigureAwait(false);
+        Fire(FixpClientTrigger.SendEstablish);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(_options.HandshakeTimeout);
+
+        var frame = await SofhFrameReader.ReadFrameAsync(_stream, timeout.Token).ConfigureAwait(false);
+        var templateId = ReadTemplateId(frame);
+        if (_options.Logger.IsEnabled(LogLevel.Trace))
+            _options.Logger.InboundFrame(templateId, frame.Length);
+
+        if (templateId == EstablishAckData.MESSAGE_ID)
+        {
+            Fire(FixpClientTrigger.EstablishAckReceived);
+            return EstablishReuseResult.FromAck(ParseEstablishAck(frame));
+        }
+        else if (templateId == EstablishRejectData.MESSAGE_ID)
+        {
+            Fire(FixpClientTrigger.EstablishRejectReceived);
+            return EstablishReuseResult.FromReject(ParseEstablishRejectCode(frame));
+        }
+        else
+        {
+            Fire(FixpClientTrigger.ProtocolError);
+            throw new InvalidDataException($"Unexpected templateId {templateId} during Establish-reuse handshake.");
+        }
+    }
+
+    private static EstablishResult ParseEstablishAck(byte[] frame)
+    {
+        var payload = frame.AsSpan(SofhSize + SbeHeaderSize);
+        if (!EstablishAckData.TryParse(payload, out var reader))
+            throw new InvalidDataException("EstablishAckData payload too small.");
+        ref readonly var ack = ref reader.Data;
+        return new EstablishResult(ack.NextSeqNo.Value, ack.LastIncomingSeqNo.Value);
+    }
+
+    private static EstablishRejectCode ParseEstablishRejectCode(byte[] frame)
+    {
+        var payload = frame.AsSpan(SofhSize + SbeHeaderSize);
+        if (!EstablishRejectData.TryParse(payload, out var reader))
+            return EstablishRejectCode.UNSPECIFIED;
+        ref readonly var rej = ref reader.Data;
+        return rej.EstablishmentRejectCode;
     }
 
     public async Task TerminateAsync(SbeTerminationCode code, CancellationToken ct)
@@ -503,4 +567,39 @@ internal sealed class FixpClientSession : IAsyncDisposable
         (DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch).Ticks * 100L;
 }
 
-public sealed class FixpRejectedException(string message) : Exception(message);
+public class FixpRejectedException(string message) : Exception(message);
+
+/// <summary>
+/// Thrown by <see cref="FixpClientSession.EstablishAsync(System.Threading.CancellationToken)"/>
+/// when the peer responds with an <c>EstablishReject</c>. Carries the
+/// <see cref="EstablishRejectCode"/> reported by the gateway so callers can
+/// distinguish recoverable (UNNEGOTIATED, INVALID_SESSIONID, …) from hard
+/// (CREDENTIALS, PROTOCOL_VERSION_NOT_SUPPORTED, …) reasons.
+/// </summary>
+public sealed class FixpEstablishRejectedException : FixpRejectedException
+{
+    public FixpEstablishRejectedException(EstablishRejectCode code)
+        : base($"Establish rejected by peer: {code}.")
+    {
+        Code = code;
+    }
+
+    public EstablishRejectCode Code { get; }
+}
+
+/// <summary>Decoded outcome of a successful <c>EstablishmentAck</c> (#173).</summary>
+internal readonly record struct EstablishResult(ulong NextSeqNo, ulong LastIncomingSeqNo);
+
+/// <summary>
+/// Outcome of <see cref="FixpClientSession.EstablishReuseAsync(System.Threading.CancellationToken)"/>:
+/// either an <see cref="Ack"/> (peer accepted reattach) or a
+/// <see cref="RejectCode"/> (peer refused — caller decides on the fallback
+/// strategy). Exactly one of the two is non-null.
+/// </summary>
+internal readonly record struct EstablishReuseResult(EstablishResult? Ack, EstablishRejectCode? RejectCode)
+{
+    public bool Accepted => Ack.HasValue;
+
+    internal static EstablishReuseResult FromAck(EstablishResult ack) => new(ack, null);
+    internal static EstablishReuseResult FromReject(EstablishRejectCode code) => new(null, code);
+}

@@ -1,1 +1,32 @@
 #nullable enable
+B3.EntryPoint.Client.EntryPointClient.ReconnectAsync(B3.EntryPoint.Client.ReconnectMode mode, System.Func<uint, uint>? nextSessionVerIdSelector, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.ReconnectOutcome>!
+B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException
+B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException.Code.get -> B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode
+B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException.FixpEstablishRejectedException(B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code) -> void
+B3.EntryPoint.Client.IEntryPointClient.ReconnectAsync(B3.EntryPoint.Client.ReconnectMode mode, System.Func<uint, uint>? nextSessionVerIdSelector, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.ReconnectOutcome>!
+B3.EntryPoint.Client.ReconnectKind
+B3.EntryPoint.Client.ReconnectKind.Reattached = 0 -> B3.EntryPoint.Client.ReconnectKind
+B3.EntryPoint.Client.ReconnectKind.Renegotiated = 1 -> B3.EntryPoint.Client.ReconnectKind
+B3.EntryPoint.Client.ReconnectMode
+B3.EntryPoint.Client.ReconnectMode.AlwaysNegotiate = 1 -> B3.EntryPoint.Client.ReconnectMode
+B3.EntryPoint.Client.ReconnectMode.EstablishReuseThenNegotiate = 0 -> B3.EntryPoint.Client.ReconnectMode
+B3.EntryPoint.Client.ReconnectOutcome
+B3.EntryPoint.Client.ReconnectOutcome.Deconstruct(out B3.EntryPoint.Client.ReconnectKind Kind, out uint SessionVerId, out ulong ServerNextSeqNoExpected, out ulong ServerLastIncomingSeqNoSeen, out bool RetransmitWindowReady) -> void
+B3.EntryPoint.Client.ReconnectOutcome.Equals(B3.EntryPoint.Client.ReconnectOutcome other) -> bool
+B3.EntryPoint.Client.ReconnectOutcome.Kind.get -> B3.EntryPoint.Client.ReconnectKind
+B3.EntryPoint.Client.ReconnectOutcome.Kind.init -> void
+B3.EntryPoint.Client.ReconnectOutcome.ReconnectOutcome() -> void
+B3.EntryPoint.Client.ReconnectOutcome.ReconnectOutcome(B3.EntryPoint.Client.ReconnectKind Kind, uint SessionVerId, ulong ServerNextSeqNoExpected, ulong ServerLastIncomingSeqNoSeen, bool RetransmitWindowReady) -> void
+B3.EntryPoint.Client.ReconnectOutcome.RetransmitWindowReady.get -> bool
+B3.EntryPoint.Client.ReconnectOutcome.RetransmitWindowReady.init -> void
+B3.EntryPoint.Client.ReconnectOutcome.ServerLastIncomingSeqNoSeen.get -> ulong
+B3.EntryPoint.Client.ReconnectOutcome.ServerLastIncomingSeqNoSeen.init -> void
+B3.EntryPoint.Client.ReconnectOutcome.ServerNextSeqNoExpected.get -> ulong
+B3.EntryPoint.Client.ReconnectOutcome.ServerNextSeqNoExpected.init -> void
+B3.EntryPoint.Client.ReconnectOutcome.SessionVerId.get -> uint
+B3.EntryPoint.Client.ReconnectOutcome.SessionVerId.init -> void
+override B3.EntryPoint.Client.ReconnectOutcome.GetHashCode() -> int
+static B3.EntryPoint.Client.ReconnectOutcome.operator !=(B3.EntryPoint.Client.ReconnectOutcome left, B3.EntryPoint.Client.ReconnectOutcome right) -> bool
+static B3.EntryPoint.Client.ReconnectOutcome.operator ==(B3.EntryPoint.Client.ReconnectOutcome left, B3.EntryPoint.Client.ReconnectOutcome right) -> bool
+~override B3.EntryPoint.Client.ReconnectOutcome.Equals(object obj) -> bool
+~override B3.EntryPoint.Client.ReconnectOutcome.ToString() -> string

@@ -39,7 +39,7 @@ public class ConnectFailureCleanupTests
 
         await using var client = new EntryPointClient(Options(peer));
 
-        await Assert.ThrowsAsync<FixpRejectedException>(() => client.ConnectAsync());
+        await Assert.ThrowsAsync<FixpEstablishRejectedException>(() => client.ConnectAsync());
 
         // Internal state must be fully reset: _session and _tcp both null,
         // and the public State accessor must report Disconnected (which it
@@ -62,7 +62,7 @@ public class ConnectFailureCleanupTests
 
         await using var client = new EntryPointClient(Options(peer));
 
-        await Assert.ThrowsAsync<FixpRejectedException>(() => client.ConnectAsync());
+        await Assert.ThrowsAsync<FixpEstablishRejectedException>(() => client.ConnectAsync());
         Assert.False(client.HasActiveSessionForTesting);
 
         // Flip the peer back to accept-mode and reconnect. If the prior

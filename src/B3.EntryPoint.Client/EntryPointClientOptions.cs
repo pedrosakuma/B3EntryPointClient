@@ -133,7 +133,7 @@ public sealed class EntryPointClientOptions
     /// <summary>
     /// Hard timeout for awaiting session-scoped background tasks (idle
     /// watchdog, persistence worker) during
-    /// <see cref="EntryPointClient.ReconnectAsync"/> and
+    /// <see cref="EntryPointClient.ReconnectAsync(uint, System.Threading.CancellationToken)"/> and
     /// <see cref="EntryPointClient.DisposeAsync"/>. Tasks still running after
     /// this deadline are logged (event 4009) and abandoned; the underlying
     /// cancellation tokens are then cancelled to unblock any I/O. Defaults to

@@ -108,6 +108,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         public uint OutSeq = 1;
         public CancellationTokenSource? KeepAliveCts;
         public readonly SemaphoreSlim SendLock = new(1, 1);
+        public bool SawNegotiate;
     }
 
     private sealed record ActiveConnection(Stream Stream, ConnectionState State, B3.Entrypoint.Fixp.Sbe.V6.SessionID SessionId);
@@ -177,6 +178,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                                 // Credentials map configured and firm not allowed → close cold.
                                 return;
                             }
+                            state.SawNegotiate = true;
                             await SendNegotiateResponseAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case EstablishData.MESSAGE_ID:
@@ -373,6 +375,11 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         ref readonly var req = ref reader.Data;
 
         var attempt = System.Threading.Interlocked.Increment(ref _establishAttempts);
+        if (_options.RejectEstablishWithoutPriorNegotiate && !state.SawNegotiate)
+        {
+            await SendEstablishRejectAsync(stream, state, req.SessionID, req.SessionVerID, req.Timestamp, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.UNNEGOTIATED, ct).ConfigureAwait(false);
+            return;
+        }
         if (_options.EstablishRejectAfter is int threshold && attempt >= threshold)
         {
             await SendEstablishRejectAsync(stream, state, req.SessionID, req.SessionVerID, req.Timestamp, _options.EstablishRejectCodeOverride, ct).ConfigureAwait(false);
@@ -384,14 +391,17 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
         EstablishAckData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
 
+        var nextSeq = _options.EstablishAckNextSeqNoOverride ?? 1u;
+        var lastIncoming = _options.EstablishAckLastIncomingSeqNoOverride
+            ?? (req.NextSeqNo.Value > 0u ? req.NextSeqNo.Value - 1u : 0u);
         var ack = new EstablishAckData
         {
             SessionID = req.SessionID,
             SessionVerID = req.SessionVerID,
             RequestTimestamp = req.Timestamp,
             KeepAliveInterval = req.KeepAliveInterval,
-            NextSeqNo = new SeqNum(1u),
-            LastIncomingSeqNo = new SeqNum(req.NextSeqNo.Value > 0u ? req.NextSeqNo.Value - 1u : 0u),
+            NextSeqNo = new SeqNum(nextSeq),
+            LastIncomingSeqNo = new SeqNum(lastIncoming),
         };
         var keepAliveMs = req.KeepAliveInterval.Time;
         var sessionIdLocal = req.SessionID;

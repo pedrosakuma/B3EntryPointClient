@@ -68,4 +68,30 @@ public sealed class TestPeerOptions
     /// the (empty) <c>Retransmission</c> reply. Defaults to <c>null</c>.
     /// </summary>
     public B3.Entrypoint.Fixp.Sbe.V6.RetransmitRejectCode? RetransmitRejectCode { get; set; }
+
+    /// <summary>
+    /// When true, the peer rejects any <c>Establish</c> received on a TCP
+    /// connection that has not yet seen a <c>Negotiate</c> on the same
+    /// connection, with <see cref="B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.UNNEGOTIATED"/>.
+    /// Used by #173 reconnect tests to simulate the spec's
+    /// "Establish reuse rejected, must renegotiate" path. Defaults to false
+    /// (legacy behaviour: peer accepts Establish on any TCP connection).
+    /// </summary>
+    public bool RejectEstablishWithoutPriorNegotiate { get; set; }
+
+    /// <summary>
+    /// When non-null, overrides the <c>NextSeqNo</c> field the peer writes in
+    /// every <c>EstablishmentAck</c>. Lets tests assert
+    /// <c>ReconnectOutcome.RetransmitWindowReady</c> by forcing an inbound
+    /// gap. Defaults to <c>null</c> (peer mirrors the inbound counter).
+    /// </summary>
+    public uint? EstablishAckNextSeqNoOverride { get; set; }
+
+    /// <summary>
+    /// When non-null, overrides the <c>LastIncomingSeqNo</c> field the peer
+    /// writes in every <c>EstablishmentAck</c>. Lets tests assert
+    /// <c>ReconnectOutcome.RetransmitWindowReady</c> by forcing an outbound
+    /// gap. Defaults to <c>null</c> (peer mirrors the local counter).
+    /// </summary>
+    public uint? EstablishAckLastIncomingSeqNoOverride { get; set; }
 }
