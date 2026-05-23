@@ -1161,6 +1161,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             {
                 var ack = reuse.Ack!.Value;
                 _options.Logger.Established(_options.Endpoint);
+
+                // The new FixpClientSession was just constructed with its
+                // outbound counter at 0. On reattach the application sequence
+                // continues across the TCP blip, so the new session must
+                // resume from `localLastAssignedOutbound + 1` BEFORE any app
+                // frame is sent. HydrateFromSnapshotAsync (invoked inside
+                // FinishEstablishedAsync) only seeds from a SessionStateStore;
+                // when no store is configured, the in-memory counter would
+                // otherwise restart at 1 and the next app send would rewind
+                // MsgSeqNum on the wire.
+                _session!.ResumeOutboundSeqNum(localLastAssignedOutbound + 1UL);
+
                 await FinishEstablishedAsync(ct).ConfigureAwait(false);
                 StartIdleWatchdog();
 
