@@ -8,7 +8,7 @@ namespace B3.EntryPoint.Client;
 /// the missing range from the prior session cannot be served by a §4.7
 /// <c>RetransmitRequest</c> against the new session. Consumers should reconcile
 /// out-of-band (e.g. via a business-layer order-status query). Emitted exactly
-/// once per <see cref="EntryPointClient.ReconnectAsync"/> call. (#138)
+/// once per <see cref="EntryPointClient.ReconnectAsync(uint, System.Threading.CancellationToken)"/> call. (#138)
 /// </summary>
 public sealed class InboundGapAtReconnectEventArgs : EventArgs
 {

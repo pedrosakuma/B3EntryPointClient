@@ -10,10 +10,19 @@ public sealed class Credentials
 {
     private readonly byte[] _bytes;
 
+    /// <summary>
+    /// Schema-defined upper bound on <c>CredentialsEncoding.length</c>
+    /// (schema 8.4.2 §720, <c>uint8 maxValue="128"</c>). The gateway will
+    /// reject Establish/Negotiate with a longer Credentials field.
+    /// </summary>
+    public const int MaxLengthBytes = 128;
+
     public Credentials(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length > 255)
-            throw new ArgumentException("Credentials must fit in a single SBE varData byte length (≤ 255).", nameof(bytes));
+        if (bytes.Length > MaxLengthBytes)
+            throw new ArgumentException(
+                $"Credentials must be ≤ {MaxLengthBytes} bytes per schema CredentialsEncoding.length maxValue.",
+                nameof(bytes));
         _bytes = bytes.ToArray();
     }
 

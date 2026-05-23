@@ -130,7 +130,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     public event EventHandler<TerminatedEventArgs>? Terminated;
 
     /// <summary>
-    /// Raised exactly once per <see cref="ReconnectAsync"/> call when the prior
+    /// Raised exactly once per <see cref="ReconnectAsync(uint, System.Threading.CancellationToken)"/> call when the prior
     /// session terminated with an unrecovered inbound app-frame gap. The peer
     /// bumps <c>SessionVerID</c> on reconnect and resets its outbound counter
     /// to 1, so the missing range cannot be served by a §4.7 <c>RetransmitRequest</c>
@@ -212,71 +212,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 _options.Logger.Established(_options.Endpoint);
             }
 
-            await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
-
-            // #152: persist the session identity (SessionId/SessionVerId) at
-            // lifecycle boundaries, not on a delta count. Writing immediately
-            // after a successful Establish guarantees `snapshot.json` exists
-            // even if the host restarts before `StateCompactEveryDeltas`
-            // appends accumulate, so warm-restart and Reconnect can resolve
-            // the verId the peer actually accepted.
-            await PersistSnapshotAsync(ct).ConfigureAwait(false);
-
-            StartPersistenceWorker();
-
-            _session.OnInboundEvent = OnInboundEventForPersistence;
-
-            _session.StartInboundLoop(_events.Writer);
-
-            _keepAlive = new KeepAliveScheduler(
-                _options.KeepAliveInterval,
-                sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
-                nextSeqNo: () => _session.PeekNextOutboundSeqNum());
-            _session.OnInboundSequence = nextSeq =>
-            {
-                _lastInboundUtc = DateTime.UtcNow;
-                _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
-            };
-            _keepAlive.Start();
-
-            _retransmit = new RetransmitRequestHandler(
-                sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
-            _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
-            {
-                _lastInboundUtc = DateTime.UtcNow;
-                // The peer's reply to our outstanding RetransmitRequest. Whether
-                // it carries frames (count>0) or is an empty completion (count=0,
-                // observed against TestPeer / some gateway error paths), we clear
-                // the in-flight flag so a future gap can issue a new request.
-                // The retransmitted frames themselves flow through the inbound
-                // loop and OnInboundEventForPersistence advances the contiguous
-                // tail accordingly. (#138)
-                lock (_inboundGapGate) { _gapRequestInFlight = false; }
-                _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
-            };
-            _session.OnInboundRetransmitReject = (code, reqNanos) =>
-            {
-                _lastInboundUtc = DateTime.UtcNow;
-                // Reject clears the in-flight flag — a later gap may need to
-                // re-request after a transient peer-side condition lifts. (#138)
-                lock (_inboundGapGate) { _gapRequestInFlight = false; }
-                _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
-            };
-            _session.OnInboundNotApplied = (from, count) =>
-            {
-                _lastInboundUtc = DateTime.UtcNow;
-                _retransmit!.RaiseNotAppliedReceived(from, count);
-            };
-            _session.OnInboundTerminate = code =>
-            {
-                _lastInboundUtc = DateTime.UtcNow;
-                _options.Logger.InboundTerminate(code);
-                EntryPointTelemetry.Terminations.Add(1,
-                    new KeyValuePair<string, object?>("direction", "inbound"),
-                    new KeyValuePair<string, object?>("code", code.ToString()));
-                RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
-            };
-            _lastInboundUtc = DateTime.UtcNow;
+            await FinishEstablishedAsync(ct).ConfigureAwait(false);
         }
         catch
         {
@@ -291,6 +227,83 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Runs everything that must happen after a successful <c>Establish</c>
+    /// (whether full Negotiate+Establish via <see cref="ConnectOnceAsync"/> or
+    /// spec-canonical Establish-reuse via
+    /// <see cref="ReconnectAsync(ReconnectMode, System.Func{uint, uint}?, CancellationToken)"/>):
+    /// snapshot hydration, persistence-worker start, inbound-loop start,
+    /// keep-alive scheduler + retransmit handler wiring (#173).
+    /// </summary>
+    private async Task FinishEstablishedAsync(CancellationToken ct)
+    {
+        await HydrateFromSnapshotAsync(ct).ConfigureAwait(false);
+
+        // #152: persist the session identity (SessionId/SessionVerId) at
+        // lifecycle boundaries, not on a delta count. Writing immediately
+        // after a successful Establish guarantees `snapshot.json` exists
+        // even if the host restarts before `StateCompactEveryDeltas`
+        // appends accumulate, so warm-restart and Reconnect can resolve
+        // the verId the peer actually accepted.
+        await PersistSnapshotAsync(ct).ConfigureAwait(false);
+
+        StartPersistenceWorker();
+
+        _session!.OnInboundEvent = OnInboundEventForPersistence;
+
+        _session.StartInboundLoop(_events.Writer);
+
+        _keepAlive = new KeepAliveScheduler(
+            _options.KeepAliveInterval,
+            sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
+            nextSeqNo: () => _session.PeekNextOutboundSeqNum());
+        _session.OnInboundSequence = nextSeq =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
+        };
+        _keepAlive.Start();
+
+        _retransmit = new RetransmitRequestHandler(
+            sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
+        _session.OnInboundRetransmission = (nextSeq, count, reqNanos) =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            // The peer's reply to our outstanding RetransmitRequest. Whether
+            // it carries frames (count>0) or is an empty completion (count=0,
+            // observed against TestPeer / some gateway error paths), we clear
+            // the in-flight flag so a future gap can issue a new request.
+            // The retransmitted frames themselves flow through the inbound
+            // loop and OnInboundEventForPersistence advances the contiguous
+            // tail accordingly. (#138)
+            lock (_inboundGapGate) { _gapRequestInFlight = false; }
+            _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
+        };
+        _session.OnInboundRetransmitReject = (code, reqNanos) =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            // Reject clears the in-flight flag — a later gap may need to
+            // re-request after a transient peer-side condition lifts. (#138)
+            lock (_inboundGapGate) { _gapRequestInFlight = false; }
+            _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
+        };
+        _session.OnInboundNotApplied = (from, count) =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _retransmit!.RaiseNotAppliedReceived(from, count);
+        };
+        _session.OnInboundTerminate = code =>
+        {
+            _lastInboundUtc = DateTime.UtcNow;
+            _options.Logger.InboundTerminate(code);
+            EntryPointTelemetry.Terminations.Add(1,
+                new KeyValuePair<string, object?>("direction", "inbound"),
+                new KeyValuePair<string, object?>("code", code.ToString()));
+            RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
+        };
+        _lastInboundUtc = DateTime.UtcNow;
     }
 
     private async Task<System.IO.Stream> EstablishTransportStreamAsync(TcpClient tcp, CancellationToken ct)
@@ -977,28 +990,75 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// otherwise the gateway terminates with
     /// <see cref="TerminationCode.InvalidSessionVerId"/>.
     /// </summary>
+    /// <remarks>
+    /// Legacy v0.14.3 overload — equivalent to calling the new
+    /// <see cref="ReconnectAsync(ReconnectMode, System.Func{uint, uint}?, CancellationToken)"/>
+    /// with <see cref="ReconnectMode.AlwaysNegotiate"/> and a constant
+    /// selector. Prefer the new overload when transient TCP drops should
+    /// reattach without burning a <c>SessionVerID</c> (#173).
+    /// </remarks>
+#pragma warning disable RS0027 // optional-param overload predates the longer #173 overload; kept for source compat
     public async Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default)
+#pragma warning restore RS0027
     {
         if (nextSessionVerId <= _options.SessionVerId)
             throw new ArgumentOutOfRangeException(nameof(nextSessionVerId),
                 "Next SessionVerID must be strictly greater than the current one.");
 
+        await ReconnectAsync(ReconnectMode.AlwaysNegotiate, _ => nextSessionVerId, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Spec-canonical reconnect (#173). On
+    /// <see cref="ReconnectMode.EstablishReuseThenNegotiate"/>, sends
+    /// <c>Establish</c> reusing the current <c>SessionVerID</c> first; falls
+    /// back to <c>Negotiate</c> with a strictly-greater <c>SessionVerID</c>
+    /// (chosen via <paramref name="nextSessionVerIdSelector"/>) only when
+    /// <c>Establish</c> is rejected for a recoverable reason. On
+    /// <see cref="ReconnectMode.AlwaysNegotiate"/>, behaves like the legacy
+    /// <see cref="ReconnectAsync(uint, CancellationToken)"/> overload —
+    /// always rotates the <c>SessionVerID</c>. The returned
+    /// <see cref="ReconnectOutcome"/> surfaces which branch was taken plus
+    /// the peer's <c>EstablishmentAck</c> counters when relevant.
+    /// </summary>
+    /// <param name="mode">Reconnect strategy. See <see cref="ReconnectMode"/>.</param>
+    /// <param name="nextSessionVerIdSelector">
+    /// Invoked by the SDK <em>only when</em> a fresh <c>Negotiate</c> is
+    /// actually required (Establish rejected on the reuse path, or
+    /// <see cref="ReconnectMode.AlwaysNegotiate"/> mode). Receives the
+    /// previous <c>SessionVerID</c> and must return a strictly-greater value
+    /// (e.g. the spec's recommended microseconds-since-epoch). When
+    /// <see langword="null"/>, defaults to <c>prev =&gt; prev + 1</c>.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+#pragma warning disable RS0026, RS0027 // intentional overload introduced in #173; legacy retains optional ct
+    public async Task<ReconnectOutcome> ReconnectAsync(
+        ReconnectMode mode,
+        Func<uint, uint>? nextSessionVerIdSelector,
+        CancellationToken ct)
+#pragma warning restore RS0026, RS0027
+    {
+        var selector = nextSessionVerIdSelector ?? (static prev => checked(prev + 1));
+
         // #138: capture an outstanding inbound gap from the prior session
-        // before any state is reset. The peer bumps SessionVerID on reconnect
-        // and resets its outbound to 1, so the missing range is unrecoverable
-        // in-band — surface it via InboundGapAtReconnect after the new
-        // session is up so consumers can reconcile out-of-band.
+        // before any state is reset. On the Renegotiated path the peer bumps
+        // SessionVerID and resets its outbound to 1, so the missing range is
+        // unrecoverable in-band — surface it via InboundGapAtReconnect after
+        // the new session is up so consumers can reconcile out-of-band.
+        // On the Reattached path the gap is recoverable via §4.7 and the
+        // returned ReconnectOutcome.RetransmitWindowReady advertises that.
         ulong gapFrom = 0UL;
         uint gapCount = 0u;
         var priorSessionVerId = (ulong)_options.SessionVerId;
+        ulong localLastAssignedOutbound = _session?.LastAssignedOutboundSeqNum() ?? 0UL;
+        ulong localLastContiguousInbound;
         lock (_inboundGapGate)
         {
+            localLastContiguousInbound = _lastContiguousInboundSeqNum;
             if (_highestInboundSeqNum > _lastContiguousInboundSeqNum)
             {
                 gapFrom = _lastContiguousInboundSeqNum + 1UL;
                 var window = _highestInboundSeqNum - _lastContiguousInboundSeqNum;
-                // window includes both missing and post-gap-buffered seqs;
-                // subtract the latter to get the true missing count.
                 gapCount = (uint)(window - (ulong)_pendingInboundSeqs.Count);
             }
         }
@@ -1011,10 +1071,161 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         catch { /* best-effort */ }
 
-        // Drain background work + dispose transport BEFORE Establishing the new
-        // session, so old persistence/idle/keep-alive cannot race with the new
-        // one (#124).
         await StopActiveSessionAsync(ct).ConfigureAwait(false);
+
+        ReconnectOutcome outcome;
+        if (mode == ReconnectMode.EstablishReuseThenNegotiate)
+        {
+            outcome = await TryReattachOrRenegotiateAsync(selector, localLastAssignedOutbound, localLastContiguousInbound, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            outcome = await RenegotiateAsync(selector, ct).ConfigureAwait(false);
+        }
+
+        // Surface a Renegotiated-path inbound gap (Reattach paths recover
+        // in-band via RetransmitWindowReady — no need to also raise the
+        // out-of-band event, the application can drive a RetransmitRequest
+        // directly from the outcome).
+        if (gapCount > 0u && outcome.Kind == ReconnectKind.Renegotiated)
+        {
+            _options.Logger.InboundGapAtReconnect(priorSessionVerId, gapFrom, gapCount);
+            InboundGapAtReconnect?.Invoke(this,
+                new InboundGapAtReconnectEventArgs(gapFrom, gapCount, priorSessionVerId));
+        }
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// True when the gateway should retain the session across a TCP drop and
+    /// can therefore answer a reused-SessionVerID Establish with
+    /// EstablishmentAck. UNNEGOTIATED / INVALID_SESSIONID /
+    /// INVALID_SESSIONVERID / ALREADY_ESTABLISHED / SESSION_BLOCKED /
+    /// ESTABLISH_ATTEMPTS_EXCEEDED all indicate the peer cannot reattach
+    /// against this SessionVerID but a fresh Negotiate may succeed; every
+    /// other reject code is a hard failure that bumping SessionVerID alone
+    /// will not fix.
+    /// </summary>
+    private static bool IsRecoverableEstablishReject(B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code) => code switch
+    {
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.UNNEGOTIATED => true,
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.ALREADY_ESTABLISHED => true,
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.SESSION_BLOCKED => true,
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.INVALID_SESSIONID => true,
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.INVALID_SESSIONVERID => true,
+        B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.ESTABLISH_ATTEMPTS_EXCEEDED => true,
+        _ => false,
+    };
+
+    private async Task<ReconnectOutcome> TryReattachOrRenegotiateAsync(
+        Func<uint, uint> selector,
+        ulong localLastAssignedOutbound,
+        ulong localLastContiguousInbound,
+        CancellationToken ct)
+    {
+        // -- Reattach attempt: TCP reconnect + Establish (no Negotiate) -----
+        var tcp = new TcpClient();
+        try
+        {
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(_options.ConnectTimeout);
+            await tcp.ConnectAsync(_options.Endpoint.Address, _options.Endpoint.Port, connectCts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            tcp.Dispose();
+            throw;
+        }
+
+        _tcp = tcp;
+        Fixp.EstablishReuseResult reuse;
+        try
+        {
+            var transportStream = await EstablishTransportStreamAsync(tcp, ct).ConfigureAwait(false);
+            _session = new FixpClientSession(transportStream, _options);
+
+            using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish.reuse", ActivityKind.Client))
+            {
+                // Spec §4.5: Establish's NextSeqNo is the client's next
+                // outbound app MsgSeqNum. On reattach (#173) that's the prior
+                // session's last assigned + 1, NOT 1 — sending 1 would look
+                // like a sequence rewind to the gateway and corrupt the
+                // peer-side LastIncomingSeqNo accounting.
+                reuse = await _session.EstablishReuseAsync(localLastAssignedOutbound + 1UL > uint.MaxValue
+                    ? throw new InvalidOperationException("Outbound sequence overflowed uint range.")
+                    : (uint)(localLastAssignedOutbound + 1UL), ct).ConfigureAwait(false);
+            }
+
+            if (reuse.Accepted)
+            {
+                var ack = reuse.Ack!.Value;
+                _options.Logger.Established(_options.Endpoint);
+
+                // The new FixpClientSession was just constructed with its
+                // outbound counter at 0. On reattach the application sequence
+                // continues across the TCP blip, so the new session must
+                // resume from `localLastAssignedOutbound + 1` BEFORE any app
+                // frame is sent. HydrateFromSnapshotAsync (invoked inside
+                // FinishEstablishedAsync) only seeds from a SessionStateStore;
+                // when no store is configured, the in-memory counter would
+                // otherwise restart at 1 and the next app send would rewind
+                // MsgSeqNum on the wire.
+                _session!.ResumeOutboundSeqNum(localLastAssignedOutbound + 1UL);
+
+                await FinishEstablishedAsync(ct).ConfigureAwait(false);
+                StartIdleWatchdog();
+
+                // Detect a gap in either direction relative to the peer's view.
+                // Inbound gap: peer reports it will send seq >= NextSeqNo, but
+                // the client's contiguous tail is below NextSeqNo - 1 (i.e.
+                // some inbound frames between localLastContiguousInbound+1 and
+                // NextSeqNo-1 were lost and the peer can re-deliver them).
+                // Outbound gap: peer confirms only up to LastIncomingSeqNo,
+                // and the client has assigned strictly more than that — the
+                // unconfirmed tail must be re-sent.
+                var inboundGap = ack.NextSeqNo > localLastContiguousInbound + 1UL;
+                var outboundGap = localLastAssignedOutbound > ack.LastIncomingSeqNo;
+                var retransmitWindowReady = inboundGap || outboundGap;
+
+                return new ReconnectOutcome(
+                    Kind: ReconnectKind.Reattached,
+                    SessionVerId: _options.SessionVerId,
+                    ServerNextSeqNoExpected: ack.NextSeqNo,
+                    ServerLastIncomingSeqNoSeen: ack.LastIncomingSeqNo,
+                    RetransmitWindowReady: retransmitWindowReady);
+            }
+        }
+        catch
+        {
+            // Reuse attempt blew up (transport / decode / unexpected frame).
+            // The current _session is the freshly-built reuse session whose
+            // counters are still at 0; do NOT persist a snapshot from it
+            // because that would clobber the good snapshot saved when the
+            // prior live session was torn down before reattach.
+            await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
+            throw;
+        }
+
+        // Reuse rejected — tear down without persisting (same reason as above)
+        // and decide on the fallback path.
+        await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
+
+        var code = reuse.RejectCode!.Value;
+        if (!IsRecoverableEstablishReject(code))
+            throw new Fixp.FixpEstablishRejectedException(code);
+
+        _options.Logger.EstablishReuseRejected(code);
+        return await RenegotiateAsync(selector, ct).ConfigureAwait(false);
+    }
+
+    private async Task<ReconnectOutcome> RenegotiateAsync(Func<uint, uint> selector, CancellationToken ct)
+    {
+        var prev = _options.SessionVerId;
+        var next = selector(prev);
+        if (next <= prev)
+            throw new InvalidOperationException(
+                $"nextSessionVerIdSelector returned {next} which is not strictly greater than the current SessionVerId {prev}.");
 
         // Reset inbound seq tracking — the new session starts at peer seq 1.
         // HydrateFromSnapshotAsync (called from the next ConnectAsync) will
@@ -1027,15 +1238,15 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _gapRequestInFlight = false;
         }
 
-        _options.SessionVerId = nextSessionVerId;
+        _options.SessionVerId = next;
         await ConnectAsync(ct).ConfigureAwait(false);
 
-        if (gapCount > 0u)
-        {
-            _options.Logger.InboundGapAtReconnect(priorSessionVerId, gapFrom, gapCount);
-            InboundGapAtReconnect?.Invoke(this,
-                new InboundGapAtReconnectEventArgs(gapFrom, gapCount, priorSessionVerId));
-        }
+        return new ReconnectOutcome(
+            Kind: ReconnectKind.Renegotiated,
+            SessionVerId: next,
+            ServerNextSeqNoExpected: 0UL,
+            ServerLastIncomingSeqNoSeen: 0UL,
+            RetransmitWindowReady: false);
     }
 
     /// <summary>
@@ -1071,10 +1282,10 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// timeout (<see cref="EntryPointClientOptions.SessionTeardownTimeout"/>),
     /// then disposes keep-alive, the FIXP session (which awaits its inbound
     /// loop), the TCP transport and the retransmit handler. Shared by
-    /// <see cref="ReconnectAsync"/> and <see cref="DisposeAsync"/> so the
+    /// <see cref="ReconnectAsync(uint, System.Threading.CancellationToken)"/> and <see cref="DisposeAsync"/> so the
     /// same ordering applies in both paths (#124).
     /// </summary>
-    private async Task StopActiveSessionAsync(CancellationToken ct)
+    private async Task StopActiveSessionAsync(CancellationToken ct, bool persistSnapshot = true)
     {
         var timeout = _options.SessionTeardownTimeout;
         if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
@@ -1085,7 +1296,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         //    CTS below is cancelled. Guarantees the on-disk snapshot is
         //    contiguous with the last in-memory state on graceful shutdown
         //    and on Reconnect (#152).
-        await PersistSnapshotAsync(ct).ConfigureAwait(false);
+        //
+        //    #173 caller note: pass persistSnapshot=false when tearing down
+        //    a transient Establish-reuse session that never reached
+        //    Established — snapshotting its zeroed counters would corrupt
+        //    the good snapshot saved from the prior live session.
+        if (persistSnapshot)
+            await PersistSnapshotAsync(ct).ConfigureAwait(false);
 
         // 1. Cancel session-scoped CTSs and complete the persistence channel
         //    so its worker drains the in-flight queue and exits.

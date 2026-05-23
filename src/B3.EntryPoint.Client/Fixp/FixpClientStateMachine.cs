@@ -48,6 +48,11 @@ public sealed class FixpClientStateMachine
             (FixpClientState.Negotiating, FixpClientTrigger.NegotiateResponseReceived) => FixpClientState.Negotiated,
             (FixpClientState.Negotiating, FixpClientTrigger.NegotiateRejectReceived) => FixpClientState.Terminating,
             (FixpClientState.Negotiated, FixpClientTrigger.SendEstablish) => FixpClientState.Establishing,
+            // Spec-canonical reattach (#173): a client recovering a same-SessionVerID
+            // session over a freshly reconnected TCP socket sends Establish without
+            // a preceding Negotiate. The peer answers with EstablishmentAck on the
+            // happy path or EstablishReject(UNNEGOTIATED|…) when it cannot reattach.
+            (FixpClientState.TcpConnected, FixpClientTrigger.SendEstablish) => FixpClientState.Establishing,
             (FixpClientState.Establishing, FixpClientTrigger.EstablishAckReceived) => FixpClientState.Established,
             (FixpClientState.Establishing, FixpClientTrigger.EstablishRejectReceived) => FixpClientState.Terminating,
             _ => null,

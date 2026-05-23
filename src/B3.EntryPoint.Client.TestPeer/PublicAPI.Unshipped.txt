@@ -1,1 +1,7 @@
 #nullable enable
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.get -> bool
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.get -> uint?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckLastIncomingSeqNoOverride.get -> uint?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckLastIncomingSeqNoOverride.set -> void

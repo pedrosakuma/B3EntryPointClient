@@ -32,7 +32,7 @@ namespace B3.EntryPoint.Conformance.Spec_4_7_Retransmit;
 /// <c>_lastInboundSeqNum</c> as a running max — a gap (e.g. inbound seqs
 /// arriving as <c>1, 2, 4, 5</c>) silently advances the counter to <c>5</c>
 /// without ever surfacing a §4.7 <c>RetransmitRequest</c>, and
-/// <see cref="EntryPointClient.ReconnectAsync"/> bumps SessionVerID, which
+/// <see cref="EntryPointClient.ReconnectAsync(uint, System.Threading.CancellationToken)"/> bumps SessionVerID, which
 /// resets the peer's outbound counter to 1, making a same-session retransmit
 /// out of band anyway. Filed as a follow-up issue (see test note below);
 /// the assertion is intentionally commented out so this test stays a

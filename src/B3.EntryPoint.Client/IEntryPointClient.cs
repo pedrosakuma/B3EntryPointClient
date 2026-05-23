@@ -54,7 +54,31 @@ public interface IEntryPointClient :
     Task FlushAsync(CancellationToken ct = default);
 
     /// <summary>Reconnects with a bumped <c>SessionVerId</c>.</summary>
+    /// <remarks>
+    /// Legacy v0.14.3 overload — equivalent to
+    /// <see cref="ReconnectAsync(ReconnectMode, System.Func{uint, uint}?, CancellationToken)"/>
+    /// with <see cref="ReconnectMode.AlwaysNegotiate"/>. Prefer the new
+    /// overload to enable spec-canonical reattach (#173).
+    /// </remarks>
+#pragma warning disable RS0027 // optional-param overload predates the longer #173 overload; kept for source compat
     Task ReconnectAsync(uint nextSessionVerId, CancellationToken ct = default);
+#pragma warning restore RS0027
+
+    /// <summary>
+    /// Spec-canonical reconnect (#173). On
+    /// <see cref="ReconnectMode.EstablishReuseThenNegotiate"/> tries
+    /// <c>Establish</c> reusing the same <c>SessionVerID</c> first and falls
+    /// back to <c>Negotiate</c> only when the gateway rejects with a
+    /// recoverable code (<c>UNNEGOTIATED</c>, <c>SESSION_BLOCKED</c>,
+    /// <c>INVALID_SESSIONID</c>, <c>INVALID_SESSIONVERID</c>,
+    /// <c>ALREADY_ESTABLISHED</c>, <c>ESTABLISH_ATTEMPTS_EXCEEDED</c>).
+    /// </summary>
+#pragma warning disable RS0026, RS0027 // intentional overload introduced in #173; legacy retains optional ct
+    Task<ReconnectOutcome> ReconnectAsync(
+        ReconnectMode mode,
+        Func<uint, uint>? nextSessionVerIdSelector,
+        CancellationToken ct);
+#pragma warning restore RS0026, RS0027
 
     /// <summary>Snapshot of in-memory client health counters.</summary>
     ClientHealth GetHealth();

@@ -71,6 +71,33 @@ public class FixpClientStateMachineTests
         }
     }
 
+    /// <summary>
+    /// Spec §4.8 mirror of <c>SendTerminate</c>: when the PEER initiates the
+    /// teardown via an inbound <c>Terminate</c>, the state machine must
+    /// advance away from <see cref="FixpClientState.Established"/> so that
+    /// outbound app sends gated by <c>EnsureEstablished</c> in
+    /// <c>EntryPointClient</c> stop being accepted on a TCP socket the peer
+    /// is about to close.
+    /// </summary>
+    [Fact]
+    public void TerminateReceived_FromAnyLiveState_IsAllowed()
+    {
+        foreach (var live in new[]
+        {
+            FixpClientState.TcpConnected,
+            FixpClientState.Negotiating,
+            FixpClientState.Negotiated,
+            FixpClientState.Establishing,
+            FixpClientState.Established,
+        })
+        {
+            var sm = AdvanceTo(live);
+            Assert.True(sm.CanFire(FixpClientTrigger.TerminateReceived));
+            sm.Fire(FixpClientTrigger.TerminateReceived);
+            Assert.Equal(FixpClientState.Terminating, sm.State);
+        }
+    }
+
     [Fact]
     public void InvalidTransition_Throws()
     {

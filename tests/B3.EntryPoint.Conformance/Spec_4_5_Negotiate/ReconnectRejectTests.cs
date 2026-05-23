@@ -27,7 +27,7 @@ public class ReconnectRejectTests
         await client.ConnectAsync();
         Assert.Equal(FixpClientState.Established, client.State);
 
-        await Assert.ThrowsAsync<FixpRejectedException>(
+        await Assert.ThrowsAsync<FixpEstablishRejectedException>(
             async () => await client.ReconnectAsync(fx.ClientOptions.SessionVerId + 1));
     }
 }

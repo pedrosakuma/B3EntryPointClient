@@ -5,7 +5,7 @@ namespace B3.EntryPoint.Client.State;
 
 /// <summary>
 /// Snapshot of FIXP session state needed to perform a warm-restart via
-/// <see cref="EntryPointClient.ReconnectAsync"/>. Persisted via
+/// <see cref="EntryPointClient.ReconnectAsync(uint, System.Threading.CancellationToken)"/>. Persisted via
 /// <see cref="ISessionStateStore.SaveAsync"/>.
 /// </summary>
 public sealed record SessionSnapshot
