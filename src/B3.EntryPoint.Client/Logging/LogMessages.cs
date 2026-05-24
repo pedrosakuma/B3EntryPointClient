@@ -151,6 +151,26 @@ internal static partial class LogMessages
         Message = "Inbound frame with unknown SBE templateId={TemplateId} ({FrameLength} bytes) — frame dropped, session continues")]
     public static partial void UnknownInboundTemplateId(this ILogger logger, int templateId, int frameLength);
 
+    [LoggerMessage(EventId = 4016, Level = LogLevel.Information,
+        Message = "Retransmission window completed: nextSeqNo={NextSeqNo} count={Count}")]
+    public static partial void RetransmissionWindowCompleted(this ILogger logger, ulong nextSeqNo, uint count);
+
+    [LoggerMessage(EventId = 4017, Level = LogLevel.Warning,
+        Message = "Retransmission window overlapped by new bounded reply: prior nextSeqNo={PriorNextSeqNo} count={PriorCount} received={PriorReceived}; new nextSeqNo={NewNextSeqNo} count={NewCount}")]
+    public static partial void RetransmissionWindowOverlapped(this ILogger logger, ulong priorNextSeqNo, uint priorCount, uint priorReceived, ulong newNextSeqNo, uint newCount);
+
+    [LoggerMessage(EventId = 4018, Level = LogLevel.Warning,
+        Message = "Retransmission frame out of sequence: window nextSeqNo={NextSeqNo} count={Count} received={Received} expected seq={ExpectedSeq}, got seq={Seq}")]
+    public static partial void RetransmissionFrameOutOfSequence(this ILogger logger, ulong nextSeqNo, uint count, uint received, ulong expectedSeq, ulong seq);
+
+    [LoggerMessage(EventId = 4019, Level = LogLevel.Warning,
+        Message = "Retransmission window under-delivered: nextSeqNo={NextSeqNo} declared count={Count}, received={Received} — peer promised more frames than it sent")]
+    public static partial void RetransmissionWindowUnderDelivered(this ILogger logger, ulong nextSeqNo, uint count, uint received);
+
+    [LoggerMessage(EventId = 4020, Level = LogLevel.Warning,
+        Message = "Retransmission window over-delivered: nextSeqNo={NextSeqNo} declared count={Count}, extra seq={Seq} arrived after completion")]
+    public static partial void RetransmissionWindowOverDelivered(this ILogger logger, ulong nextSeqNo, uint count, ulong seq);
+
     // ---------------- Error (5000–5999) ----------------
 
     [LoggerMessage(EventId = 5000, Level = LogLevel.Error,

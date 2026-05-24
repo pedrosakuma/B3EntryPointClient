@@ -68,6 +68,31 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private readonly SortedSet<ulong> _pendingInboundSeqs = new();
     private bool _gapRequestInFlight;
 
+    // ---- In-retransmission-window tracking (#175) ---------------------------
+    // FIXP §4.7: an inbound Retransmission(NextSeqNo, Count) frame promises the
+    // peer will deliver exactly Count app frames with seqs
+    // [NextSeqNo, NextSeqNo+Count). _activeRetransmission tracks the bounded
+    // reply burst so the client can detect protocol violations:
+    //   * peer over- or under-delivers vs declared Count,
+    //   * peer interleaves a new bounded reply before completing the previous,
+    //   * peer sends a non-retransmitted (live) seq while the reply is open.
+    // None of these conditions is fatal — they're logged at Warning and the
+    // contiguity tracker above keeps doing the right thing — but they're
+    // observable regressions a wire-puro client should not silently absorb.
+    private RetransmissionWindow? _activeRetransmission;
+
+    private readonly record struct RetransmissionWindow(
+        ulong NextSeqNo,
+        uint Count,
+        uint Received,
+        ulong ExpectedSeq,
+        bool Completed,
+        ulong RequestNanos)
+    {
+        public ulong LastSeqInWindow => NextSeqNo + Count - 1UL;
+        public bool Contains(ulong seq) => seq >= NextSeqNo && seq <= LastSeqInWindow;
+    }
+
     /// <summary>
     /// Persistence operation enqueued from the inbound loop and drained by a
     /// single dedicated worker per session lifetime. Replaces the legacy
@@ -278,7 +303,37 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             // The retransmitted frames themselves flow through the inbound
             // loop and OnInboundEventForPersistence advances the contiguous
             // tail accordingly. (#138)
-            lock (_inboundGapGate) { _gapRequestInFlight = false; }
+            lock (_inboundGapGate)
+            {
+                _gapRequestInFlight = false;
+                // #175: install / replace the bounded-reply window so the
+                // contiguity tracker can count frames against the declared
+                // Count and surface peer protocol violations.
+                if (count > 0)
+                {
+                    if (_activeRetransmission is { } prior && !prior.Completed)
+                    {
+                        _options.Logger.RetransmissionWindowUnderDelivered(
+                            prior.NextSeqNo, prior.Count, prior.Received);
+                        _options.Logger.RetransmissionWindowOverlapped(
+                            prior.NextSeqNo, prior.Count, prior.Received,
+                            nextSeq, count);
+                    }
+                    _activeRetransmission = new RetransmissionWindow(
+                        NextSeqNo: nextSeq,
+                        Count: count,
+                        Received: 0u,
+                        ExpectedSeq: nextSeq,
+                        Completed: false,
+                        RequestNanos: reqNanos);
+                }
+                else
+                {
+                    // count==0 is a no-op completion; clear any stale window
+                    // so we don't keep accounting against a phantom reply.
+                    _activeRetransmission = null;
+                }
+            }
             _retransmit!.RaiseRetransmissionReceived(nextSeq, count, NanosToOffset(reqNanos));
         };
         _session.OnInboundRetransmitReject = (code, reqNanos) =>
@@ -286,7 +341,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _lastInboundUtc = DateTime.UtcNow;
             // Reject clears the in-flight flag — a later gap may need to
             // re-request after a transient peer-side condition lifts. (#138)
-            lock (_inboundGapGate) { _gapRequestInFlight = false; }
+            // It also tears down any in-progress retransmission window
+            // because the peer is no longer going to deliver the declared
+            // Count frames. (#175)
+            lock (_inboundGapGate)
+            {
+                _gapRequestInFlight = false;
+                _activeRetransmission = null;
+            }
             _retransmit!.RaiseRetransmitRejected((B3.EntryPoint.Client.Fixp.RetransmitRejectCode)(byte)code, NanosToOffset(reqNanos));
         };
         _session.OnInboundNotApplied = (from, count) =>
@@ -423,6 +485,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _highestInboundSeqNum = snapshot.LastInboundSeqNum;
             _pendingInboundSeqs.Clear();
             _gapRequestInFlight = false;
+            _activeRetransmission = null;
         }
         _outstandingOrders.Clear();
         _outstandingQuoteFlowIds.Clear();
@@ -559,6 +622,71 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         {
             var seq = evt.SeqNum;
             if (seq > _highestInboundSeqNum) _highestInboundSeqNum = seq;
+
+            // #175: account this frame against any active retransmission
+            // window before contiguity bookkeeping. Per §4.7 the burst is
+            // strictly ordered: peer must send seqs NextSeqNo, NextSeqNo+1,
+            // ..., NextSeqNo+Count-1 — exactly Count frames, one per seq.
+            // Any deviation (duplicate inside burst, missing seq, seq out of
+            // range, more frames than declared) is a peer protocol violation
+            // we log but do not act on beyond that. The window stays open
+            // after reaching Count (Completed=true) so we can distinguish a
+            // legitimate next-live frame at NextSeqNo+Count from an extra
+            // in-range frame (genuine over-delivery).
+            if (_activeRetransmission is { } window)
+            {
+                if (!window.Completed && seq == window.ExpectedSeq)
+                {
+                    var nextExpected = window.ExpectedSeq + 1UL;
+                    var received = window.Received + 1u;
+                    var completed = received >= window.Count;
+                    if (completed)
+                    {
+                        _options.Logger.RetransmissionWindowCompleted(
+                            window.NextSeqNo, window.Count);
+                    }
+                    _activeRetransmission = window with
+                    {
+                        Received = received,
+                        ExpectedSeq = nextExpected,
+                        Completed = completed,
+                    };
+                }
+                else if (window.Contains(seq))
+                {
+                    // Seq is inside the declared range. Two flavors:
+                    //   * window not yet Completed → duplicate or
+                    //     out-of-order (logged as out-of-sequence).
+                    //   * window already Completed → genuine over-delivery
+                    //     (peer sent an extra frame in the bounded range
+                    //     after fulfilling the declared count).
+                    if (window.Completed)
+                    {
+                        _options.Logger.RetransmissionWindowOverDelivered(
+                            window.NextSeqNo, window.Count, seq);
+                    }
+                    else
+                    {
+                        _options.Logger.RetransmissionFrameOutOfSequence(
+                            window.NextSeqNo, window.Count, window.Received,
+                            window.ExpectedSeq, seq);
+                    }
+                }
+                else
+                {
+                    // Seq is outside [NextSeqNo, NextSeqNo+Count). Two cases:
+                    //   * window not Completed → peer terminated the burst
+                    //     early; under-delivery.
+                    //   * window Completed → this is normal next-live
+                    //     traffic; close silently.
+                    if (!window.Completed)
+                    {
+                        _options.Logger.RetransmissionWindowUnderDelivered(
+                            window.NextSeqNo, window.Count, window.Received);
+                    }
+                    _activeRetransmission = null;
+                }
+            }
 
             if (seq == _lastContiguousInboundSeqNum + 1UL)
             {
@@ -697,6 +825,34 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         lock (_inboundGapGate)
             return (_lastContiguousInboundSeqNum, _highestInboundSeqNum, _pendingInboundSeqs.Count, _gapRequestInFlight);
+    }
+
+    // #175
+    internal void OpenRetransmissionWindowForTesting(ulong nextSeqNo, uint count, ulong requestNanos = 0UL)
+    {
+        lock (_inboundGapGate)
+        {
+            if (count == 0u)
+            {
+                _activeRetransmission = null;
+                return;
+            }
+            if (_activeRetransmission is { } prior && !prior.Completed)
+            {
+                _options.Logger.RetransmissionWindowUnderDelivered(
+                    prior.NextSeqNo, prior.Count, prior.Received);
+                _options.Logger.RetransmissionWindowOverlapped(
+                    prior.NextSeqNo, prior.Count, prior.Received,
+                    nextSeqNo, count);
+            }
+            _activeRetransmission = new RetransmissionWindow(nextSeqNo, count, 0u, nextSeqNo, false, requestNanos);
+        }
+    }
+
+    internal (ulong nextSeqNo, uint count, uint received, bool completed)? GetRetransmissionWindowForTesting()
+    {
+        lock (_inboundGapGate)
+            return _activeRetransmission is { } w ? (w.NextSeqNo, w.Count, w.Received, w.Completed) : null;
     }
     internal void RaiseInboundGapAtReconnectForTesting(ulong fromSeqNo, uint count, ulong priorSessionVerId)
         => InboundGapAtReconnect?.Invoke(this, new InboundGapAtReconnectEventArgs(fromSeqNo, count, priorSessionVerId));
@@ -1236,6 +1392,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _highestInboundSeqNum = 0UL;
             _pendingInboundSeqs.Clear();
             _gapRequestInFlight = false;
+            _activeRetransmission = null;
         }
 
         _options.SessionVerId = next;
