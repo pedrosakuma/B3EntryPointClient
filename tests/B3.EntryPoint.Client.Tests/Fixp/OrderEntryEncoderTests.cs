@@ -9,6 +9,7 @@ using B3.EntryPoint.Client.Models;
 using SbeOcrr = B3.Entrypoint.Fixp.Sbe.V6.OrderCancelReplaceRequestData;
 using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
 using SbeNewOrderCross = B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData;
+using SbeNewOrderSingle = B3.Entrypoint.Fixp.Sbe.V6.NewOrderSingleData;
 using SbeQuoteRequest = B3.Entrypoint.Fixp.Sbe.V6.QuoteRequestData;
 using SbeQuote = B3.Entrypoint.Fixp.Sbe.V6.QuoteData;
 using SbeSide = B3.Entrypoint.Fixp.Sbe.V6.Side;
@@ -18,6 +19,9 @@ using SbeCrossPrioritization = B3.Entrypoint.Fixp.Sbe.V6.CrossPrioritization;
 using SbeExecuteUnderlyingTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecuteUnderlyingTrade;
 using SbeSenderLocation = B3.Entrypoint.Fixp.Sbe.V6.SenderLocation;
 using SbeTrader = B3.Entrypoint.Fixp.Sbe.V6.Trader;
+using SbeBoolean = B3.Entrypoint.Fixp.Sbe.V6.Boolean;
+using SbeSelfTradePreventionInstruction = B3.Entrypoint.Fixp.Sbe.V6.SelfTradePreventionInstruction;
+using SbeRoutingInstruction = B3.Entrypoint.Fixp.Sbe.V6.RoutingInstruction;
 
 namespace B3.EntryPoint.Client.Tests.Fixp;
 
@@ -200,6 +204,78 @@ public class OrderEntryEncoderTests
         Assert.Equal(7UL, data.SecurityID.Value);
         Assert.Equal(50UL, data.OrderQty.Value);
         Assert.Equal(123_400L, data.Price.Mantissa);
+    }
+
+    // Issue #177: NewOrderSingle round-trips the wire fields that were
+    // previously inaccessible from the SDK (OrdTagID, MmProtectionReset,
+    // SelfTradePreventionInstruction, RoutingInstruction, InvestorID,
+    // TradingSubAccount).
+    [Fact]
+    public void EncodeNewOrderSingle_RoundTrips_NewWireFields_Issue177()
+    {
+        var req = new NewOrderRequest
+        {
+            ClOrdID = new ClOrdID(99UL),
+            SecurityId = 1,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            OrderQty = 10,
+            Price = 0.05m,
+            OrdTagId = 7,
+            MmProtectionReset = true,
+            SelfTradePreventionInstruction = SelfTradePreventionInstruction.CancelAggressorOrder,
+            RoutingInstruction = RoutingInstruction.BrokerOnly,
+            InvestorId = new InvestorId(Prefix: 1234, Document: 0xCAFEBABE),
+            TradingSubAccount = 555_000U,
+        };
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, req, Opts(), msgSeqNum: 3);
+        var payload = buffer.AsSpan(4 + 8, len - 4 - 8);
+        Assert.True(SbeNewOrderSingle.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal((byte?)7, data.OrdTagID);
+        Assert.Equal(SbeBoolean.TRUE_VALUE, data.MmProtectionReset);
+        Assert.Equal(SbeSelfTradePreventionInstruction.CANCEL_AGGRESSOR_ORDER, data.SelfTradePreventionInstruction);
+        Assert.Equal(SbeRoutingInstruction.BROKER_ONLY, data.RoutingInstruction);
+        Assert.Equal((ushort?)1234, data.InvestorID.Prefix);
+        Assert.Equal((uint?)0xCAFEBABE, data.InvestorID.Document);
+        Assert.Equal((uint?)555_000U, data.TradingSubAccount);
+    }
+
+    // Issue #177: OCRR round-trips the same set of wire fields.
+    [Fact]
+    public void EncodeOrderCancelReplace_RoundTrips_NewWireFields_Issue177()
+    {
+        var req = new ReplaceOrderRequest
+        {
+            ClOrdID = new ClOrdID(2UL),
+            OrigClOrdID = new ClOrdID(1UL),
+            SecurityId = 1,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            OrderQty = 20,
+            Price = 0.10m,
+            OrdTagId = 3,
+            MmProtectionReset = true,
+            SelfTradePreventionInstruction = SelfTradePreventionInstruction.CancelRestingOrder,
+            RoutingInstruction = RoutingInstruction.WaivedPriority,
+            InvestorId = new InvestorId(Prefix: 4321, Document: 0xDEADBEEF),
+            TradingSubAccount = 999_000U,
+        };
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, req, Opts(), msgSeqNum: 4);
+        var payload = buffer.AsSpan(4 + 8, len - 4 - 8);
+        Assert.True(SbeOcrr.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal((byte?)3, data.OrdTagID);
+        Assert.Equal(SbeBoolean.TRUE_VALUE, data.MmProtectionReset);
+        Assert.Equal(SbeSelfTradePreventionInstruction.CANCEL_RESTING_ORDER, data.SelfTradePreventionInstruction);
+        Assert.Equal(SbeRoutingInstruction.WAIVED_PRIORITY, data.RoutingInstruction);
+        Assert.Equal((ushort?)4321, data.InvestorID.Prefix);
+        Assert.Equal((uint?)0xDEADBEEF, data.InvestorID.Document);
+        Assert.Equal((uint?)999_000U, data.TradingSubAccount);
     }
 
     [Fact]

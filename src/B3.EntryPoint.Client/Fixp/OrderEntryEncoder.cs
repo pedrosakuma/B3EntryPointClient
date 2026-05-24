@@ -17,6 +17,9 @@ using SbeSettlType = B3.Entrypoint.Fixp.Sbe.V6.SettlType;
 using SbeExecuteUnderlyingTrade = B3.Entrypoint.Fixp.Sbe.V6.ExecuteUnderlyingTrade;
 using SbeCrossType = B3.Entrypoint.Fixp.Sbe.V6.CrossType;
 using SbeCrossPrioritization = B3.Entrypoint.Fixp.Sbe.V6.CrossPrioritization;
+using SbeSelfTradePreventionInstruction = B3.Entrypoint.Fixp.Sbe.V6.SelfTradePreventionInstruction;
+using SbeRoutingInstruction = B3.Entrypoint.Fixp.Sbe.V6.RoutingInstruction;
+using SbeBoolean = B3.Entrypoint.Fixp.Sbe.V6.Boolean;
 
 namespace B3.EntryPoint.Client.Fixp;
 
@@ -198,15 +201,20 @@ internal static class OrderEntryEncoder
 
         var msg = default(NewOrderSingleData);
         msg.BusinessHeader = BuildBusinessHeader(options, msgSeqNum);
-        msg.MmProtectionReset = global::B3.Entrypoint.Fixp.Sbe.V6.Boolean.FALSE_VALUE;
+        msg.SetOrdTagID(request.OrdTagId);
+        msg.MmProtectionReset = request.MmProtectionReset ? SbeBoolean.TRUE_VALUE : SbeBoolean.FALSE_VALUE;
         msg.ClOrdID = new SbeClOrdID(request.ClOrdID.Value);
         msg.SetAccount(request.Account is null ? null : checked((uint)request.Account.Value));
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 32, 10), options.SenderLocation);
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 42, 5), options.EnteringTrader);
+        msg.SelfTradePreventionInstruction = (SbeSelfTradePreventionInstruction)(byte)request.SelfTradePreventionInstruction;
         msg.SecurityID = new SecurityID(request.SecurityId);
         msg.Side = (SbeSide)(byte)request.Side;
         msg.OrdType = (SbeOrdType)(byte)request.OrderType;
         msg.TimeInForce = (SbeTimeInForce)(byte)request.TimeInForce;
+        msg.SetRoutingInstruction(request.RoutingInstruction is null
+            ? null
+            : (SbeRoutingInstruction)(byte)request.RoutingInstruction.Value);
         msg.OrderQty = new Quantity(request.OrderQty);
         if (request.Price.HasValue)
             BinaryPrimitives.WriteInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 68, 8), PriceMantissa(request.Price.Value));
@@ -226,6 +234,13 @@ internal static class OrderEntryEncoder
         if (request.ExpireDate.HasValue)
             BinaryPrimitives.WriteUInt16LittleEndian(MemoryMarshalAsBytes(ref msg, 105, 2),
                 (ushort)((request.ExpireDate.Value - DateTimeOffset.UnixEpoch).Days));
+        if (request.InvestorId is { } iid)
+        {
+            // InvestorID composite @ offset 119: ushort prefix + uint document, sequential pack=1.
+            BinaryPrimitives.WriteUInt16LittleEndian(MemoryMarshalAsBytes(ref msg, 119, 2), iid.Prefix);
+            BinaryPrimitives.WriteUInt32LittleEndian(MemoryMarshalAsBytes(ref msg, 121, 4), iid.Document);
+        }
+        msg.SetTradingSubAccount(request.TradingSubAccount);
 
         if (!NewOrderSingleData.TryEncode(msg, buffer.Slice(SofhSize + SbeHeaderSize),
                 ReadOnlySpan<byte>.Empty, memoBytes, out _))
@@ -247,15 +262,20 @@ internal static class OrderEntryEncoder
 
         var msg = default(OrderCancelReplaceRequestData);
         msg.BusinessHeader = BuildBusinessHeader(options, msgSeqNum);
-        msg.MmProtectionReset = global::B3.Entrypoint.Fixp.Sbe.V6.Boolean.FALSE_VALUE;
+        msg.SetOrdTagID(request.OrdTagId);
+        msg.MmProtectionReset = request.MmProtectionReset ? SbeBoolean.TRUE_VALUE : SbeBoolean.FALSE_VALUE;
         msg.ClOrdID = new SbeClOrdID(request.ClOrdID.Value);
         msg.SetAccount(request.Account is null ? null : checked((uint)request.Account.Value));
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 32, 10), options.SenderLocation);
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 42, 5), options.EnteringTrader);
+        msg.SelfTradePreventionInstruction = (SbeSelfTradePreventionInstruction)(byte)request.SelfTradePreventionInstruction;
         msg.SecurityID = new SecurityID(request.SecurityId);
         msg.Side = (SbeSide)(byte)request.Side;
         msg.OrdType = (SbeOrdType)(byte)request.OrderType;
         msg.SetTimeInForce((SbeTimeInForce)(byte)request.TimeInForce);
+        msg.SetRoutingInstruction(request.RoutingInstruction is null
+            ? null
+            : (SbeRoutingInstruction)(byte)request.RoutingInstruction.Value);
         msg.OrderQty = new Quantity(request.OrderQty);
         // Price@68 is PriceOptional (composite): no public setter, write mantissa directly.
         if (request.Price.HasValue)
@@ -274,6 +294,13 @@ internal static class OrderEntryEncoder
         msg.SetAccountType((SbeAccountType)(byte)request.AccountType);
         if (request.ExpireDate.HasValue)
             msg.SetExpireDate((ushort)((request.ExpireDate.Value - DateTimeOffset.UnixEpoch).Days));
+        if (request.InvestorId is { } iid)
+        {
+            // InvestorID composite @ offset 136: ushort prefix + uint document, sequential pack=1.
+            BinaryPrimitives.WriteUInt16LittleEndian(MemoryMarshalAsBytes(ref msg, 136, 2), iid.Prefix);
+            BinaryPrimitives.WriteUInt32LittleEndian(MemoryMarshalAsBytes(ref msg, 138, 4), iid.Document);
+        }
+        msg.SetTradingSubAccount(request.TradingSubAccount);
 
         if (!OrderCancelReplaceRequestData.TryEncode(msg, buffer.Slice(SofhSize + SbeHeaderSize),
                 ReadOnlySpan<byte>.Empty, memoBytes, out _))

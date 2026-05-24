@@ -56,6 +56,37 @@ public enum AccountType : byte
 }
 
 /// <summary>
+/// Self-trade prevention instruction (schema enum
+/// <c>SelfTradePreventionInstruction</c>, FIX tag 35539). Indicates which
+/// order should be canceled when a self-trade is detected.
+/// </summary>
+public enum SelfTradePreventionInstruction : byte
+{
+    None = 0,
+    CancelAggressorOrder = 1,
+    CancelRestingOrder = 2,
+    CancelBothOrders = 3,
+}
+
+/// <summary>
+/// Additional order routing instruction (schema enum <c>RoutingInstruction</c>,
+/// FIX tag 35487, optional, <c>sinceVersion=2</c>).
+/// </summary>
+public enum RoutingInstruction : byte
+{
+    RetailLiquidityTaker = 1,
+    WaivedPriority = 2,
+    BrokerOnly = 3,
+    BrokerOnlyRemoval = 4,
+}
+
+/// <summary>
+/// Self-trade prevention / mass-cancel-on-behalf investor identification
+/// (schema composite <c>InvestorID</c>, FIX tag 35508).
+/// </summary>
+public readonly record struct InvestorId(ushort Prefix, uint Document);
+
+/// <summary>
 /// Logical request shape for <c>NewOrderSingle</c> (schema §6). The client
 /// converts user-friendly fields (decimal <see cref="Price"/>) to the wire
 /// encoding (fixed-point mantissa with exponent -4, i.e. <c>price × 10_000</c>)
@@ -76,6 +107,18 @@ public sealed record NewOrderRequest
     public ulong? MinQty { get; init; }
     public ulong? MaxFloor { get; init; }
     public string? MemoText { get; init; }
+    /// <summary>FIX tag 35505 — order tag identifier. Optional; default = absent (wire null = 0).</summary>
+    public byte? OrdTagId { get; init; }
+    /// <summary>FIX tag 9773 — when <see langword="true"/>, resets Market Maker Protection.</summary>
+    public bool MmProtectionReset { get; init; }
+    /// <summary>FIX tag 35539 — self-trade prevention instruction. Defaults to <see cref="SelfTradePreventionInstruction.None"/>.</summary>
+    public SelfTradePreventionInstruction SelfTradePreventionInstruction { get; init; } = SelfTradePreventionInstruction.None;
+    /// <summary>FIX tag 35487 — additional routing instruction (optional, <c>sinceVersion=2</c>).</summary>
+    public RoutingInstruction? RoutingInstruction { get; init; }
+    /// <summary>FIX tag 35508 — investor id for self-trade prevention / mass-cancel-on-behalf (<c>sinceVersion=1</c>).</summary>
+    public InvestorId? InvestorId { get; init; }
+    /// <summary>FIX tag 35121 — trading sub-account for associating risk limits (optional, <c>sinceVersion=5</c>).</summary>
+    public uint? TradingSubAccount { get; init; }
 }
 
 /// <summary>
