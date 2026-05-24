@@ -101,6 +101,37 @@ public class OrderEntryEncoderTests
         Assert.Equal((ushort)102, tid);
     }
 
+    // Regression test for issue #179: the encoder used to write
+    // `(byte)request.AccountType` at offset 100 of NewOrderSingleData. Schema
+    // 8.4.2 has no accountType field in NewOrderSingle (only in
+    // OrderCancelReplaceRequest); offset 100 is the start of ExecutingTrader
+    // (TraderOptional, 5 bytes), so the write silently corrupted the first
+    // byte of ExecutingTrader with ASCII 38/39.
+    [Fact]
+    public void EncodeNewOrderSingle_DoesNotCorruptExecutingTrader_Issue179()
+    {
+        var req = new NewOrderRequest
+        {
+            ClOrdID = new ClOrdID(99UL),
+            SecurityId = 1,
+            Side = Side.Buy,
+            OrderType = OrderType.Limit,
+            OrderQty = 10,
+            Price = 0.05m,
+        };
+        var buffer = new byte[512];
+        var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, req, Opts(), msgSeqNum: 3);
+
+        // Frame layout: SOFH (4) + MessageHeader (8) + payload.
+        var payload = buffer.AsSpan(4 + 8, len - 4 - 8);
+        Assert.True(B3.Entrypoint.Fixp.Sbe.V6.NewOrderSingleData.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        // ExecutingTrader is at offset 100. With the bug it would have decoded
+        // as "&\0\0\0\0" (38) since AccountType defaults to RegularAccount (39).
+        Assert.Equal(0, data.ExecutingTrader.AsTrimmedSpan().Length);
+    }
+
     [Fact]
     public void EncodeOrderCancelReplace_WritesTemplateId_104()
     {

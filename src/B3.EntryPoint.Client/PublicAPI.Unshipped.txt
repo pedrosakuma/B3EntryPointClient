@@ -1,4 +1,6 @@
 #nullable enable
+*REMOVED*B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
+*REMOVED*B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.init -> void
 B3.EntryPoint.Client.EntryPointClient.ReconnectAsync(B3.EntryPoint.Client.ReconnectMode mode, System.Func<uint, uint>? nextSessionVerIdSelector, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.ReconnectOutcome>!
 B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException
 B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException.Code.get -> B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode

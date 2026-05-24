@@ -220,7 +220,9 @@ internal static class OrderEntryEncoder
             BinaryPrimitives.WriteUInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 84, 8), request.MinQty.Value);
         if (request.MaxFloor.HasValue)
             BinaryPrimitives.WriteUInt64LittleEndian(MemoryMarshalAsBytes(ref msg, 92, 8), request.MaxFloor.Value);
-        MemoryMarshalAsBytes(ref msg, 100, 1)[0] = (byte)request.AccountType;
+        // NOTE: B3 schema 8.4.2 has no accountType field in NewOrderSingle (only in
+        // OrderCancelReplaceRequest, tag 581, v2). Offset 100 is the start of
+        // ExecutingTrader (TraderOptional, 5 bytes). See issue #179.
         if (request.ExpireDate.HasValue)
             BinaryPrimitives.WriteUInt16LittleEndian(MemoryMarshalAsBytes(ref msg, 105, 2),
                 (ushort)((request.ExpireDate.Value - DateTimeOffset.UnixEpoch).Days));

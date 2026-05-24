@@ -39,7 +39,6 @@ public class OrderModelsTests
         };
         Assert.Equal(3UL, req.ClOrdID.Value);
         Assert.Equal(TimeInForce.Day, req.TimeInForce);
-        Assert.Equal(AccountType.RegularAccount, req.AccountType);
     }
 
     [Fact]
