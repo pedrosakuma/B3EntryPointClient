@@ -71,7 +71,6 @@ public sealed record NewOrderRequest
     public decimal? StopPrice { get; init; }
     public required ulong OrderQty { get; init; }
     public TimeInForce TimeInForce { get; init; } = TimeInForce.Day;
-    public AccountType AccountType { get; init; } = AccountType.RegularAccount;
     public ulong? Account { get; init; }
     public DateTimeOffset? ExpireDate { get; init; }
     public ulong? MinQty { get; init; }

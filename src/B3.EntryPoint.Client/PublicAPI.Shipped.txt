@@ -451,8 +451,6 @@ B3.EntryPoint.Client.Models.NewOrderRequest
 B3.EntryPoint.Client.Models.NewOrderRequest.<Clone>$() -> B3.EntryPoint.Client.Models.NewOrderRequest!
 B3.EntryPoint.Client.Models.NewOrderRequest.Account.get -> ulong?
 B3.EntryPoint.Client.Models.NewOrderRequest.Account.init -> void
-B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
-B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.init -> void
 B3.EntryPoint.Client.Models.NewOrderRequest.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
 B3.EntryPoint.Client.Models.NewOrderRequest.ClOrdID.init -> void
 B3.EntryPoint.Client.Models.NewOrderRequest.Equals(B3.EntryPoint.Client.Models.NewOrderRequest? other) -> bool
