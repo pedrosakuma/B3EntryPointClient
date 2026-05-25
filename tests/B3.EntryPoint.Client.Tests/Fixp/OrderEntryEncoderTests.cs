@@ -6,6 +6,8 @@ using B3.EntryPoint.Client;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
+using SbeOcr = B3.Entrypoint.Fixp.Sbe.V6.OrderCancelRequestData;
+using SbeExecRestate = B3.Entrypoint.Fixp.Sbe.V6.ExecRestatementReasonValidForSingleCancel;
 using SbeOcrr = B3.Entrypoint.Fixp.Sbe.V6.OrderCancelReplaceRequestData;
 using SbeAccountType = B3.Entrypoint.Fixp.Sbe.V6.AccountType;
 using SbeNewOrderCross = B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData;
@@ -83,6 +85,38 @@ public class OrderEntryEncoderTests
         var (_, tid) = ReadFrameHeader(buffer);
         Assert.True(len > 0);
         Assert.Equal((ushort)105, tid);
+    }
+
+    // Issue #178: OrderCancelRequest round-trips wire fields that were
+    // previously inaccessible from the SDK (OrderID, ExecRestatementReason,
+    // ExecutingTrader, DeskID varData).
+    [Fact]
+    public void EncodeOrderCancel_RoundTrips_NewWireFields_Issue178()
+    {
+        var req = new CancelOrderRequest
+        {
+            ClOrdID = new ClOrdID(2UL),
+            OrigClOrdID = new ClOrdID(1UL),
+            SecurityId = 7,
+            Side = Side.Sell,
+            OrderId = 0xCAFEBABEDEADBEEFUL,
+            ExecRestatementReason = CancelExecRestatementReason.CancelOrderDueToOperationalError,
+            ExecutingTrader = "X9999",
+            DeskId = "DESK1",
+        };
+        var buffer = new byte[256];
+        var len = OrderEntryEncoder.EncodeOrderCancel(buffer, req, Opts(), msgSeqNum: 2);
+        var payload = buffer.AsSpan(4 + 8, len - 4 - 8);
+        Assert.True(SbeOcr.TryParse(payload, out var reader));
+        ref readonly var data = ref reader.Data;
+
+        Assert.Equal((ulong?)0xCAFEBABEDEADBEEFUL, data.OrderID);
+        Assert.Equal(SbeExecRestate.CANCEL_ORDER_DUE_TO_OPERATIONAL_ERROR, data.ExecRestatementReason);
+        Assert.Equal("X9999", Encoding.ASCII.GetString(data.ExecutingTrader.AsTrimmedSpan()));
+
+        var deskIdBytes = new byte[reader.DeskID.Length];
+        reader.DeskID.VarData.CopyTo(deskIdBytes);
+        Assert.Equal("DESK1", Encoding.ASCII.GetString(deskIdBytes));
     }
 
     [Fact]

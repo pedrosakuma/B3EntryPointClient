@@ -160,7 +160,7 @@ internal static class OrderEntryEncoder
         return totalSize;
     }
 
-    /// <summary>Encodes an OrderCancelRequest (template id 104). Returns total bytes written.</summary>
+    /// <summary>Encodes an OrderCancelRequest (template id 105). Returns total bytes written.</summary>
     public static int EncodeOrderCancel(
         Span<byte> buffer,
         CancelOrderRequest request,
@@ -168,7 +168,12 @@ internal static class OrderEntryEncoder
         ulong msgSeqNum)
     {
         var memoBytes = MemoBytes(request.MemoText);
-        var payloadSize = OrderCancelRequestData.MESSAGE_SIZE + 1 + 0 + 1 + memoBytes.Length;
+        var deskIdBytes = request.DeskId is null
+            ? ReadOnlySpan<byte>.Empty
+            : Encoding.ASCII.GetBytes(request.DeskId);
+        if (deskIdBytes.Length > 255)
+            throw new ArgumentException("DeskId is too long (max 255 bytes).", nameof(request));
+        var payloadSize = OrderCancelRequestData.MESSAGE_SIZE + 1 + deskIdBytes.Length + 1 + memoBytes.Length;
         var totalSize = SofhSize + SbeHeaderSize + payloadSize;
         WriteHeaders(buffer.Slice(0, totalSize), totalSize, p => OrderCancelRequestData.WriteHeader(p));
 
@@ -176,13 +181,19 @@ internal static class OrderEntryEncoder
         msg.BusinessHeader = BuildBusinessHeader(options, msgSeqNum);
         msg.ClOrdID = new SbeClOrdID(request.ClOrdID.Value);
         msg.SecurityID = new SecurityID(request.SecurityId);
+        msg.SetOrderID(request.OrderId);
         msg.SetOrigClOrdID(request.OrigClOrdID.Value);
         msg.Side = (SbeSide)(byte)request.Side;
+        msg.SetExecRestatementReason(request.ExecRestatementReason is null
+            ? null
+            : (global::B3.Entrypoint.Fixp.Sbe.V6.ExecRestatementReasonValidForSingleCancel)(byte)request.ExecRestatementReason.Value);
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 56, 10), options.SenderLocation);
         WriteFixedString(MemoryMarshalAsBytes(ref msg, 66, 5), options.EnteringTrader);
+        if (request.ExecutingTrader is not null)
+            WriteFixedString(MemoryMarshalAsBytes(ref msg, 71, 5), request.ExecutingTrader);
 
         if (!OrderCancelRequestData.TryEncode(msg, buffer.Slice(SofhSize + SbeHeaderSize),
-                ReadOnlySpan<byte>.Empty, memoBytes, out _))
+                deskIdBytes, memoBytes, out _))
             throw new InvalidOperationException("Failed to encode OrderCancelRequestData.");
         return totalSize;
     }
