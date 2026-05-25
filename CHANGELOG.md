@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-25
+
+### Added
+- **models (#177)**: `NewOrderRequest` and `ReplaceOrderRequest` now
+  expose six wire fields that schema 8.4.2 NewOrderSingle (template 102)
+  and OrderCancelReplaceRequest (template 104) define but the SDK
+  previously hid: `OrdTagId` (FIX tag, optional), `MmProtectionReset`
+  (mandatory Boolean), `SelfTradePreventionInstruction` (new enum,
+  schema id 293), `RoutingInstruction` (new enum, schema id 457),
+  `InvestorId` (new readonly record struct wrapping the InvestorID
+  composite — `Prefix:ushort + Document:uint`), and `TradingSubAccount`
+  (tag 35121, v5). Encoder writes all six at their schema-correct
+  offsets on both messages. Unblocks downstream
+  `B3TradingPlatform#459` (SubAccount + ExecInst-equivalent gap).
+- **models (#178)**: `CancelOrderRequest` now exposes four wire fields
+  that schema 8.4.2 OrderCancelRequest (template 105) defines but the
+  SDK previously hid: `OrderId` (FIX tag 37; venue-assigned id for
+  cancel-by-venue-id), `ExecRestatementReason` (new
+  `CancelExecRestatementReason` enum, FIX tag 378; only valid value is
+  `CancelOrderDueToOperationalError = 203`), `ExecutingTrader` (FIX
+  tag 35506; 5-char fixed string), and `DeskId` (FIX tag 35510;
+  varData, ASCII, threaded through the generated
+  `OrderCancelRequestData.TryEncode` varData argument).
+
+### Fixed
+- **encoder (#179)**: removed a bogus
+  `MemoryMarshalAsBytes(ref msg, 100, 1)[0] = (byte)request.AccountType`
+  write in `EncodeNewOrderSingle` that silently corrupted the first
+  byte of `ExecutingTrader` with ASCII 38/39. Schema 8.4.2
+  NewOrderSingle has NO `accountType` field — that field only exists
+  on `OrderCancelReplaceRequest` (tag 581, v2). Offset 100 is the
+  start of `TraderOptional executingTrader` (5-byte InlineArray), so
+  the write was scribbling an unrelated field. Drive-by: also fixed
+  the `EncodeOrderCancel` doc-comment that wrongly said 'template id
+  104' (cancel is 105).
+
+### Changed (breaking, pre-1.0)
+- **models (#179)**: removed `NewOrderRequest.AccountType` (the
+  property had no wire effect after the offset-100 bug above was
+  fixed, and schema 8.4.2 has no `accountType` field on
+  NewOrderSingle). `AccountType` is retained on `ReplaceOrderRequest`
+  where it is a legitimate wire field (tag 581).
+
+### Excluded (out of scope, documented)
+- `SecurityExchange` (tag 207) is not exposed: the SBE generator emits
+  it as a 0-byte `const string Value = "BVMF"` on every message that
+  carries it; there is no wire byte to set.
+- `ExecInst` (FIX tag 18) and `DisplayResetPolicy` do not exist in
+  schema 8.4.2 and cannot be added without a schema bump. ExecInst is
+  factored into `SelfTradePreventionInstruction` + `RoutingInstruction`
+  + `MmProtectionReset` + `InvestorId`; iceberg refresh policy is
+  hardwired in B3's matching engine.
+
 ## [0.14.3] - 2026-05-05
 
 ### Fixed
