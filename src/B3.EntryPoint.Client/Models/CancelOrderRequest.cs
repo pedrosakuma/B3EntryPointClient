@@ -30,6 +30,16 @@ public enum MassActionRejectReason : byte
 }
 
 /// <summary>
+/// Reason supplied with a solicited <c>OrderCancelRequest</c> (schema enum
+/// <c>ExecRestatementReasonValidForSingleCancel</c>, FIX tag 378).
+/// </summary>
+public enum CancelExecRestatementReason : byte
+{
+    /// <summary>Cancel was sent because of an operational error.</summary>
+    CancelOrderDueToOperationalError = 203,
+}
+
+/// <summary>
 /// Logical request shape for <c>OrderCancelRequest</c> (schema §6).
 /// </summary>
 public sealed record CancelOrderRequest
@@ -39,6 +49,14 @@ public sealed record CancelOrderRequest
     public required ulong SecurityId { get; init; }
     public required Side Side { get; init; }
     public ulong? Account { get; init; }
+    /// <summary>Venue-assigned order id (FIX tag 37). Alternative to <see cref="OrigClOrdID"/> for cancelling by venue id.</summary>
+    public ulong? OrderId { get; init; }
+    /// <summary>Reason supplied with a solicited cancel (FIX tag 378). When null no reason is sent.</summary>
+    public CancelExecRestatementReason? ExecRestatementReason { get; init; }
+    /// <summary>5-char executing trader id (FIX tag 35506). When null the field is left as the wire null sentinel.</summary>
+    public string? ExecutingTrader { get; init; }
+    /// <summary>Trading desk id (FIX tag 35510, varData). Encoded as ASCII; max 255 bytes.</summary>
+    public string? DeskId { get; init; }
     public string? MemoText { get; init; }
 }
 
