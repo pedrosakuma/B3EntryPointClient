@@ -1,6 +1,54 @@
 #nullable enable
 *REMOVED*B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.get -> B3.EntryPoint.Client.Models.AccountType
 *REMOVED*B3.EntryPoint.Client.Models.NewOrderRequest.AccountType.init -> void
+B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.SelfTradePreventionInstruction.None = 0 -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.SelfTradePreventionInstruction.CancelAggressorOrder = 1 -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.SelfTradePreventionInstruction.CancelRestingOrder = 2 -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.SelfTradePreventionInstruction.CancelBothOrders = 3 -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.RoutingInstruction
+B3.EntryPoint.Client.Models.RoutingInstruction.RetailLiquidityTaker = 1 -> B3.EntryPoint.Client.Models.RoutingInstruction
+B3.EntryPoint.Client.Models.RoutingInstruction.WaivedPriority = 2 -> B3.EntryPoint.Client.Models.RoutingInstruction
+B3.EntryPoint.Client.Models.RoutingInstruction.BrokerOnly = 3 -> B3.EntryPoint.Client.Models.RoutingInstruction
+B3.EntryPoint.Client.Models.RoutingInstruction.BrokerOnlyRemoval = 4 -> B3.EntryPoint.Client.Models.RoutingInstruction
+B3.EntryPoint.Client.Models.InvestorId
+B3.EntryPoint.Client.Models.InvestorId.InvestorId() -> void
+B3.EntryPoint.Client.Models.InvestorId.InvestorId(ushort Prefix, uint Document) -> void
+B3.EntryPoint.Client.Models.InvestorId.Prefix.get -> ushort
+B3.EntryPoint.Client.Models.InvestorId.Prefix.init -> void
+B3.EntryPoint.Client.Models.InvestorId.Document.get -> uint
+B3.EntryPoint.Client.Models.InvestorId.Document.init -> void
+B3.EntryPoint.Client.Models.InvestorId.Deconstruct(out ushort Prefix, out uint Document) -> void
+B3.EntryPoint.Client.Models.InvestorId.Equals(B3.EntryPoint.Client.Models.InvestorId other) -> bool
+override B3.EntryPoint.Client.Models.InvestorId.GetHashCode() -> int
+~override B3.EntryPoint.Client.Models.InvestorId.ToString() -> string
+static B3.EntryPoint.Client.Models.InvestorId.operator !=(B3.EntryPoint.Client.Models.InvestorId left, B3.EntryPoint.Client.Models.InvestorId right) -> bool
+static B3.EntryPoint.Client.Models.InvestorId.operator ==(B3.EntryPoint.Client.Models.InvestorId left, B3.EntryPoint.Client.Models.InvestorId right) -> bool
+~override B3.EntryPoint.Client.Models.InvestorId.Equals(object obj) -> bool
+B3.EntryPoint.Client.Models.NewOrderRequest.OrdTagId.get -> byte?
+B3.EntryPoint.Client.Models.NewOrderRequest.OrdTagId.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.MmProtectionReset.get -> bool
+B3.EntryPoint.Client.Models.NewOrderRequest.MmProtectionReset.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.SelfTradePreventionInstruction.get -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.NewOrderRequest.SelfTradePreventionInstruction.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.RoutingInstruction.get -> B3.EntryPoint.Client.Models.RoutingInstruction?
+B3.EntryPoint.Client.Models.NewOrderRequest.RoutingInstruction.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.InvestorId.get -> B3.EntryPoint.Client.Models.InvestorId?
+B3.EntryPoint.Client.Models.NewOrderRequest.InvestorId.init -> void
+B3.EntryPoint.Client.Models.NewOrderRequest.TradingSubAccount.get -> uint?
+B3.EntryPoint.Client.Models.NewOrderRequest.TradingSubAccount.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrdTagId.get -> byte?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.OrdTagId.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MmProtectionReset.get -> bool
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.MmProtectionReset.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.SelfTradePreventionInstruction.get -> B3.EntryPoint.Client.Models.SelfTradePreventionInstruction
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.SelfTradePreventionInstruction.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.RoutingInstruction.get -> B3.EntryPoint.Client.Models.RoutingInstruction?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.RoutingInstruction.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.InvestorId.get -> B3.EntryPoint.Client.Models.InvestorId?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.InvestorId.init -> void
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.TradingSubAccount.get -> uint?
+B3.EntryPoint.Client.Models.ReplaceOrderRequest.TradingSubAccount.init -> void
 B3.EntryPoint.Client.EntryPointClient.ReconnectAsync(B3.EntryPoint.Client.ReconnectMode mode, System.Func<uint, uint>? nextSessionVerIdSelector, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.ReconnectOutcome>!
 B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException
 B3.EntryPoint.Client.Fixp.FixpEstablishRejectedException.Code.get -> B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode

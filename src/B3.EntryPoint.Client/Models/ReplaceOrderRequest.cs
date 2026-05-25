@@ -22,6 +22,18 @@ public sealed record ReplaceOrderRequest
     public ulong? MinQty { get; init; }
     public ulong? MaxFloor { get; init; }
     public string? MemoText { get; init; }
+    /// <summary>FIX tag 35505 — order tag identifier. Optional; default = absent (wire null = 0).</summary>
+    public byte? OrdTagId { get; init; }
+    /// <summary>FIX tag 9773 — when <see langword="true"/>, resets Market Maker Protection.</summary>
+    public bool MmProtectionReset { get; init; }
+    /// <summary>FIX tag 35539 — self-trade prevention instruction. Defaults to <see cref="SelfTradePreventionInstruction.None"/>.</summary>
+    public SelfTradePreventionInstruction SelfTradePreventionInstruction { get; init; } = SelfTradePreventionInstruction.None;
+    /// <summary>FIX tag 35487 — additional routing instruction (optional, <c>sinceVersion=2</c>).</summary>
+    public RoutingInstruction? RoutingInstruction { get; init; }
+    /// <summary>FIX tag 35508 — investor id for self-trade prevention / mass-cancel-on-behalf (<c>sinceVersion=1</c>).</summary>
+    public InvestorId? InvestorId { get; init; }
+    /// <summary>FIX tag 35121 — trading sub-account for associating risk limits (optional, <c>sinceVersion=5</c>).</summary>
+    public uint? TradingSubAccount { get; init; }
 }
 
 /// <summary>
