@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Text;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Framing;
@@ -38,12 +39,21 @@ internal static class OrderEntryEncoder
     private static long PriceMantissa(decimal price) =>
         (long)(price * 10_000m);
 
+    private static ulong NowUnixNanos() =>
+        (ulong)((DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch).Ticks * 100L);
+
+    private static UTCTimestampNanosOptional CreateSendingTime()
+    {
+        var nanos = NowUnixNanos();
+        return Unsafe.As<ulong, UTCTimestampNanosOptional>(ref nanos);
+    }
+
     private static InboundBusinessHeader BuildBusinessHeader(EntryPointClientOptions options, ulong msgSeqNum)
     {
         var header = default(InboundBusinessHeader);
         header.SessionID = new SessionID(options.SessionId);
         header.MsgSeqNum = SeqNumGuard.ToWireSeqNum(msgSeqNum);
-        header.SendingTime = default;
+        header.SendingTime = CreateSendingTime();
         header.MarketSegmentID = new MarketSegmentID(options.DefaultMarketSegmentId);
         return header;
     }
@@ -53,7 +63,7 @@ internal static class OrderEntryEncoder
         var header = default(BidirectionalBusinessHeader);
         header.SessionID = new SessionID(options.SessionId);
         header.MsgSeqNum = SeqNumGuard.ToWireSeqNum(msgSeqNum);
-        header.SendingTime = default;
+        header.SendingTime = CreateSendingTime();
         // MarketSegmentID is optional on bidirectional messages; left at NullValue (0) to mean "not set".
         if (options.DefaultMarketSegmentId != 0)
             MemoryMarshalAsBytes(ref header, 17, 1)[0] = options.DefaultMarketSegmentId;
