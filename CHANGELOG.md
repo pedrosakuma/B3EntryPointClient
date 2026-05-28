@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-05-28
+
+### Fixed
+- **session (#187)**: `FixpClientSession` now detects peer-side TCP
+  closes (FIN/RST/IO error) on the inbound loop and transitions the
+  state machine to `Terminated` via a new one-shot transport-closed
+  signal. `EntryPointClient` surfaces this through the existing
+  `Terminated` event with `TerminationCode.Unspecified` and
+  `InitiatedByClient: false`, so `State` and `EnsureEstablished()`
+  reflect the dead wire after events such as a matching-platform
+  restart instead of leaving consumers stuck on a stale `Established`.
+
 ## [0.15.0] - 2026-05-25
 
 ### Added
