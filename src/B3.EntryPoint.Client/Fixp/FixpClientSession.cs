@@ -204,6 +204,14 @@ internal sealed class FixpClientSession : IAsyncDisposable
     private Task? _inboundLoop;
     private CancellationTokenSource? _inboundCts;
     private ChannelWriter<EntryPointEvent>? _eventWriter;
+    // Set by DisposeAsync before cancelling the inbound loop so the loop can
+    // distinguish a user-driven graceful shutdown (silent) from a peer-side
+    // TCP close (must surface as a transport-loss notification). (#187)
+    private int _userShutdown;
+    // Latches the one-shot transport-closed notification so concurrent
+    // observers (inbound loop end + an outbound write that races with the
+    // peer close) cannot raise the hook twice. (#187)
+    private int _transportClosedRaised;
 
     /// <summary>
     /// Resumes the outbound counter from a persisted snapshot. Must be called
@@ -319,20 +327,69 @@ internal sealed class FixpClientSession : IAsyncDisposable
                 }
             }
         }
-        catch (OperationCanceledException) { /* shutdown */ }
-        catch (EndOfStreamException) { /* peer closed */ }
-        catch (IOException) { /* peer closed */ }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by DisposeAsync (graceful shutdown) — no transport-loss
+            // signal needed. If the cancellation happened concurrently with a
+            // peer-side close, the user-shutdown flag distinguishes the two:
+            // a peer close that arrived before our cancel still surfaces below.
+            if (System.Threading.Volatile.Read(ref _userShutdown) != 0)
+                return;
+            RaiseTransportClosed(reason: null);
+            return;
+        }
+        catch (EndOfStreamException)
+        {
+            // Peer half-closed the TCP connection (FIN). Surface as a
+            // transport-loss signal so the outer client transitions out of
+            // Established and consumers stop issuing app frames. (#187)
+            RaiseTransportClosed(reason: null);
+            return;
+        }
+        catch (IOException ex)
+        {
+            // Peer closed / RST / socket error. Surface as a transport-loss
+            // signal so callers see an accurate session state instead of a
+            // stale Established. (#187)
+            RaiseTransportClosed(ex);
+            return;
+        }
         catch (Exception ex)
         {
             // Surface telemetry but do NOT poison the shared event channel:
             // the writer is owned by the outer EntryPointClient and must
             // remain usable across session swaps (e.g. ReconnectAsync). #144
             _options.Logger.InboundLoopFaulted(ex);
+            RaiseTransportClosed(ex);
             return;
         }
         // Loop exiting normally (cancellation, peer closed). The shared event
         // channel writer is intentionally NOT completed here — only
         // EntryPointClient.DisposeAsync may complete it. #144
+        if (System.Threading.Volatile.Read(ref _userShutdown) == 0)
+            RaiseTransportClosed(reason: null);
+    }
+
+    /// <summary>
+    /// Latched, idempotent notification that the underlying TCP transport
+    /// is gone (peer-initiated close, RST, or IO error). Drives the state
+    /// machine to <see cref="FixpClientState.Terminated"/> when still
+    /// transition-eligible and invokes <see cref="OnTransportClosed"/> so
+    /// the outer <see cref="EntryPointClient"/> can raise a
+    /// <c>Terminated</c> event and refuse further app sends. (#187)
+    /// </summary>
+    private void RaiseTransportClosed(Exception? reason)
+    {
+        if (System.Threading.Interlocked.Exchange(ref _transportClosedRaised, 1) != 0)
+            return;
+        try
+        {
+            if (_machine.CanFire(FixpClientTrigger.TransportClosed))
+                Fire(FixpClientTrigger.TransportClosed);
+        }
+        catch (InvalidFixpTransitionException) { /* already at a terminal state */ }
+        try { OnTransportClosed?.Invoke(reason); }
+        catch { /* swallow — telemetry must not break shutdown */ }
     }
 
     /// <summary>
@@ -488,8 +545,21 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// <summary>Optional hook: invoked when a Terminate frame arrives. Arg: terminationCode (byte).</summary>
     internal Action<byte>? OnInboundTerminate { get; set; }
 
+    /// <summary>
+    /// Optional hook: invoked exactly once when the underlying TCP transport
+    /// is closed by the peer (FIN, RST, IO error) without a preceding
+    /// <c>Terminate</c> exchange. Arg is the IO exception that triggered the
+    /// detection, or <see langword="null"/> for a clean FIN / cancellation
+    /// that the user did not initiate. Drives <see cref="EntryPointClient"/>
+    /// to raise its <c>Terminated</c> event and refuse further app sends so
+    /// callers see an accurate session state instead of a stale
+    /// <see cref="FixpClientState.Established"/>. (#187)
+    /// </summary>
+    internal Action<Exception?>? OnTransportClosed { get; set; }
+
     public async ValueTask DisposeAsync()
     {
+        System.Threading.Volatile.Write(ref _userShutdown, 1);
         try { _inboundCts?.Cancel(); } catch { /* ignore */ }
         if (_inboundLoop is not null)
         {

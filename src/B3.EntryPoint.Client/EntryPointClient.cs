@@ -365,6 +365,21 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 new KeyValuePair<string, object?>("code", code.ToString()));
             RaiseTerminated((TerminationCode)code, reason: null, initiatedByClient: false);
         };
+        _session.OnTransportClosed = ex =>
+        {
+            // Peer closed the TCP transport without a Terminate exchange
+            // (e.g. matching-platform restart). Surface as a Terminated event
+            // so the State property and EnsureEstablished() reflect the dead
+            // wire instead of leaving consumers stuck in a stale Established
+            // state until the next send fails. (#187)
+            EntryPointTelemetry.Terminations.Add(1,
+                new KeyValuePair<string, object?>("direction", "inbound"),
+                new KeyValuePair<string, object?>("code", "transport-closed"));
+            RaiseTerminated(
+                TerminationCode.Unspecified,
+                reason: ex?.Message ?? "TCP transport closed by peer.",
+                initiatedByClient: false);
+        };
         _lastInboundUtc = DateTime.UtcNow;
     }
 
