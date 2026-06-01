@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-06-01
+
+### Fixed
+- **encoder (#183)**: `OrderEntryEncoder` now populates `SendingTime`
+  with the current UTC timestamp (nanoseconds, `Ticks * 100`) on every
+  outbound `InboundBusinessHeader` and `BidirectionalBusinessHeader`
+  instead of leaving it at `default` (zero). Gateways with clock-skew
+  validation previously rejected every business message because
+  `sendingTime 0` exceeded their tolerance window.
+
 ## [0.15.1] - 2026-05-28
 
 ### Fixed
