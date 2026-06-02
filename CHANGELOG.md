@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-06-02
+
+### Changed
+- **api (#189)**: `EntryPointClientOptions.CancelOnDisconnect` now defaults
+  to `DoNotCancelOnDisconnectOrTerminate (0)` instead of
+  `CancelOnDisconnectOrTerminate (3)`. The previous aggressive default,
+  combined with `CodTimeoutWindowMs = 0`, made the matching engine cancel
+  **all** of a session's working orders on any client TCP drop (e.g. an OMS
+  restart that reconnects via session resumption). Cancel-on-disconnect is
+  now strictly opt-in, matching the enum's natural zero value. Participants
+  that want the venue to flatten the book on disconnect must set the property
+  (and usually a non-zero `CodTimeoutWindowMs` grace window) explicitly.
+
 ## [0.15.2] - 2026-06-01
 
 ### Fixed
