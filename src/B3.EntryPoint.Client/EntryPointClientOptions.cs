@@ -50,9 +50,14 @@ public sealed class EntryPointClientOptions
     /// <summary>
     /// Cancel-on-disconnect behaviour requested at <c>Establish</c> (schema
     /// 8.4.2 §811, field <c>cancelOnDisconnectType</c>). Defaults to
-    /// <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/> —
-    /// the safest choice for a participant that must not leave open orders
-    /// after losing the session.
+    /// <see cref="CancelOnDisconnectType.DoNotCancelOnDisconnectOrTerminate"/> —
+    /// cancel-on-disconnect is strictly opt-in, matching the enum's natural
+    /// zero value. This avoids silently cancelling all of a session's working
+    /// orders on a routine client TCP drop (e.g. an OMS process restart that
+    /// reconnects via session resumption). Participants that genuinely want the
+    /// venue to flatten the book on disconnect must set this explicitly to
+    /// <see cref="CancelOnDisconnectType.CancelOnDisconnectOrTerminate"/> (and
+    /// usually a non-zero <see cref="CodTimeoutWindowMs"/> grace window).
     /// </summary>
     /// <remarks>
     /// The value is encoded into every outbound <c>Establish</c> (both the
@@ -63,7 +68,7 @@ public sealed class EntryPointClientOptions
     /// </remarks>
     [System.Diagnostics.CodeAnalysis.Experimental("B3EP_COD")]
     public CancelOnDisconnectType CancelOnDisconnect { get; set; } =
-        CancelOnDisconnectType.CancelOnDisconnectOrTerminate;
+        CancelOnDisconnectType.DoNotCancelOnDisconnectOrTerminate;
 
     /// <summary>
     /// Grace window (milliseconds) the gateway will wait before triggering

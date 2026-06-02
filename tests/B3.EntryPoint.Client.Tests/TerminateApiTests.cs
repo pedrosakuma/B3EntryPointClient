@@ -51,7 +51,7 @@ public class TerminateApiTests
     }
 
     [Fact]
-    public void Options_DefaultCancelOnDisconnect_IsSafest()
+    public void Options_DefaultCancelOnDisconnect_IsOptIn()
     {
         var o = new EntryPointClientOptions
         {
@@ -61,7 +61,7 @@ public class TerminateApiTests
             EnteringFirm = 1,
             Credentials = Credentials.FromUtf8("k"),
         };
-        Assert.Equal(CancelOnDisconnectType.CancelOnDisconnectOrTerminate, o.CancelOnDisconnect);
+        Assert.Equal(CancelOnDisconnectType.DoNotCancelOnDisconnectOrTerminate, o.CancelOnDisconnect);
     }
 
     [Fact]
