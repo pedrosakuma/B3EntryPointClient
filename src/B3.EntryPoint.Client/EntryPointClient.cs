@@ -169,6 +169,18 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         if (_session is not null)
             throw new InvalidOperationException("Client is already connected.");
 
+        // #191: cold-start (process-restart) session resume. Attempt Establish
+        // reusing the persisted SessionVerID before falling back to a fresh
+        // Negotiate, so venue-side order ownership survives an OMS restart.
+        // Attempted at most ONCE per ConnectAsync, before the Negotiate retry
+        // loop, so a transient Negotiate failure never re-loads the snapshot
+        // and rewinds the SessionVerID (#191 review).
+        if (_options.ConnectMode == ConnectMode.EstablishReuseThenNegotiate &&
+            await TryColdResumeAsync(ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var attempts = Math.Max(1, _options.ConnectMaxAttempts);
         Exception? lastError = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
@@ -278,8 +290,6 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _session!.OnInboundEvent = OnInboundEventForPersistence;
 
-        _session.StartInboundLoop(_events.Writer);
-
         _keepAlive = new KeepAliveScheduler(
             _options.KeepAliveInterval,
             sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
@@ -380,6 +390,16 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 reason: ex?.Message ?? "TCP transport closed by peer.",
                 initiatedByClient: false);
         };
+
+        // Start the inbound loop LAST — only after every On* callback
+        // (including `_retransmit` and the retransmission handlers above) is
+        // wired. Otherwise a gap frame arriving in the setup window could hit
+        // OnInboundEventForPersistence while `_retransmit` is still null, latch
+        // `_gapRequestInFlight = true` without issuing a request, and
+        // permanently suppress both the live and the cold-resume proactive
+        // retransmit (#191 review).
+        _session.StartInboundLoop(_events.Writer);
+
         _lastInboundUtc = DateTime.UtcNow;
     }
 
@@ -1234,15 +1254,28 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             }
         }
 
-        // Best-effort graceful Terminate before tearing the active session down.
-        try
+        // Best-effort graceful Terminate before tearing the active session
+        // down — ONLY when deliberately rotating to a new logical session
+        // (AlwaysNegotiate). For EstablishReuseThenNegotiate we intend to
+        // reattach the SAME session, so a Terminate(Finished) here would tell
+        // the venue the session is done-for-good and evict order ownership
+        // before the reattach (#191). The old transport is torn down by
+        // StopActiveSessionAsync below in either case.
+        if (mode == ReconnectMode.AlwaysNegotiate)
         {
-            if (_session is not null)
-                await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
+            try
+            {
+                if (_session is not null)
+                    await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
+            }
+            catch { /* best-effort */ }
         }
-        catch { /* best-effort */ }
 
-        await StopActiveSessionAsync(ct).ConfigureAwait(false);
+        // The transport teardown below must not itself emit a
+        // Terminate(Finished) via session dispose: for AlwaysNegotiate we just
+        // sent one explicitly above; for EstablishReuseThenNegotiate we intend
+        // to reattach the same session and must NOT evict ownership (#191).
+        await StopActiveSessionAsync(ct, suppressTerminate: true).ConfigureAwait(false);
 
         ReconnectOutcome outcome;
         if (mode == ReconnectMode.EstablishReuseThenNegotiate)
@@ -1373,14 +1406,15 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             // The current _session is the freshly-built reuse session whose
             // counters are still at 0; do NOT persist a snapshot from it
             // because that would clobber the good snapshot saved when the
-            // prior live session was torn down before reattach.
-            await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
+            // prior live session was torn down before reattach. Suppress the
+            // dispose-time Terminate — this is an internal reattach teardown.
+            await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false, suppressTerminate: true).ConfigureAwait(false);
             throw;
         }
 
         // Reuse rejected — tear down without persisting (same reason as above)
         // and decide on the fallback path.
-        await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false).ConfigureAwait(false);
+        await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false, suppressTerminate: true).ConfigureAwait(false);
 
         var code = reuse.RejectCode!.Value;
         if (!IsRecoverableEstablishReject(code))
@@ -1422,6 +1456,183 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     }
 
     /// <summary>
+    /// #191 cold-start (process-restart) session resume. Attempts to reattach
+    /// the previously-negotiated session — TCP reconnect + Establish reusing
+    /// the persisted SessionVerID (no Negotiate) — so the venue keeps order
+    /// ownership across an OMS restart. Mirrors
+    /// <see cref="TryReattachOrRenegotiateAsync"/> but is seeded from the
+    /// persisted snapshot instead of a live in-process session.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when the session was reattached and the client is
+    /// fully connected (the caller must return without Negotiating);
+    /// <see langword="false"/> when there is no usable snapshot, or the peer
+    /// rejected Establish for a recoverable reason and the caller should fall
+    /// through to a fresh Negotiate (the SessionVerID has been bumped in that
+    /// case).
+    /// </returns>
+    private async Task<bool> TryColdResumeAsync(CancellationToken ct)
+    {
+        var store = _options.SessionStateStore;
+        if (store is null)
+            return false;
+
+        var snapshot = await store.ReplayAsync(ct).ConfigureAwait(false);
+        if (snapshot is null)
+            return false;
+
+        // A snapshot from a different SessionId, or one that never reached a
+        // negotiated SessionVerID, cannot be reattached — fall through to the
+        // normal Negotiate path under the configured SessionVerID.
+        if (snapshot.SessionId != _options.SessionId || snapshot.SessionVerId == 0u)
+            return false;
+
+        // Establish.NextSeqNo (the client's next outbound app MsgSeqNum) is a
+        // uint on the wire; refuse to resume rather than wrap.
+        if (snapshot.LastOutboundSeqNum + 1UL > uint.MaxValue)
+            return false;
+
+        var nextOutbound = (uint)(snapshot.LastOutboundSeqNum + 1UL);
+
+        // Resume the SAME logical session: reuse the persisted SessionVerID,
+        // do NOT bump it. The selector is only consulted on the recoverable
+        // reject path below.
+        _options.SessionVerId = snapshot.SessionVerId;
+
+        var tcp = new TcpClient();
+        try
+        {
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(_options.ConnectTimeout);
+            await tcp.ConnectAsync(_options.Endpoint.Address, _options.Endpoint.Port, connectCts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            tcp.Dispose();
+            throw;
+        }
+
+        _tcp = tcp;
+        Fixp.EstablishReuseResult reuse;
+        try
+        {
+            var transportStream = await EstablishTransportStreamAsync(tcp, ct).ConfigureAwait(false);
+            _session = new FixpClientSession(transportStream, _options);
+
+            using (var establish = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.establish.coldresume", ActivityKind.Client))
+            {
+                reuse = await _session.EstablishReuseAsync(nextOutbound, ct).ConfigureAwait(false);
+            }
+
+            if (reuse.Accepted)
+            {
+                var ack = reuse.Ack!.Value;
+                _options.Logger.Established(_options.Endpoint);
+
+                // FinishEstablishedAsync -> HydrateFromSnapshotAsync re-reads
+                // this same snapshot and resumes the outbound counter to
+                // LastOutboundSeqNum+1 and the inbound contiguity tail to
+                // LastInboundSeqNum, so the cross-restart application sequence
+                // is continuous. Resume explicitly first to mirror the live
+                // reattach path and stay correct even if hydration is skipped.
+                _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
+
+                await FinishEstablishedAsync(ct).ConfigureAwait(false);
+                StartIdleWatchdog();
+
+                _options.Logger.ColdResumeReattached(_options.SessionId, _options.SessionVerId, nextOutbound);
+
+                // If the peer advertises an inbound gap (it will deliver seq
+                // numbers beyond our persisted contiguous tail), proactively
+                // request retransmission. The live inbound-gap detector only
+                // fires when a post-gap frame arrives; on a fresh reattach the
+                // venue may report the gap in the Ack and then send nothing
+                // until we ask.
+                MaybeRequestColdResumeInboundGap(ack.NextSeqNo, snapshot.LastInboundSeqNum);
+
+                return true;
+            }
+        }
+        catch
+        {
+            // Reuse blew up (transport / decode). The current _session is the
+            // freshly-built reuse session whose counters are at 0; do NOT
+            // persist a snapshot from it — that would clobber the good
+            // persisted snapshot we just loaded. Rethrow so the host retries
+            // ConnectAsync; the SessionVerID stays at the persisted value.
+            // Suppress the dispose-time Terminate (internal teardown).
+            await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false, suppressTerminate: true).ConfigureAwait(false);
+            throw;
+        }
+
+        // Reuse rejected — tear down without persisting and decide. Suppress
+        // the dispose-time Terminate (internal teardown).
+        await StopActiveSessionAsync(CancellationToken.None, persistSnapshot: false, suppressTerminate: true).ConfigureAwait(false);
+
+        var code = reuse.RejectCode!.Value;
+        if (!IsRecoverableEstablishReject(code))
+            throw new Fixp.FixpEstablishRejectedException(code);
+
+        // Recoverable: bump the SessionVerID via the validated selector and let
+        // the caller fall through to a fresh Negotiate.
+        var selector = _options.NextSessionVerIdSelector ?? (static prev => prev + 1u);
+        var prevVerId = _options.SessionVerId;
+        var nextVerId = selector(prevVerId);
+        if (nextVerId <= prevVerId)
+            throw new InvalidOperationException(
+                $"NextSessionVerIdSelector returned {nextVerId} which is not strictly greater than the persisted SessionVerId {prevVerId}.");
+
+        _options.Logger.ColdResumeFallbackToNegotiate(code, prevVerId);
+        _options.SessionVerId = nextVerId;
+        return false;
+    }
+
+    /// <summary>
+    /// On a successful cold reattach, issue a single §4.7 RetransmitRequest when
+    /// the peer's Ack advertises inbound frames past our persisted contiguous
+    /// tail. Reuses the fire-and-forget pattern of the live inbound-gap
+    /// detector (<see cref="OnInboundEventForPersistence"/>).
+    /// </summary>
+    private void MaybeRequestColdResumeInboundGap(ulong ackNextSeqNo, ulong lastContiguousInbound)
+    {
+        if (ackNextSeqNo <= lastContiguousInbound + 1UL)
+            return;
+
+        ulong gapFrom;
+        uint gapCount;
+        lock (_inboundGapGate)
+        {
+            if (_gapRequestInFlight)
+                return;
+            gapFrom = lastContiguousInbound + 1UL;
+            var missing = ackNextSeqNo - gapFrom;
+            gapCount = (uint)Math.Min(missing, RetransmitRequestHandler.MaxCountPerRequest);
+            _gapRequestInFlight = true;
+        }
+
+        _options.Logger.InboundGapDetected(gapFrom, ackNextSeqNo, gapFrom, gapCount);
+        var handler = _retransmit;
+        if (handler is null)
+        {
+            lock (_inboundGapGate) { _gapRequestInFlight = false; }
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await handler.RequestRetransmitAsync(gapFrom, gapCount).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lock (_inboundGapGate) { _gapRequestInFlight = false; }
+                _options.Logger.InboundGapRequestFailed(ex, gapFrom, gapCount);
+            }
+        });
+    }
+
+    /// <summary>
     /// Async stream of unsolicited events from the peer
     /// (<see cref="OrderAccepted"/>, <see cref="OrderRejected"/>,
     /// <see cref="OrderTrade"/>, <see cref="OrderCancelled"/>,
@@ -1457,7 +1668,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// <see cref="ReconnectAsync(uint, System.Threading.CancellationToken)"/> and <see cref="DisposeAsync"/> so the
     /// same ordering applies in both paths (#124).
     /// </summary>
-    private async Task StopActiveSessionAsync(CancellationToken ct, bool persistSnapshot = true)
+    private async Task StopActiveSessionAsync(CancellationToken ct, bool persistSnapshot = true, bool suppressTerminate = false)
     {
         var timeout = _options.SessionTeardownTimeout;
         if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
@@ -1497,6 +1708,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         try { _keepAlive?.Dispose(); } catch { }
         if (_session is not null)
         {
+            // Internal teardowns (within-process reconnect / cold-resume
+            // fallback) must not emit a Terminate(Finished) — we are about to
+            // re-open the session, and a Terminate would evict venue-side order
+            // ownership (#191). Graceful client dispose leaves this false so
+            // EntryPointClientOptions.TerminateOnDispose governs as usual.
+            if (suppressTerminate)
+                _session.SuppressTerminateOnDispose = true;
             try { await _session.DisposeAsync().ConfigureAwait(false); } catch { }
         }
         try { _tcp?.Dispose(); } catch { }

@@ -1,1 +1,10 @@
 #nullable enable
+B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.ConnectMode.EstablishReuseThenNegotiate = 1 -> B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.ConnectMode.NegotiateThenEstablish = 0 -> B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMode.get -> B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMode.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.NextSessionVerIdSelector.get -> System.Func<uint, uint>?
+B3.EntryPoint.Client.EntryPointClientOptions.NextSessionVerIdSelector.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.TerminateOnDispose.get -> bool
+B3.EntryPoint.Client.EntryPointClientOptions.TerminateOnDispose.set -> void

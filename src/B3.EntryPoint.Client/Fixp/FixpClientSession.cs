@@ -557,6 +557,18 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// </summary>
     internal Action<Exception?>? OnTransportClosed { get; set; }
 
+    /// <summary>
+    /// When set, suppresses the dispose-time <c>Terminate(Finished)</c> for
+    /// this session instance regardless of
+    /// <see cref="EntryPointClientOptions.TerminateOnDispose"/>. Used by the
+    /// client for INTERNAL teardowns (within-process reconnect / cold-start
+    /// reattach fallback) where the transport is being closed only to
+    /// immediately re-open under the same or a fresh SessionVerID — sending a
+    /// Terminate(Finished) there would tell the venue the session is
+    /// done-for-good and evict order ownership (#191).
+    /// </summary>
+    internal bool SuppressTerminateOnDispose { get; set; }
+
     public async ValueTask DisposeAsync()
     {
         System.Threading.Volatile.Write(ref _userShutdown, 1);
@@ -566,8 +578,17 @@ internal sealed class FixpClientSession : IAsyncDisposable
             try { await _inboundLoop.ConfigureAwait(false); } catch { /* ignore */ }
         }
         _inboundCts?.Dispose();
-        try { await TerminateAsync(SbeTerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }
-        catch { /* best-effort */ }
+        if (_options.TerminateOnDispose && !SuppressTerminateOnDispose)
+        {
+            // #191: gated so a host that intends to restart and resume can
+            // dispose WITHOUT telling the venue the session is done-for-good
+            // (Terminate=Finished evicts venue-side order ownership). When
+            // false (or suppressed for an internal reattach teardown), the
+            // transport is closed cleanly below and the venue keeps the
+            // session resumable (Suspended).
+            try { await TerminateAsync(SbeTerminationCode.FINISHED, CancellationToken.None).ConfigureAwait(false); }
+            catch { /* best-effort */ }
+        }
         await _stream.DisposeAsync().ConfigureAwait(false);
     }
 
