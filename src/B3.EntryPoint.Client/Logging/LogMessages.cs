@@ -85,6 +85,14 @@ internal static partial class LogMessages
         Message = "Graceful Terminate sent to {Endpoint} (code={Code})")]
     public static partial void GracefulTerminate(this ILogger logger, EndPoint endpoint, int code);
 
+    [LoggerMessage(EventId = 3007, Level = LogLevel.Information,
+        Message = "Cold-start resume reattached: SessionID={SessionId} SessionVerID={SessionVerId} nextOutboundSeqNo={NextOutboundSeqNo}")]
+    public static partial void ColdResumeReattached(this ILogger logger, uint sessionId, uint sessionVerId, uint nextOutboundSeqNo);
+
+    [LoggerMessage(EventId = 3008, Level = LogLevel.Information,
+        Message = "Cold-start resume rejected (code={Code}); falling back to Negotiate from SessionVerID={SessionVerId}")]
+    public static partial void ColdResumeFallbackToNegotiate(this ILogger logger, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code, uint sessionVerId);
+
     // ---------------- Warning (4000–4999) ----------------
 
     [LoggerMessage(EventId = 4000, Level = LogLevel.Warning,

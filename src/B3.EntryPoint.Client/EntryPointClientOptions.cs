@@ -161,6 +161,52 @@ public sealed class EntryPointClientOptions
     public TlsOptions Tls { get; set; } = new();
 
     /// <summary>
+    /// Selects how <see cref="EntryPointClient.ConnectAsync(CancellationToken)"/>
+    /// performs the initial (cold-start / process-restart) handshake. Defaults
+    /// to <see cref="ConnectMode.NegotiateThenEstablish"/> (legacy behaviour).
+    /// Set to <see cref="ConnectMode.EstablishReuseThenNegotiate"/> to make a
+    /// process restart RESUME the previously-negotiated session by sending
+    /// <c>Establish</c> reusing the persisted <c>SessionVerID</c> before
+    /// falling back to a fresh <c>Negotiate</c> — so venue-side order
+    /// ownership survives an OMS restart (#191). Requires
+    /// <see cref="SessionStateStore"/> to be configured; without a usable
+    /// persisted snapshot the client behaves as
+    /// <see cref="ConnectMode.NegotiateThenEstablish"/>.
+    /// </summary>
+    public ConnectMode ConnectMode { get; set; } = ConnectMode.NegotiateThenEstablish;
+
+    /// <summary>
+    /// Selector invoked <em>only</em> when a cold-start Establish-reuse
+    /// (<see cref="ConnectMode.EstablishReuseThenNegotiate"/>) is rejected for
+    /// a recoverable reason and a fresh <c>Negotiate</c> with a
+    /// strictly-greater <c>SessionVerID</c> is therefore required. Receives the
+    /// persisted (rejected) <c>SessionVerID</c> and must return a
+    /// strictly-greater value (e.g. the spec's recommended
+    /// microseconds-since-epoch). When <see langword="null"/>, defaults to
+    /// <c>prev =&gt; prev + 1</c>.
+    /// </summary>
+    public Func<uint, uint>? NextSessionVerIdSelector { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/> (the default), the client sends a FIXP
+    /// <c>Terminate(Finished)</c> to the peer when the session is disposed.
+    /// This tells the venue the session is deliberately done-for-good (spec
+    /// §5.1) and the venue evicts the session's order-ownership state.
+    /// <para>
+    /// Set to <see langword="false"/> when the host intends to restart and
+    /// resume: dispose then closes the transport WITHOUT a Terminate, leaving
+    /// the venue session resumable (Suspended) so a subsequent
+    /// <see cref="ConnectMode.EstablishReuseThenNegotiate"/> cold start can
+    /// reattach it and keep working orders addressable (#191). The final
+    /// snapshot is still persisted on dispose. Operator/end-of-day logout that
+    /// genuinely wants the venue to drop the session should call
+    /// <see cref="EntryPointClient.TerminateAsync(TerminationCode, CancellationToken)"/>
+    /// explicitly.
+    /// </para>
+    /// </summary>
+    public bool TerminateOnDispose { get; set; } = true;
+
+    /// <summary>
     /// When <see langword="true"/> (the default), <see cref="EntryPointClient"/>
     /// invokes <see cref="Stream.FlushAsync(CancellationToken)"/> on the
     /// underlying transport after every outbound application frame. This is the
