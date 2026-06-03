@@ -2,6 +2,9 @@
 B3.EntryPoint.Client.Auth.Credentials
 B3.EntryPoint.Client.Auth.Credentials.AsSpan() -> System.ReadOnlySpan<byte>
 B3.EntryPoint.Client.Auth.Credentials.Credentials(System.ReadOnlySpan<byte> bytes) -> void
+B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.ConnectMode.EstablishReuseThenNegotiate = 1 -> B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.ConnectMode.NegotiateThenEstablish = 0 -> B3.EntryPoint.Client.ConnectMode
 B3.EntryPoint.Client.DependencyInjection.EntryPointClientServiceCollectionExtensions
 B3.EntryPoint.Client.DropCopy.DropCopyClient
 B3.EntryPoint.Client.DropCopy.DropCopyClient.ConnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -60,6 +63,8 @@ B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxAttempts.get -> int
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxAttempts.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxDelay.get -> System.TimeSpan
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxDelay.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMode.get -> B3.EntryPoint.Client.ConnectMode
+B3.EntryPoint.Client.EntryPointClientOptions.ConnectMode.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectTimeout.get -> System.TimeSpan
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectTimeout.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.Credentials.get -> B3.EntryPoint.Client.Auth.Credentials!
@@ -84,6 +89,8 @@ B3.EntryPoint.Client.EntryPointClientOptions.KeepAliveIntervalMs.get -> uint
 B3.EntryPoint.Client.EntryPointClientOptions.KeepAliveIntervalMs.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.Logger.get -> Microsoft.Extensions.Logging.ILogger!
 B3.EntryPoint.Client.EntryPointClientOptions.Logger.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.NextSessionVerIdSelector.get -> System.Func<uint, uint>?
+B3.EntryPoint.Client.EntryPointClientOptions.NextSessionVerIdSelector.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.PersistenceQueueCapacity.get -> int
 B3.EntryPoint.Client.EntryPointClientOptions.PersistenceQueueCapacity.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.Profile.get -> B3.EntryPoint.Client.SessionProfile
@@ -100,6 +107,8 @@ B3.EntryPoint.Client.EntryPointClientOptions.SessionVerId.get -> uint
 B3.EntryPoint.Client.EntryPointClientOptions.SessionVerId.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.StateCompactEveryDeltas.get -> int
 B3.EntryPoint.Client.EntryPointClientOptions.StateCompactEveryDeltas.set -> void
+B3.EntryPoint.Client.EntryPointClientOptions.TerminateOnDispose.get -> bool
+B3.EntryPoint.Client.EntryPointClientOptions.TerminateOnDispose.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.Tls.get -> B3.EntryPoint.Client.TlsOptions!
 B3.EntryPoint.Client.EntryPointClientOptions.Tls.set -> void
 B3.EntryPoint.Client.Fixp.FixpClientState

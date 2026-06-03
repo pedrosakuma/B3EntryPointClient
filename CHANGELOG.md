@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.15.3] - 2026-06-02
+## [0.16.0] - 2026-06-03
+
+### Added
+- **api (#191, #192)**: cold-start (process-restart) session resume plus
+  suspendable shutdown, both opt-in and default-off for back-compat.
+  - `EntryPointClientOptions.ConnectMode` (new `ConnectMode` enum,
+    default `NegotiateThenEstablish`). Set to `EstablishReuseThenNegotiate`
+    to make a process restart RESUME the negotiated FIXP session: when a
+    usable persisted snapshot exists, `ConnectAsync` reconnects TCP and sends
+    `Establish` reusing the persisted `SessionVerID` (no `Negotiate`) so the
+    venue's order-ownership and retransmit buffer survive an OMS restart. On a
+    recoverable `Establish` reject (or no usable snapshot) it falls back to a
+    fresh `Negotiate`. Requires `SessionStateStore`.
+  - `EntryPointClientOptions.NextSessionVerIdSelector` (`Func<uint, uint>?`):
+    invoked only on the recoverable-reject fallback to pick a strictly-greater
+    `SessionVerID`. Defaults to `prev => prev + 1`.
+  - `EntryPointClientOptions.TerminateOnDispose` (`bool`, default `true`).
+    When `false`, `DisposeAsync` closes the transport WITHOUT a
+    `Terminate(Finished)`, leaving the venue session resumable (Suspended) so a
+    subsequent `EstablishReuseThenNegotiate` cold start can reattach it. The
+    final snapshot is still persisted.
+
+### Fixed
+- **fixp (#191)**: a within-process reconnect reattach (or cold-resume
+  fallback) no longer emits the dispose-time `Terminate`, which previously
+  evicted venue-side order ownership before the reattach `Establish` and
+  defeated #173 reattach.
+- **fixp (#191)**: the inbound loop now starts only after every `On*` callback
+  (including the retransmit handler) is wired, so an early gap frame in the
+  setup window can no longer latch the gap-request guard without issuing a
+  `RetransmitRequest`.
+
+
 
 ### Changed
 - **api (#189)**: `EntryPointClientOptions.CancelOnDisconnect` now defaults
