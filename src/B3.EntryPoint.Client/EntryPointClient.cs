@@ -29,6 +29,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private readonly Channel<EntryPointEvent> _events;
     private TcpClient? _tcp;
     private FixpClientSession? _session;
+
+    // #208: set by TryColdResumeAsync immediately before it bumps SessionVerID
+    // and falls through to a fresh Negotiate (recoverable EstablishReuse
+    // reject). Consumed exactly once by the following HydrateFromSnapshotAsync
+    // call so it does NOT resume outbound/inbound state from the now-stale
+    // (pre-bump) snapshot — a fresh Negotiate starts application sequencing
+    // over on both sides regardless of the persisted counters.
+    private bool _suppressNextSnapshotResume;
     private KeepAliveScheduler? _keepAlive;
     private RetransmitRequestHandler? _retransmit;
     private DateTime _lastInboundUtc;
@@ -513,14 +521,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _options.Logger.StaleSnapshotIgnored(snapshot.SessionId, _options.SessionId);
             return;
         }
-        if (snapshot.SessionVerId != _options.SessionVerId)
+        if (_suppressNextSnapshotResume)
         {
-            // A SessionVerId bump (e.g. cold-start EstablishReuse rejected,
-            // falling back to a fresh Negotiate; see #208) means this is a
-            // logically new negotiated session: FIXP resets application-level
-            // sequence numbering to 1 on both sides regardless of the old
-            // snapshot's contents, so resuming from it here would silently
-            // desync the outbound MsgSeqNum from what the venue expects.
+            _suppressNextSnapshotResume = false;
+            // See field doc on _suppressNextSnapshotResume (#208): a cold-start
+            // EstablishReuse reject just bumped SessionVerID and fell through
+            // to a fresh Negotiate — the snapshot's counters belong to the
+            // rejected (pre-bump) SessionVerID and must not be resumed.
             _options.Logger.StaleSnapshotSessionVerIdIgnored(snapshot.SessionVerId, _options.SessionVerId, _options.SessionId);
             return;
         }
@@ -1596,6 +1603,11 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _options.Logger.ColdResumeFallbackToNegotiate(code, prevVerId);
         _options.SessionVerId = nextVerId;
+        // #208: the fresh Negotiate about to happen starts application
+        // sequencing over; the snapshot we just loaded belongs to the
+        // rejected, pre-bump SessionVerID and must not seed the new session's
+        // outbound/inbound counters.
+        _suppressNextSnapshotResume = true;
         return false;
     }
 
