@@ -29,6 +29,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private readonly Channel<EntryPointEvent> _events;
     private TcpClient? _tcp;
     private FixpClientSession? _session;
+
+    // #208: set by TryColdResumeAsync immediately before it bumps SessionVerID
+    // and falls through to a fresh Negotiate (recoverable EstablishReuse
+    // reject). Consumed exactly once by the following HydrateFromSnapshotAsync
+    // call so it does NOT resume outbound/inbound state from the now-stale
+    // (pre-bump) snapshot — a fresh Negotiate starts application sequencing
+    // over on both sides regardless of the persisted counters.
+    private bool _suppressNextSnapshotResume;
     private KeepAliveScheduler? _keepAlive;
     private RetransmitRequestHandler? _retransmit;
     private DateTime _lastInboundUtc;
@@ -513,6 +521,16 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _options.Logger.StaleSnapshotIgnored(snapshot.SessionId, _options.SessionId);
             return;
         }
+        if (_suppressNextSnapshotResume)
+        {
+            _suppressNextSnapshotResume = false;
+            // See field doc on _suppressNextSnapshotResume (#208): a cold-start
+            // EstablishReuse reject just bumped SessionVerID and fell through
+            // to a fresh Negotiate — the snapshot's counters belong to the
+            // rejected (pre-bump) SessionVerID and must not be resumed.
+            _options.Logger.StaleSnapshotSessionVerIdIgnored(snapshot.SessionVerId, _options.SessionVerId, _options.SessionId);
+            return;
+        }
         _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
         lock (_inboundGapGate)
         {
@@ -856,6 +874,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     internal void HandleInboundEventForTesting(EntryPointEvent evt) => OnInboundEventForPersistence(evt);
     internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
     internal bool HasActiveSessionForTesting => _session is not null || _tcp is not null;
+    internal ulong PeekNextOutboundSeqNumForTesting() => _session?.PeekNextOutboundSeqNum() ?? 0UL;
     internal (ulong contiguous, ulong highest, int pending, bool gapInFlight) GetInboundGapStateForTesting()
     {
         lock (_inboundGapGate)
@@ -1584,6 +1603,11 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _options.Logger.ColdResumeFallbackToNegotiate(code, prevVerId);
         _options.SessionVerId = nextVerId;
+        // #208: the fresh Negotiate about to happen starts application
+        // sequencing over; the snapshot we just loaded belongs to the
+        // rejected, pre-bump SessionVerID and must not seed the new session's
+        // outbound/inbound counters.
+        _suppressNextSnapshotResume = true;
         return false;
     }
 
