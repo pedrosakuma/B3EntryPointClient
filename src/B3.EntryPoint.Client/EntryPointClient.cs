@@ -513,6 +513,17 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             _options.Logger.StaleSnapshotIgnored(snapshot.SessionId, _options.SessionId);
             return;
         }
+        if (snapshot.SessionVerId != _options.SessionVerId)
+        {
+            // A SessionVerId bump (e.g. cold-start EstablishReuse rejected,
+            // falling back to a fresh Negotiate; see #208) means this is a
+            // logically new negotiated session: FIXP resets application-level
+            // sequence numbering to 1 on both sides regardless of the old
+            // snapshot's contents, so resuming from it here would silently
+            // desync the outbound MsgSeqNum from what the venue expects.
+            _options.Logger.StaleSnapshotSessionVerIdIgnored(snapshot.SessionVerId, _options.SessionVerId, _options.SessionId);
+            return;
+        }
         _session!.ResumeOutboundSeqNum(snapshot.LastOutboundSeqNum + 1UL);
         lock (_inboundGapGate)
         {
@@ -856,6 +867,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     internal void HandleInboundEventForTesting(EntryPointEvent evt) => OnInboundEventForPersistence(evt);
     internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
     internal bool HasActiveSessionForTesting => _session is not null || _tcp is not null;
+    internal ulong PeekNextOutboundSeqNumForTesting() => _session?.PeekNextOutboundSeqNum() ?? 0UL;
     internal (ulong contiguous, ulong highest, int pending, bool gapInFlight) GetInboundGapStateForTesting()
     {
         lock (_inboundGapGate)

@@ -93,6 +93,10 @@ internal static partial class LogMessages
         Message = "Cold-start resume rejected (code={Code}); falling back to Negotiate from SessionVerID={SessionVerId}")]
     public static partial void ColdResumeFallbackToNegotiate(this ILogger logger, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code, uint sessionVerId);
 
+    [LoggerMessage(EventId = 3009, Level = LogLevel.Information,
+        Message = "Persisted snapshot SessionVerID={Persisted} != current {Current} for SessionID={SessionId}; new negotiated session starts fresh, ignoring stale sequence/order state.")]
+    public static partial void StaleSnapshotSessionVerIdIgnored(this ILogger logger, uint persisted, uint current, uint sessionId);
+
     // ---------------- Warning (4000–4999) ----------------
 
     [LoggerMessage(EventId = 4000, Level = LogLevel.Warning,

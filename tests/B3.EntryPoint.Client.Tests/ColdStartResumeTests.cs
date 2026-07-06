@@ -98,6 +98,38 @@ public class ColdStartResumeTests
     }
 
     [Fact]
+    public async Task ColdResume_EstablishRejectedUnnegotiated_DoesNotResumeOutboundSeqFromStaleSnapshot()
+    {
+        // Regression for #208: on a recoverable EstablishReuse reject, the
+        // client bumps SessionVerId and falls back to a fresh Negotiate.
+        // HydrateFromSnapshotAsync must NOT resume the outbound app seq
+        // counter from the pre-bump snapshot (a new SessionVerId means the
+        // wire-level sequence numbering starts fresh regardless of the old
+        // snapshot's contents).
+        await using var peer = new InProcessFixpTestPeer(new TestPeerOptions
+        {
+            RejectEstablishWithoutPriorNegotiate = true,
+        });
+        peer.Start();
+
+        var options = Options(peer);
+        options.ConnectMode = ConnectMode.EstablishReuseThenNegotiate;
+        // Stale snapshot from the prior (rejected) SessionVerId, with a
+        // large outbound counter that must NOT be carried forward.
+        options.SessionStateStore = new SnapshotStore(Snapshot(sessionVerId: 7u, lastOut: 22u));
+        options.NextSessionVerIdSelector = prev => prev + 1u;
+        await using var client = new EntryPointClient(options);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        await client.ConnectAsync(cts.Token);
+
+        Assert.Equal(8u, options.SessionVerId);
+        // Fresh session (new SessionVerId): outbound app seq must start at 1,
+        // not resume at 23 (stale snapshot's LastOutboundSeqNum + 1).
+        Assert.Equal(1u, client.PeekNextOutboundSeqNumForTesting());
+    }
+
+    [Fact]
     public async Task ColdResume_NoSnapshot_PlainNegotiate_NoVerIdChange()
     {
         await using var peer = new InProcessFixpTestPeer();
