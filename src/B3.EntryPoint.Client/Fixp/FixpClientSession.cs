@@ -27,6 +27,15 @@ internal sealed class FixpClientSession : IAsyncDisposable
     private readonly EntryPointClientOptions _options;
     private readonly FixpClientStateMachine _machine = new();
 
+    // #211: every outbound frame (Negotiate/Establish/Terminate/Sequence/
+    // RetransmitRequest/application frames) ultimately writes to this single
+    // shared _stream. Stream/SslStream implementations do not support
+    // concurrent WriteAsync calls, so all writers must serialize through this
+    // lock to guarantee both (a) no two callers interleave bytes on the wire,
+    // and (b) frames land on the wire in the same order their callers
+    // acquired the lock.
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
     public FixpClientSession(Stream stream, EntryPointClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -414,9 +423,17 @@ internal sealed class FixpClientSession : IAsyncDisposable
             throw new InvalidOperationException($"Cannot send application frame from state {_machine.State}.");
         if (_options.Logger.IsEnabled(LogLevel.Trace) && length >= SofhSize + SbeHeaderSize)
             _options.Logger.OutboundFrame(BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(SofhSize, 2)), length);
-        await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
-        if (_options.AutoFlushOutboundFrames)
-            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
+            if (_options.AutoFlushOutboundFrames)
+                await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>
@@ -426,7 +443,18 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// <see cref="EntryPointClientOptions.AutoFlushOutboundFrames"/> is
     /// <see langword="false"/>. Issue #123.
     /// </summary>
-    public Task FlushOutboundAsync(CancellationToken ct) => _stream.FlushAsync(ct);
+    public async Task FlushOutboundAsync(CancellationToken ct)
+    {
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
 
     /// <summary>Returns the next outbound MsgSeqNum and increments the counter.</summary>
     /// <remarks>
@@ -501,8 +529,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
             throw new InvalidOperationException("Failed to encode Sequence payload.");
 
-        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>Sends a §4.7 RetransmitRequest covering [fromSeqNo, fromSeqNo+count).</summary>
@@ -521,8 +557,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
         };
         if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
             throw new InvalidOperationException("Failed to encode RetransmitRequest payload.");
-        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>Optional hook: invoked by the inbound loop when a peer Sequence frame arrives.</summary>
@@ -590,6 +634,7 @@ internal sealed class FixpClientSession : IAsyncDisposable
             catch { /* best-effort */ }
         }
         await _stream.DisposeAsync().ConfigureAwait(false);
+        _writeLock.Dispose();
     }
 
     // -- Wire encoding -------------------------------------------------------
@@ -623,8 +668,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
             throw new InvalidOperationException("Failed to encode Negotiate payload.");
         }
 
-        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     private async Task SendEstablishAsync(uint nextSeqNo, CancellationToken ct)
@@ -654,8 +707,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (!EstablishData.TryEncode(payload, buffer.AsSpan(SofhSize + SbeHeaderSize), creds, out _))
             throw new InvalidOperationException("Failed to encode Establish payload.");
 
-        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     private async Task SendTerminateAsync(SbeTerminationCode code, CancellationToken ct)
@@ -676,8 +737,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
         if (!payload.TryEncode(buffer.AsSpan(SofhSize + SbeHeaderSize), out _))
             throw new InvalidOperationException("Failed to encode Terminate payload.");
 
-        await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _stream.WriteAsync(buffer, ct).ConfigureAwait(false);
+            await _stream.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     private static ushort ReadTemplateId(byte[] frame)

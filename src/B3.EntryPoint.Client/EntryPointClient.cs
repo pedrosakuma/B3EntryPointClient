@@ -30,6 +30,15 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private TcpClient? _tcp;
     private FixpClientSession? _session;
 
+    // #211: NextOutboundSeqNum() reserves a MsgSeqNum atomically, but the
+    // subsequent encode + SendApplicationFrameAsync steps are not otherwise
+    // serialized. Two concurrent callers (e.g. "Cancel All" firing several
+    // CancelAsync calls) could reserve seq N and N+1, then race to actually
+    // write to the wire, letting N+1 land before N. This lock spans
+    // reserve-seq -> encode -> write for every outbound application frame so
+    // wire order always matches seq-assignment order.
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+
     // #208: set by TryColdResumeAsync immediately before it bumps SessionVerID
     // and falls through to a fresh Negotiate (recoverable EstablishReuse
     // reject). Consumed exactly once by the following HydrateFromSnapshotAsync
@@ -960,6 +969,32 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         catch (OperationCanceledException) { /* shutdown */ }
     }
 
+    /// <summary>
+    /// Reserves the next outbound MsgSeqNum, encodes the application frame via
+    /// <paramref name="encode"/>, and writes it to the session — all under
+    /// <see cref="_sendLock"/> (#211) so the reserve→encode→write critical
+    /// section for concurrent outbound calls (e.g. a burst of CancelAsync from
+    /// a "Cancel All" action) can never interleave. This guarantees the wire
+    /// order of application frames always matches the order in which their
+    /// MsgSeqNum was assigned.
+    /// </summary>
+    private async Task<ulong> SendOrderEntryFrameAsync(
+        Func<ulong, (byte[] Buffer, int Length)> encode, CancellationToken ct)
+    {
+        await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var seq = _session!.NextOutboundSeqNum();
+            var (buffer, len) = encode(seq);
+            await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+            return seq;
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
     /// <inheritdoc />
     public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
@@ -969,10 +1004,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.submit", OutboundRequestKind.NewOrder, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
-        var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
+            var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrder"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
@@ -988,10 +1025,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.SimpleNewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.submit_simple", OutboundRequestKind.SimpleNewOrder, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
-        var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[SimpleNewOrderData.MESSAGE_SIZE + 64];
+            var len = OrderEntryEncoder.EncodeSimpleNewOrder(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "SimpleNewOrder"));
         RecordLatency(startTs, OutboundRequestKind.SimpleNewOrder);
@@ -1007,10 +1046,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.Replace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.replace", OutboundRequestKind.Replace, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
-        var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
+            var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "Replace"));
         RecordLatency(startTs, OutboundRequestKind.Replace);
@@ -1026,10 +1067,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.SimpleReplace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.replace_simple", OutboundRequestKind.SimpleReplace, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
-        var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[SimpleModifyOrderData.MESSAGE_SIZE + 64];
+            var len = OrderEntryEncoder.EncodeSimpleModifyOrder(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersReplaced.Add(1, new KeyValuePair<string, object?>("kind", "SimpleReplace"));
         RecordLatency(startTs, OutboundRequestKind.SimpleReplace);
@@ -1045,10 +1088,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.Cancel, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.cancel", OutboundRequestKind.Cancel, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
-        var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
+            var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersCancelled.Add(1);
         RecordLatency(startTs, OutboundRequestKind.Cancel);
@@ -1067,10 +1112,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             await EvaluateRiskAsync(OutboundRequestKind.MassAction, req, req.SecurityId ?? 0UL, clordid, token).ConfigureAwait(false);
             using var activity = StartOutbound("entrypoint.mass_action", OutboundRequestKind.MassAction, req.SecurityId ?? 0UL, clordid);
             var startTs = Stopwatch.GetTimestamp();
-            var seq = _session!.NextOutboundSeqNum();
-            var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
-            var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, seq);
-            await _session.SendApplicationFrameAsync(buffer, len, token).ConfigureAwait(false);
+            var seq = await SendOrderEntryFrameAsync(s =>
+            {
+                var buffer = new byte[OrderMassActionRequestData.MESSAGE_SIZE + 32];
+                var len = OrderEntryEncoder.EncodeOrderMassAction(buffer, req, _options, s);
+                return (buffer, len);
+            }, token).ConfigureAwait(false);
             await AppendOutboundOrderDeltaAsync(seq, req.ClOrdID, clordid, req.SecurityId ?? 0UL, token).ConfigureAwait(false);
             EntryPointTelemetry.MassActions.Add(1);
             RecordLatency(startTs, OutboundRequestKind.MassAction);
@@ -1094,11 +1141,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.submit_cross", OutboundRequestKind.NewOrder, request.SecurityId, clordid);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var legBytes = (request.Legs?.Count ?? 0) * B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.NoSidesData.MESSAGE_SIZE;
-        var buffer = new byte[B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.MESSAGE_SIZE + legBytes + 256];
-        var len = OrderEntryEncoder.EncodeNewOrderCross(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var legBytes = (request.Legs?.Count ?? 0) * B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.NoSidesData.MESSAGE_SIZE;
+            var buffer = new byte[B3.Entrypoint.Fixp.Sbe.V6.NewOrderCrossData.MESSAGE_SIZE + legBytes + 256];
+            var len = OrderEntryEncoder.EncodeNewOrderCross(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundDeltaAsync(seq, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrderCross"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
@@ -1113,10 +1162,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.NewOrder, request, request.SecurityId, request.QuoteReqId, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.quote_request", OutboundRequestKind.NewOrder, request.SecurityId, request.QuoteReqId);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[QuoteRequestData.MESSAGE_SIZE + 32];
-        var len = OrderEntryEncoder.EncodeQuoteRequest(buffer, request, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[QuoteRequestData.MESSAGE_SIZE + 32];
+            var len = OrderEntryEncoder.EncodeQuoteRequest(buffer, request, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundDeltaAsync(seq, request.QuoteReqId, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "QuoteRequest"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
@@ -1130,10 +1181,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.NewOrder, quote, quote.SecurityId, quote.QuoteId, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.quote", OutboundRequestKind.NewOrder, quote.SecurityId, quote.QuoteId);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[QuoteData.MESSAGE_SIZE + 32];
-        var len = OrderEntryEncoder.EncodeQuote(buffer, quote, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[QuoteData.MESSAGE_SIZE + 32];
+            var len = OrderEntryEncoder.EncodeQuote(buffer, quote, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundDeltaAsync(seq, quote.QuoteId, quote.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "Quote"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
@@ -1147,10 +1200,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await EvaluateRiskAsync(OutboundRequestKind.Cancel, quoteId, 0UL, quoteId, ct).ConfigureAwait(false);
         using var activity = StartOutbound("entrypoint.quote_cancel", OutboundRequestKind.Cancel, 0UL, quoteId);
         var startTs = Stopwatch.GetTimestamp();
-        var seq = _session!.NextOutboundSeqNum();
-        var buffer = new byte[QuoteCancelData.MESSAGE_SIZE + 32];
-        var len = OrderEntryEncoder.EncodeQuoteCancel(buffer, quoteId, 0UL, _options, seq);
-        await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
+        var seq = await SendOrderEntryFrameAsync(s =>
+        {
+            var buffer = new byte[QuoteCancelData.MESSAGE_SIZE + 32];
+            var len = OrderEntryEncoder.EncodeQuoteCancel(buffer, quoteId, 0UL, _options, s);
+            return (buffer, len);
+        }, ct).ConfigureAwait(false);
         await AppendOutboundDeltaAsync(seq, quoteId, 0UL, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersCancelled.Add(1, new KeyValuePair<string, object?>("kind", "QuoteCancel"));
         RecordLatency(startTs, OutboundRequestKind.Cancel);
@@ -1680,6 +1735,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
         _events.Writer.TryComplete();
+        _sendLock.Dispose();
     }
 
     /// <summary>
