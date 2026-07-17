@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Models;
 using B3.EntryPoint.Client.State;
+using B3.EntryPoint.Client.TestPeer;
 
 namespace B3.EntryPoint.Client.Tests;
 
@@ -101,6 +102,75 @@ public class OutboundAttemptReceiptTests
         Assert.Null(ex.Frame);
         Assert.False(callbackCalled);
         Assert.Equal(0, stream.Length);
+
+        var next = await client.SubmitWithReceiptAsync(NewOrder(181), CompletedCallback);
+        Assert.Equal(1UL, next.Frame.MsgSeqNum);
+    }
+
+    [Fact]
+    public async Task KeepAlive_WaitsForPreparedCallbackRollback()
+    {
+        var stream = new MemoryStream();
+        await using var client = CreateClient(stream);
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var send = client.SubmitWithReceiptAsync(NewOrder(19), async (_, _) =>
+        {
+            callbackEntered.SetResult();
+            await releaseCallback.Task;
+            throw new IOException("ledger unavailable");
+        });
+        await callbackEntered.Task;
+
+        var heartbeat = client.SendKeepAliveSequenceForTestingAsync();
+        await Task.Delay(50);
+        Assert.False(heartbeat.IsCompleted);
+
+        releaseCallback.SetResult();
+        await Assert.ThrowsAsync<OutboundAttemptException>(() => send);
+        Assert.Equal(1UL, await heartbeat);
+    }
+
+    [Fact]
+    public async Task Reconnect_WaitsForPreparedAttemptToFinish()
+    {
+        await using var peer = new InProcessFixpTestPeer();
+        peer.Start();
+        await using var client = new EntryPointClient(new EntryPointClientOptions
+        {
+            Endpoint = peer.LocalEndpoint,
+            SessionId = 42,
+            SessionVerId = 1,
+            EnteringFirm = 9,
+            Credentials = Credentials.FromUtf8("k"),
+            KeepAliveIntervalMs = 60_000,
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await client.ConnectAsync(cts.Token);
+
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var send = client.SubmitWithReceiptAsync(NewOrder(20), async (_, _) =>
+        {
+            callbackEntered.SetResult();
+            await releaseCallback.Task;
+        }, cts.Token);
+        await callbackEntered.Task;
+
+        var reconnect = client.ReconnectAsync(
+            ReconnectMode.EstablishReuseThenNegotiate,
+            nextSessionVerIdSelector: null,
+            cts.Token);
+        await Task.Delay(50, cts.Token);
+        Assert.False(reconnect.IsCompleted);
+
+        releaseCallback.SetResult();
+        var receipt = await send;
+        var outcome = await reconnect;
+
+        Assert.Equal(1UL, receipt.Frame.MsgSeqNum);
+        Assert.Equal(ReconnectKind.Reattached, outcome.Kind);
     }
 
     [Fact]
@@ -119,6 +189,12 @@ public class OutboundAttemptReceiptTests
 
         Assert.Equal(OutboundAttemptStage.FramePrepared, ex.LastStage);
         Assert.True(ex.NoTransportWritePossible);
+        Assert.Equal(0, stream.Length);
+
+        var blocked = await Assert.ThrowsAsync<OutboundAttemptException>(() =>
+            client.SubmitWithReceiptAsync(NewOrder(130), CompletedCallback));
+        Assert.Equal(OutboundAttemptStage.NotStarted, blocked.LastStage);
+        Assert.True(blocked.NoTransportWritePossible);
         Assert.Equal(0, stream.Length);
     }
 

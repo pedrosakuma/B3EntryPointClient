@@ -55,6 +55,9 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     private Channel<PersistOp>? _persistChannel;
     private CancellationTokenSource? _persistCts;
     private Task? _persistWorker;
+    private int _outboundRecoveryRequired;
+    private readonly object _disposeGate = new();
+    private Task? _disposeTask;
 
     private readonly ConcurrentDictionary<ClOrdID, ulong> _outstandingOrders = new();
 
@@ -310,8 +313,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _keepAlive = new KeepAliveScheduler(
             _options.KeepAliveInterval,
-            sendSequence: (seq, token) => _session.SendSequenceAsync(seq, token),
-            nextSeqNo: () => _session.PeekNextOutboundSeqNum());
+            sendSequence: SendKeepAliveSequenceAsync);
         _session.OnInboundSequence = nextSeq =>
         {
             _lastInboundUtc = DateTime.UtcNow;
@@ -472,7 +474,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
                 if (idleFor > _options.IdleTimeout)
                 {
                     _options.Logger.IdleTimeoutExceeded(idleFor, _options.IdleTimeout);
-                    try { await TerminateAsync(TerminationCode.KeepaliveIntervalLapsed, CancellationToken.None).ConfigureAwait(false); }
+                    try { await TerminateAsync(TerminationCode.KeepaliveIntervalLapsed, token).ConfigureAwait(false); }
                     catch { /* best-effort */ }
                     return;
                 }
@@ -885,6 +887,8 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
     internal bool HasActiveSessionForTesting => _session is not null || _tcp is not null;
     internal ulong PeekNextOutboundSeqNumForTesting() => _session?.PeekNextOutboundSeqNum() ?? 0UL;
+    internal Task<ulong> SendKeepAliveSequenceForTestingAsync(CancellationToken ct = default) =>
+        SendKeepAliveSequenceAsync(ct);
     internal void AttachEstablishedSessionForTesting(Stream stream)
     {
         _session = new FixpClientSession(stream, _options);
@@ -990,6 +994,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await _sendLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            EnsureOutboundSessionUsable();
             var seq = _session!.NextOutboundSeqNum();
             var (buffer, len) = encode(seq);
             await _session.SendApplicationFrameAsync(buffer, len, ct).ConfigureAwait(false);
@@ -1025,11 +1030,14 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
 
         ulong seq = 0;
+        FixpClientSession? session = null;
         OutboundFrameIdentity? identity = null;
         var stage = OutboundAttemptStage.NotStarted;
         try
         {
-            seq = _session!.NextOutboundSeqNum();
+            EnsureOutboundSessionUsable();
+            session = _session!;
+            seq = session.NextOutboundSeqNum();
             stage = OutboundAttemptStage.SequenceReserved;
             var (buffer, length) = encode(seq);
             identity = new OutboundFrameIdentity(
@@ -1049,7 +1057,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             }
             catch (Exception ex)
             {
-                _session.TryRollbackUnwrittenOutboundSeqNum(seq);
+                session.TryRollbackUnwrittenOutboundSeqNum(seq);
                 throw new OutboundAttemptException(
                     "The frame-prepared callback failed; no transport write was attempted.",
                     stage,
@@ -1059,11 +1067,15 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
             try
             {
-                await _session.SendApplicationFrameWithEvidenceAsync(buffer, length, ct).ConfigureAwait(false);
+                if (!ReferenceEquals(_session, session))
+                    throw new InvalidOperationException("The FIXP session changed before the prepared frame could be written.");
+                await session.SendApplicationFrameWithEvidenceAsync(buffer, length, ct).ConfigureAwait(false);
                 stage = OutboundAttemptStage.TransportWriteCompleted;
             }
             catch (ApplicationFrameWriteException ex)
             {
+                if (!ex.TransportWriteCompleted)
+                    Volatile.Write(ref _outboundRecoveryRequired, 1);
                 var failedStage = ex.TransportWriteCompleted
                     ? OutboundAttemptStage.TransportWriteCompleted
                     : OutboundAttemptStage.TransportWriteStarted;
@@ -1077,8 +1089,10 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             }
             catch (Exception ex)
             {
+                if (stage >= OutboundAttemptStage.FramePrepared)
+                    Volatile.Write(ref _outboundRecoveryRequired, 1);
                 if (stage == OutboundAttemptStage.SequenceReserved)
-                    _session!.TryRollbackUnwrittenOutboundSeqNum(seq);
+                    session.TryRollbackUnwrittenOutboundSeqNum(seq);
                 throw new OutboundAttemptException(
                     "The attempt ended before the transport write started.",
                     stage,
@@ -1110,6 +1124,8 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         catch (Exception ex)
         {
+            if (stage == OutboundAttemptStage.SequenceReserved)
+                session?.TryRollbackUnwrittenOutboundSeqNum(seq);
             throw new OutboundAttemptException(
                 "The outbound attempt ended before the frame-prepared callback completed.",
                 stage,
@@ -1120,6 +1136,46 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         {
             _sendLock.Release();
         }
+    }
+
+    private async Task<ulong> SendKeepAliveSequenceAsync(CancellationToken ct)
+    {
+        await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var session = _session ?? throw new InvalidOperationException("Client is not connected.");
+            var seq = session.PeekNextOutboundSeqNum();
+            await session.SendSequenceAsync(seq, ct).ConfigureAwait(false);
+            return seq;
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private void EnsureEstablishedForAttempt()
+    {
+        try
+        {
+            EnsureEstablished();
+        }
+        catch (Exception ex)
+        {
+            throw new OutboundAttemptException(
+                "The outbound attempt cannot start because the FIXP session is not established.",
+                OutboundAttemptStage.NotStarted,
+                null,
+                ex);
+        }
+    }
+
+    private void EnsureOutboundSessionUsable()
+    {
+        if (Volatile.Read(ref _outboundRecoveryRequired) != 0)
+            throw new InvalidOperationException(
+                "The prior prepared outbound attempt has an indeterminate wire outcome. " +
+                "Reconcile it and reconnect with a fresh SessionVerId before sending another application frame.");
     }
 
     private async ValueTask EvaluateRiskForAttemptAsync(
@@ -1201,7 +1257,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(onFramePrepared);
-        EnsureEstablished();
+        EnsureEstablishedForAttempt();
         var clordid = request.ClOrdID.Value.ToString();
         await EvaluateRiskForAttemptAsync(
             OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
@@ -1269,7 +1325,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(onFramePrepared);
-        EnsureEstablished();
+        EnsureEstablishedForAttempt();
         var clordid = request.ClOrdID.Value.ToString();
         await EvaluateRiskForAttemptAsync(
             OutboundRequestKind.Replace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
@@ -1336,7 +1392,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(onFramePrepared);
-        EnsureEstablished();
+        EnsureEstablishedForAttempt();
         var clordid = request.ClOrdID.Value.ToString();
         await EvaluateRiskForAttemptAsync(
             OutboundRequestKind.Cancel, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
@@ -1482,15 +1538,23 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     /// </summary>
     public async Task TerminateAsync(TerminationCode code, CancellationToken ct = default)
     {
-        if (_session is null)
-            throw new InvalidOperationException("Client is not connected.");
-        using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.terminate", ActivityKind.Client);
-        activity?.SetTag("entrypoint.terminate_code", code.ToString());
-        await _session.TerminateAsync((B3.Entrypoint.Fixp.Sbe.V6.TerminationCode)(byte)code, ct).ConfigureAwait(false);
-        EntryPointTelemetry.Terminations.Add(1,
-            new KeyValuePair<string, object?>("direction", "outbound"),
-            new KeyValuePair<string, object?>("code", code.ToString()));
-        RaiseTerminated(code, reason: null, initiatedByClient: true);
+        await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_session is null)
+                throw new InvalidOperationException("Client is not connected.");
+            using var activity = EntryPointTelemetry.ActivitySource.StartActivity("entrypoint.terminate", ActivityKind.Client);
+            activity?.SetTag("entrypoint.terminate_code", code.ToString());
+            await _session.TerminateAsync((B3.Entrypoint.Fixp.Sbe.V6.TerminationCode)(byte)code, ct).ConfigureAwait(false);
+            EntryPointTelemetry.Terminations.Add(1,
+                new KeyValuePair<string, object?>("direction", "outbound"),
+                new KeyValuePair<string, object?>("code", code.ToString()));
+            RaiseTerminated(code, reason: null, initiatedByClient: true);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     /// <summary>
@@ -1558,76 +1622,84 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         CancellationToken ct)
 #pragma warning restore RS0026, RS0027
     {
-        var selector = nextSessionVerIdSelector ?? (static prev => checked(prev + 1));
-
-        // #138: capture an outstanding inbound gap from the prior session
-        // before any state is reset. On the Renegotiated path the peer bumps
-        // SessionVerID and resets its outbound to 1, so the missing range is
-        // unrecoverable in-band — surface it via InboundGapAtReconnect after
-        // the new session is up so consumers can reconcile out-of-band.
-        // On the Reattached path the gap is recoverable via §4.7 and the
-        // returned ReconnectOutcome.RetransmitWindowReady advertises that.
-        ulong gapFrom = 0UL;
-        uint gapCount = 0u;
-        var priorSessionVerId = (ulong)_options.SessionVerId;
-        ulong localLastAssignedOutbound = _session?.LastAssignedOutboundSeqNum() ?? 0UL;
-        ulong localLastContiguousInbound;
-        lock (_inboundGapGate)
+        await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            localLastContiguousInbound = _lastContiguousInboundSeqNum;
-            if (_highestInboundSeqNum > _lastContiguousInboundSeqNum)
+            var selector = nextSessionVerIdSelector ?? (static prev => checked(prev + 1));
+
+            // #138: capture an outstanding inbound gap from the prior session
+            // before any state is reset. On the Renegotiated path the peer bumps
+            // SessionVerID and resets its outbound to 1, so the missing range is
+            // unrecoverable in-band — surface it via InboundGapAtReconnect after
+            // the new session is up so consumers can reconcile out-of-band.
+            // On the Reattached path the gap is recoverable via §4.7 and the
+            // returned ReconnectOutcome.RetransmitWindowReady advertises that.
+            ulong gapFrom = 0UL;
+            uint gapCount = 0u;
+            var priorSessionVerId = (ulong)_options.SessionVerId;
+            ulong localLastAssignedOutbound = _session?.LastAssignedOutboundSeqNum() ?? 0UL;
+            ulong localLastContiguousInbound;
+            lock (_inboundGapGate)
             {
-                gapFrom = _lastContiguousInboundSeqNum + 1UL;
-                var window = _highestInboundSeqNum - _lastContiguousInboundSeqNum;
-                gapCount = (uint)(window - (ulong)_pendingInboundSeqs.Count);
+                localLastContiguousInbound = _lastContiguousInboundSeqNum;
+                if (_highestInboundSeqNum > _lastContiguousInboundSeqNum)
+                {
+                    gapFrom = _lastContiguousInboundSeqNum + 1UL;
+                    var window = _highestInboundSeqNum - _lastContiguousInboundSeqNum;
+                    gapCount = (uint)(window - (ulong)_pendingInboundSeqs.Count);
+                }
             }
-        }
 
-        // Best-effort graceful Terminate before tearing the active session
-        // down — ONLY when deliberately rotating to a new logical session
-        // (AlwaysNegotiate). For EstablishReuseThenNegotiate we intend to
-        // reattach the SAME session, so a Terminate(Finished) here would tell
-        // the venue the session is done-for-good and evict order ownership
-        // before the reattach (#191). The old transport is torn down by
-        // StopActiveSessionAsync below in either case.
-        if (mode == ReconnectMode.AlwaysNegotiate)
-        {
-            try
+            // Best-effort graceful Terminate before tearing the active session
+            // down — ONLY when deliberately rotating to a new logical session
+            // (AlwaysNegotiate). For EstablishReuseThenNegotiate we intend to
+            // reattach the SAME session, so a Terminate(Finished) here would tell
+            // the venue the session is done-for-good and evict order ownership
+            // before the reattach (#191). The old transport is torn down by
+            // StopActiveSessionAsync below in either case.
+            if (mode == ReconnectMode.AlwaysNegotiate)
             {
-                if (_session is not null)
-                    await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
+                try
+                {
+                    if (_session is not null)
+                        await _session.TerminateAsync(B3.Entrypoint.Fixp.Sbe.V6.TerminationCode.FINISHED, ct).ConfigureAwait(false);
+                }
+                catch { /* best-effort */ }
             }
-            catch { /* best-effort */ }
+
+            // The transport teardown below must not itself emit a
+            // Terminate(Finished) via session dispose: for AlwaysNegotiate we just
+            // sent one explicitly above; for EstablishReuseThenNegotiate we intend
+            // to reattach the same session and must NOT evict ownership (#191).
+            await StopActiveSessionAsync(ct, suppressTerminate: true).ConfigureAwait(false);
+
+            ReconnectOutcome outcome;
+            if (mode == ReconnectMode.EstablishReuseThenNegotiate)
+            {
+                outcome = await TryReattachOrRenegotiateAsync(selector, localLastAssignedOutbound, localLastContiguousInbound, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                outcome = await RenegotiateAsync(selector, ct).ConfigureAwait(false);
+            }
+
+            // Surface a Renegotiated-path inbound gap (Reattach paths recover
+            // in-band via RetransmitWindowReady — no need to also raise the
+            // out-of-band event, the application can drive a RetransmitRequest
+            // directly from the outcome).
+            if (gapCount > 0u && outcome.Kind == ReconnectKind.Renegotiated)
+            {
+                _options.Logger.InboundGapAtReconnect(priorSessionVerId, gapFrom, gapCount);
+                InboundGapAtReconnect?.Invoke(this,
+                    new InboundGapAtReconnectEventArgs(gapFrom, gapCount, priorSessionVerId));
+            }
+
+            return outcome;
         }
-
-        // The transport teardown below must not itself emit a
-        // Terminate(Finished) via session dispose: for AlwaysNegotiate we just
-        // sent one explicitly above; for EstablishReuseThenNegotiate we intend
-        // to reattach the same session and must NOT evict ownership (#191).
-        await StopActiveSessionAsync(ct, suppressTerminate: true).ConfigureAwait(false);
-
-        ReconnectOutcome outcome;
-        if (mode == ReconnectMode.EstablishReuseThenNegotiate)
+        finally
         {
-            outcome = await TryReattachOrRenegotiateAsync(selector, localLastAssignedOutbound, localLastContiguousInbound, ct).ConfigureAwait(false);
+            _sendLock.Release();
         }
-        else
-        {
-            outcome = await RenegotiateAsync(selector, ct).ConfigureAwait(false);
-        }
-
-        // Surface a Renegotiated-path inbound gap (Reattach paths recover
-        // in-band via RetransmitWindowReady — no need to also raise the
-        // out-of-band event, the application can drive a RetransmitRequest
-        // directly from the outcome).
-        if (gapCount > 0u && outcome.Kind == ReconnectKind.Renegotiated)
-        {
-            _options.Logger.InboundGapAtReconnect(priorSessionVerId, gapFrom, gapCount);
-            InboundGapAtReconnect?.Invoke(this,
-                new InboundGapAtReconnectEventArgs(gapFrom, gapCount, priorSessionVerId));
-        }
-
-        return outcome;
     }
 
     /// <summary>
@@ -1775,6 +1847,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _options.SessionVerId = next;
         await ConnectAsync(ct).ConfigureAwait(false);
+        Volatile.Write(ref _outboundRecoveryRequired, 0);
 
         return new ReconnectOutcome(
             Kind: ReconnectKind.Renegotiated,
@@ -1986,11 +2059,27 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
             yield return evt;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
-        _events.Writer.TryComplete();
-        _sendLock.Dispose();
+        Task disposeTask;
+        lock (_disposeGate)
+            disposeTask = _disposeTask ??= DisposeCoreAsync();
+        return new ValueTask(disposeTask);
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        await _sendLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await StopActiveSessionAsync(CancellationToken.None).ConfigureAwait(false);
+            _events.Writer.TryComplete();
+        }
+        finally
+        {
+            _sendLock.Release();
+            _sendLock.Dispose();
+        }
     }
 
     /// <summary>

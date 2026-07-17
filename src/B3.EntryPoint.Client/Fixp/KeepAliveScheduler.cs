@@ -8,8 +8,7 @@ namespace B3.EntryPoint.Client.Fixp;
 /// </summary>
 public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
 {
-    private readonly Func<ulong, CancellationToken, Task>? _sendSequence;
-    private readonly Func<ulong>? _nextSeqNo;
+    private readonly Func<CancellationToken, Task<ulong>>? _sendSequence;
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
@@ -19,20 +18,18 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
     /// transport via <see cref="EntryPointClient"/> instead.
     /// </summary>
     public KeepAliveScheduler(TimeSpan keepAliveInterval)
-        : this(keepAliveInterval, sendSequence: null, nextSeqNo: null)
+        : this(keepAliveInterval, sendSequence: null)
     { }
 
     internal KeepAliveScheduler(
         TimeSpan keepAliveInterval,
-        Func<ulong, CancellationToken, Task>? sendSequence,
-        Func<ulong>? nextSeqNo)
+        Func<CancellationToken, Task<ulong>>? sendSequence)
     {
         if (keepAliveInterval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(keepAliveInterval),
                 "Keep-alive interval must be positive.");
         KeepAliveInterval = keepAliveInterval;
         _sendSequence = sendSequence;
-        _nextSeqNo = nextSeqNo;
     }
 
     public TimeSpan KeepAliveInterval { get; }
@@ -43,7 +40,7 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
 
     public void Start()
     {
-        if (_sendSequence is null || _nextSeqNo is null)
+        if (_sendSequence is null)
             throw new InvalidOperationException(
                 "KeepAliveScheduler was constructed without a bound transport. " +
                 "Use EntryPointClient.ConnectAsync, which wires a scheduler internally.");
@@ -70,10 +67,9 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
         {
             while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
             {
-                var seq = _nextSeqNo!();
                 try
                 {
-                    await _sendSequence!(seq, ct).ConfigureAwait(false);
+                    var seq = await _sendSequence!(ct).ConfigureAwait(false);
                     RaiseFrameSent(seq, DateTimeOffset.UtcNow);
                 }
                 catch (OperationCanceledException) { return; }
@@ -96,4 +92,3 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
     internal void RaiseFrameReceived(ulong nextSeqNo, DateTimeOffset at) =>
         SequenceFrameReceived?.Invoke(this, new SequenceFrameEventArgs(nextSeqNo, at));
 }
-

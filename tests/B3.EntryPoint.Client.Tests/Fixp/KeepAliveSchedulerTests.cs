@@ -74,12 +74,12 @@ public class KeepAliveSchedulerPeriodicTests
     public async Task Start_WithBoundTransport_InvokesSendCallbackPeriodically()
     {
         var ticks = new List<ulong>();
-        ulong nextSeq = 0;
         // Fires once two ticks have arrived so the test wakes up immediately
         // instead of polling on a wall-clock deadline.
         var twoTicks = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Task SendAsync(ulong seq, CancellationToken ct)
+        Task<ulong> SendAsync(CancellationToken ct)
         {
+            var seq = (ulong)(ticks.Count + 1);
             int count;
             lock (ticks)
             {
@@ -88,16 +88,15 @@ public class KeepAliveSchedulerPeriodicTests
             }
             if (count >= 2)
                 twoTicks.TrySetResult();
-            return Task.CompletedTask;
+            return Task.FromResult(seq);
         }
         var ctorInfo = typeof(B3.EntryPoint.Client.Fixp.KeepAliveScheduler).GetConstructors(
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 3);
+            .Single(c => c.GetParameters().Length == 2);
         var scheduler = (B3.EntryPoint.Client.Fixp.KeepAliveScheduler)ctorInfo.Invoke(new object?[]
         {
             TimeSpan.FromMilliseconds(40),
-            (Func<ulong, CancellationToken, Task>)SendAsync,
-            (Func<ulong>)(() => System.Threading.Interlocked.Increment(ref nextSeq)),
+            (Func<CancellationToken, Task<ulong>>)SendAsync,
         });
         scheduler.Start();
         var completed = await Task.WhenAny(twoTicks.Task, Task.Delay(TimeSpan.FromSeconds(5)));
