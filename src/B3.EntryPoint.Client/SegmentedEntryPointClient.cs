@@ -130,17 +130,35 @@ public sealed class SegmentedEntryPointClient : IAsyncDisposable, ISubmitOrder, 
     public Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
         => Route(_routeNewOrder(request)).SubmitAsync(request, ct);
 
+    public Task<OutboundAttemptReceipt> SubmitWithReceiptAsync(
+        NewOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+        => Route(_routeNewOrder(request)).SubmitWithReceiptAsync(request, onFramePrepared, ct);
+
     public Task<ClOrdID> SubmitSimpleAsync(SimpleNewOrderRequest request, CancellationToken ct = default)
         => Route(_routeSimpleNewOrder(request)).SubmitSimpleAsync(request, ct);
 
     public Task<ClOrdID> ReplaceAsync(ReplaceOrderRequest request, CancellationToken ct = default)
         => Route(_routeReplace(request)).ReplaceAsync(request, ct);
 
+    public Task<OutboundAttemptReceipt> ReplaceWithReceiptAsync(
+        ReplaceOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+        => Route(_routeReplace(request)).ReplaceWithReceiptAsync(request, onFramePrepared, ct);
+
     public Task<ClOrdID> ReplaceSimpleAsync(SimpleModifyRequest request, CancellationToken ct = default)
         => Route(_routeSimpleReplace(request)).ReplaceSimpleAsync(request, ct);
 
     public Task CancelAsync(CancelOrderRequest request, CancellationToken ct = default)
         => Route(_routeCancel(request)).CancelAsync(request, ct);
+
+    public Task<OutboundAttemptReceipt> CancelWithReceiptAsync(
+        CancelOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+        => Route(_routeCancel(request)).CancelWithReceiptAsync(request, onFramePrepared, ct);
 
     public Task<MassActionReport> MassActionAsync(MassActionRequest request, CancellationToken ct = default)
         => Route(_routeMassAction(request)).MassActionAsync(request, ct);

@@ -436,6 +436,35 @@ internal sealed class FixpClientSession : IAsyncDisposable
         }
     }
 
+    internal async Task SendApplicationFrameWithEvidenceAsync(byte[] buffer, int length, CancellationToken ct)
+    {
+        if (_machine.State != FixpClientState.Established)
+            throw new InvalidOperationException($"Cannot send application frame from state {_machine.State}.");
+        if (_options.Logger.IsEnabled(LogLevel.Trace) && length >= SofhSize + SbeHeaderSize)
+            _options.Logger.OutboundFrame(BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(SofhSize, 2)), length);
+
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var writeCompleted = false;
+            try
+            {
+                await _stream.WriteAsync(buffer.AsMemory(0, length), ct).ConfigureAwait(false);
+                writeCompleted = true;
+                if (_options.AutoFlushOutboundFrames)
+                    await _stream.FlushAsync(ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationFrameWriteException(writeCompleted, ex);
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     /// <summary>
     /// Flushes any bytes buffered by the underlying transport. Thin wrapper
     /// over <see cref="Stream.FlushAsync(CancellationToken)"/>; intended to be
@@ -500,6 +529,12 @@ internal sealed class FixpClientSession : IAsyncDisposable
     /// </remarks>
     public ulong LastAssignedOutboundSeqNum() =>
         (ulong)System.Threading.Interlocked.Read(ref _outboundSeqNum);
+
+    internal bool TryRollbackUnwrittenOutboundSeqNum(ulong seqNum)
+    {
+        var expected = checked((long)seqNum);
+        return Interlocked.CompareExchange(ref _outboundSeqNum, expected - 1L, expected) == expected;
+    }
 
     /// <summary>
     /// Returns the value the next call to <see cref="NextOutboundSeqNum"/> would produce
@@ -759,6 +794,17 @@ internal sealed class FixpClientSession : IAsyncDisposable
 
     private static long NowUnixNanos() =>
         (DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch).Ticks * 100L;
+}
+
+internal sealed class ApplicationFrameWriteException : Exception
+{
+    public ApplicationFrameWriteException(bool transportWriteCompleted, Exception innerException)
+        : base("The application-frame transport write did not complete.", innerException)
+    {
+        TransportWriteCompleted = transportWriteCompleted;
+    }
+
+    public bool TransportWriteCompleted { get; }
 }
 
 public class FixpRejectedException(string message) : Exception(message);

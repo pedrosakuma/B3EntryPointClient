@@ -37,6 +37,7 @@ session lifecycle exposed by `IEntryPointClient`.
 | `SubmitAsync` / `SubmitSimpleAsync` | NewOrder + SimpleNewOrder encoders + risk gate + delta persist (#128 typed key). |
 | `ReplaceAsync` / `ReplaceSimpleAsync` | OrderCancelReplace + SimpleModify. |
 | `CancelAsync` | OrderCancelRequest. |
+| `SubmitWithReceiptAsync` / `ReplaceWithReceiptAsync` / `CancelWithReceiptAsync` | Durable callback after sequence reservation + encoding and before transport write. Returns immutable session/sequence/ClOrdID/SHA-256 evidence. A receipt proves local write completion, **not** venue acceptance. Cancellation and failures surface as `OutboundAttemptException` with the last irreversible stage. Provably unsent reservations before callback success are reclaimed. After callback success, any failure before or during write requires reconciliation and a fresh `SessionVerId`; exact original-frame/original-sequence replay is not supported. |
 | `MassActionAsync` | OrderMassAction. |
 | `FlushAsync(CancellationToken)` | #123 batch-boundary flush. |
 | `Events()` | Bounded inbound event channel (#126). |

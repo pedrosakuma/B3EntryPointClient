@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 using B3.Entrypoint.Fixp.Sbe.V6;
 using B3.EntryPoint.Client.Fixp;
@@ -884,6 +885,11 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     internal void BindRetransmitForTesting(RetransmitRequestHandler handler) => _retransmit = handler;
     internal bool HasActiveSessionForTesting => _session is not null || _tcp is not null;
     internal ulong PeekNextOutboundSeqNumForTesting() => _session?.PeekNextOutboundSeqNum() ?? 0UL;
+    internal void AttachEstablishedSessionForTesting(Stream stream)
+    {
+        _session = new FixpClientSession(stream, _options);
+        _session.ForceEstablishedForTesting();
+    }
     internal (ulong contiguous, ulong highest, int pending, bool gapInFlight) GetInboundGapStateForTesting()
     {
         lock (_inboundGapGate)
@@ -995,6 +1001,177 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
     }
 
+    private async Task<OutboundAttemptReceipt> SendOrderEntryFrameWithReceiptAsync(
+        OutboundOperationKind operation,
+        ClOrdID clOrdId,
+        ulong securityId,
+        Func<ulong, (byte[] Buffer, int Length)> encode,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(onFramePrepared);
+
+        try
+        {
+            await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new OutboundAttemptException(
+                "The outbound attempt ended before a sequence number was reserved.",
+                OutboundAttemptStage.NotStarted,
+                null,
+                ex);
+        }
+
+        ulong seq = 0;
+        OutboundFrameIdentity? identity = null;
+        var stage = OutboundAttemptStage.NotStarted;
+        try
+        {
+            seq = _session!.NextOutboundSeqNum();
+            stage = OutboundAttemptStage.SequenceReserved;
+            var (buffer, length) = encode(seq);
+            identity = new OutboundFrameIdentity(
+                _options.SessionId,
+                _options.SessionVerId,
+                seq,
+                operation,
+                clOrdId,
+                length,
+                Convert.ToHexString(SHA256.HashData(buffer.AsSpan(0, length))));
+            stage = OutboundAttemptStage.SequenceReservedAndEncoded;
+
+            try
+            {
+                await onFramePrepared(identity, ct).ConfigureAwait(false);
+                stage = OutboundAttemptStage.FramePrepared;
+            }
+            catch (Exception ex)
+            {
+                _session.TryRollbackUnwrittenOutboundSeqNum(seq);
+                throw new OutboundAttemptException(
+                    "The frame-prepared callback failed; no transport write was attempted.",
+                    stage,
+                    identity,
+                    ex);
+            }
+
+            try
+            {
+                await _session.SendApplicationFrameWithEvidenceAsync(buffer, length, ct).ConfigureAwait(false);
+                stage = OutboundAttemptStage.TransportWriteCompleted;
+            }
+            catch (ApplicationFrameWriteException ex)
+            {
+                var failedStage = ex.TransportWriteCompleted
+                    ? OutboundAttemptStage.TransportWriteCompleted
+                    : OutboundAttemptStage.TransportWriteStarted;
+                throw new OutboundAttemptException(
+                    ex.TransportWriteCompleted
+                        ? "The transport write completed, but the transport flush failed."
+                        : "The transport write started but did not complete; its wire outcome is indeterminate.",
+                    failedStage,
+                    identity,
+                    ex.InnerException ?? ex);
+            }
+            catch (Exception ex)
+            {
+                if (stage == OutboundAttemptStage.SequenceReserved)
+                    _session!.TryRollbackUnwrittenOutboundSeqNum(seq);
+                throw new OutboundAttemptException(
+                    "The attempt ended before the transport write started.",
+                    stage,
+                    identity,
+                    ex);
+            }
+
+            try
+            {
+                await AppendOutboundOrderDeltaStrictAsync(
+                    seq, clOrdId, clOrdId.Value.ToString(), securityId, ct).ConfigureAwait(false);
+                if (_options.SessionStateStore is not null)
+                    stage = OutboundAttemptStage.SdkSessionStatePersisted;
+            }
+            catch (Exception ex)
+            {
+                throw new OutboundAttemptException(
+                    "The transport write completed, but SDK session-state persistence failed.",
+                    stage,
+                    identity,
+                    ex);
+            }
+
+            return new OutboundAttemptReceipt(identity, stage);
+        }
+        catch (OutboundAttemptException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new OutboundAttemptException(
+                "The outbound attempt ended before the frame-prepared callback completed.",
+                stage,
+                identity,
+                ex);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private async ValueTask EvaluateRiskForAttemptAsync(
+        OutboundRequestKind kind,
+        object request,
+        ulong securityId,
+        string clOrdId,
+        CancellationToken ct)
+    {
+        try
+        {
+            await EvaluateRiskAsync(kind, request, securityId, clOrdId, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new OutboundAttemptException(
+                "The outbound attempt ended during pre-trade evaluation.",
+                OutboundAttemptStage.NotStarted,
+                null,
+                ex);
+        }
+    }
+
+    private async ValueTask AppendOutboundOrderDeltaStrictAsync(
+        ulong seq,
+        ClOrdID clOrdId,
+        string clOrdIdText,
+        ulong securityId,
+        CancellationToken ct)
+    {
+        var store = _options.SessionStateStore;
+        if (store is null)
+            return;
+
+        _outstandingOrders[clOrdId] = securityId;
+        await store.AppendDeltaAsync(new OutboundDelta(seq, clOrdIdText, securityId), ct).ConfigureAwait(false);
+        await MaybeCompactStrictAsync(store, ct).ConfigureAwait(false);
+    }
+
+    private async ValueTask MaybeCompactStrictAsync(ISessionStateStore store, CancellationToken ct)
+    {
+        var threshold = _options.StateCompactEveryDeltas;
+        if (threshold <= 0)
+            return;
+        if (Interlocked.Increment(ref _deltasSinceCompact) < threshold)
+            return;
+
+        Interlocked.Exchange(ref _deltasSinceCompact, 0);
+        await store.SaveAsync(BuildSnapshot(), ct).ConfigureAwait(false);
+        await store.CompactAsync(ct).ConfigureAwait(false);
+    }
+
     /// <inheritdoc />
     public async Task<ClOrdID> SubmitAsync(NewOrderRequest request, CancellationToken ct = default)
     {
@@ -1014,6 +1191,32 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         EntryPointTelemetry.OrdersSubmitted.Add(1, new KeyValuePair<string, object?>("kind", "NewOrder"));
         RecordLatency(startTs, OutboundRequestKind.NewOrder);
         return request.ClOrdID;
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboundAttemptReceipt> SubmitWithReceiptAsync(
+        NewOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(onFramePrepared);
+        EnsureEstablished();
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskForAttemptAsync(
+            OutboundRequestKind.NewOrder, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        return await SendOrderEntryFrameWithReceiptAsync(
+            OutboundOperationKind.NewOrder,
+            request.ClOrdID,
+            request.SecurityId,
+            s =>
+            {
+                var buffer = new byte[NewOrderSingleData.MESSAGE_SIZE + 256];
+                var len = OrderEntryEncoder.EncodeNewOrderSingle(buffer, request, _options, s);
+                return (buffer, len);
+            },
+            onFramePrepared,
+            ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -1059,6 +1262,32 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     }
 
     /// <inheritdoc />
+    public async Task<OutboundAttemptReceipt> ReplaceWithReceiptAsync(
+        ReplaceOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(onFramePrepared);
+        EnsureEstablished();
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskForAttemptAsync(
+            OutboundRequestKind.Replace, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        return await SendOrderEntryFrameWithReceiptAsync(
+            OutboundOperationKind.Replace,
+            request.ClOrdID,
+            request.SecurityId,
+            s =>
+            {
+                var buffer = new byte[OrderCancelReplaceRequestData.MESSAGE_SIZE + 256];
+                var len = OrderEntryEncoder.EncodeOrderCancelReplace(buffer, request, _options, s);
+                return (buffer, len);
+            },
+            onFramePrepared,
+            ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ClOrdID> ReplaceSimpleAsync(SimpleModifyRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -1097,6 +1326,32 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await AppendOutboundOrderDeltaAsync(seq, request.ClOrdID, clordid, request.SecurityId, ct).ConfigureAwait(false);
         EntryPointTelemetry.OrdersCancelled.Add(1);
         RecordLatency(startTs, OutboundRequestKind.Cancel);
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboundAttemptReceipt> CancelWithReceiptAsync(
+        CancelOrderRequest request,
+        OutboundFramePreparedCallback onFramePrepared,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(onFramePrepared);
+        EnsureEstablished();
+        var clordid = request.ClOrdID.Value.ToString();
+        await EvaluateRiskForAttemptAsync(
+            OutboundRequestKind.Cancel, request, request.SecurityId, clordid, ct).ConfigureAwait(false);
+        return await SendOrderEntryFrameWithReceiptAsync(
+            OutboundOperationKind.Cancel,
+            request.ClOrdID,
+            request.SecurityId,
+            s =>
+            {
+                var buffer = new byte[OrderCancelRequestData.MESSAGE_SIZE + 256];
+                var len = OrderEntryEncoder.EncodeOrderCancel(buffer, request, _options, s);
+                return (buffer, len);
+            },
+            onFramePrepared,
+            ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
