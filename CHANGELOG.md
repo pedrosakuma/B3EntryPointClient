@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-17
+
+### Added
+- **api (#223)**: durable outbound attempt receipts for new, replace and
+  cancel requests. The new `SubmitWithReceiptAsync`,
+  `ReplaceWithReceiptAsync` and `CancelWithReceiptAsync` methods expose an
+  awaited callback after sequence reservation and frame encoding but before
+  any transport write. Consumers receive immutable session/sequence/ClOrdID
+  identity plus a SHA-256 hash of the complete SOFH-framed message.
+- **api (#223)**: typed `OutboundAttemptStage`,
+  `OutboundAttemptReceipt` and `OutboundAttemptException` evidence
+  distinguishes provably-unsent attempts, indeterminate writes, completed
+  transport writes and SDK session-state persistence.
+
+### Fixed
+- **fixp (#223)**: heartbeat, reconnect, terminate and dispose now coordinate
+  with the complete reserve → encode → callback → write transaction, preventing
+  sequence publication or session replacement while a frame is being prepared.
+- **fixp (#223)**: provably-unsent reservations are reclaimed. Failures after a
+  durable frame callback or during a transport write block further application
+  sends until reconciliation and a fresh `SessionVerId`, avoiding silent
+  outbound sequence gaps.
+- **lifecycle (#223)**: `DisposeAsync` remains idempotent and idle-timeout
+  teardown no longer deadlocks with reconnect.
+
 ## [0.16.0] - 2026-06-03
 
 ### Added
