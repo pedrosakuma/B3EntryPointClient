@@ -47,16 +47,16 @@ B3.EntryPoint.Client.EntryPointClient.Terminated -> System.EventHandler<B3.Entry
 B3.EntryPoint.Client.EntryPointClientOptions
 B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.get -> bool
 B3.EntryPoint.Client.EntryPointClientOptions.AutoFlushOutboundFrames.set -> void
-B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.get -> B3.EntryPoint.Client.CancelOnDisconnectType
-B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.set -> void
+[B3EP_COD]B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.get -> B3.EntryPoint.Client.CancelOnDisconnectType
+[B3EP_COD]B3.EntryPoint.Client.EntryPointClientOptions.CancelOnDisconnect.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ClientAppName.get -> string!
 B3.EntryPoint.Client.EntryPointClientOptions.ClientAppName.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ClientAppVersion.get -> string!
 B3.EntryPoint.Client.EntryPointClientOptions.ClientAppVersion.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ClientIP.get -> string?
 B3.EntryPoint.Client.EntryPointClientOptions.ClientIP.set -> void
-B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.get -> ulong
-B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.set -> void
+[B3EP_COD]B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.get -> ulong
+[B3EP_COD]B3.EntryPoint.Client.EntryPointClientOptions.CodTimeoutWindowMs.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectBaseDelay.get -> System.TimeSpan
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectBaseDelay.set -> void
 B3.EntryPoint.Client.EntryPointClientOptions.ConnectMaxAttempts.get -> int

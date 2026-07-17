@@ -1,1 +1,42 @@
 #nullable enable
+B3.EntryPoint.Client.EntryPointClient.CancelWithReceiptAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.EntryPointClient.ReplaceWithReceiptAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.EntryPointClient.SubmitWithReceiptAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.ICancelOrder.CancelWithReceiptAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.IReplaceOrder.ReplaceWithReceiptAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.ISubmitOrder.SubmitWithReceiptAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.Models.OutboundAttemptException
+B3.EntryPoint.Client.Models.OutboundAttemptException.Frame.get -> B3.EntryPoint.Client.Models.OutboundFrameIdentity?
+B3.EntryPoint.Client.Models.OutboundAttemptException.LastStage.get -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptException.NoTransportWritePossible.get -> bool
+B3.EntryPoint.Client.Models.OutboundAttemptException.OutboundAttemptException(string! message, B3.EntryPoint.Client.Models.OutboundAttemptStage lastStage, B3.EntryPoint.Client.Models.OutboundFrameIdentity? frame, System.Exception! innerException) -> void
+B3.EntryPoint.Client.Models.OutboundAttemptReceipt
+B3.EntryPoint.Client.Models.OutboundAttemptReceipt.Frame.get -> B3.EntryPoint.Client.Models.OutboundFrameIdentity!
+B3.EntryPoint.Client.Models.OutboundAttemptReceipt.OutboundAttemptReceipt(B3.EntryPoint.Client.Models.OutboundFrameIdentity! frame, B3.EntryPoint.Client.Models.OutboundAttemptStage stage) -> void
+B3.EntryPoint.Client.Models.OutboundAttemptReceipt.Stage.get -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.FramePrepared = 3 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.NotStarted = 0 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.SdkSessionStatePersisted = 6 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.SequenceReserved = 1 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.SequenceReservedAndEncoded = 2 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.TransportWriteCompleted = 5 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundAttemptStage.TransportWriteStarted = 4 -> B3.EntryPoint.Client.Models.OutboundAttemptStage
+B3.EntryPoint.Client.Models.OutboundFrameIdentity
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.ClOrdID.get -> B3.EntryPoint.Client.Models.ClOrdID
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.EncodedFrameLength.get -> int
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.EncodedFrameSha256.get -> string!
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.MsgSeqNum.get -> ulong
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.Operation.get -> B3.EntryPoint.Client.Models.OutboundOperationKind
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.OutboundFrameIdentity(uint sessionId, uint sessionVerId, ulong msgSeqNum, B3.EntryPoint.Client.Models.OutboundOperationKind operation, B3.EntryPoint.Client.Models.ClOrdID clOrdID, int encodedFrameLength, string! encodedFrameSha256) -> void
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.SessionId.get -> uint
+B3.EntryPoint.Client.Models.OutboundFrameIdentity.SessionVerId.get -> uint
+B3.EntryPoint.Client.Models.OutboundFramePreparedCallback
+B3.EntryPoint.Client.Models.OutboundOperationKind
+B3.EntryPoint.Client.Models.OutboundOperationKind.Cancel = 2 -> B3.EntryPoint.Client.Models.OutboundOperationKind
+B3.EntryPoint.Client.Models.OutboundOperationKind.NewOrder = 0 -> B3.EntryPoint.Client.Models.OutboundOperationKind
+B3.EntryPoint.Client.Models.OutboundOperationKind.Replace = 1 -> B3.EntryPoint.Client.Models.OutboundOperationKind
+B3.EntryPoint.Client.SegmentedEntryPointClient.CancelWithReceiptAsync(B3.EntryPoint.Client.Models.CancelOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.ReplaceWithReceiptAsync(B3.EntryPoint.Client.Models.ReplaceOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+B3.EntryPoint.Client.SegmentedEntryPointClient.SubmitWithReceiptAsync(B3.EntryPoint.Client.Models.NewOrderRequest! request, B3.EntryPoint.Client.Models.OutboundFramePreparedCallback! onFramePrepared, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<B3.EntryPoint.Client.Models.OutboundAttemptReceipt!>!
+virtual B3.EntryPoint.Client.Models.OutboundFramePreparedCallback.Invoke(B3.EntryPoint.Client.Models.OutboundFrameIdentity! frame, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
