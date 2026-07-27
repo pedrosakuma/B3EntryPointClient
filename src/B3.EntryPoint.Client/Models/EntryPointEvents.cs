@@ -52,17 +52,29 @@ public abstract record EntryPointEvent
     /// <summary>
     /// Sequence number assigned by the gateway on the Recoverable outbound
     /// flow (FIXP session-protocol <c>Sequence</c> message family). Issue
-    /// #228 Q3: this is the authoritative ordering/dedup key — it is
-    /// monotonically increasing with no gaps once the session's
-    /// <c>RetransmitRequest</c>/<c>Retransmission</c> exchange (schema
-    /// message ids 12/13) has filled any hole. Consumers should track the
-    /// highest applied <see cref="SeqNum"/> per session and treat any event
-    /// re-delivered at or below that watermark (e.g. during a
-    /// retransmission replay after a reconnect) as already applied rather
-    /// than re-processing it. Ordering is only guaranteed at the session
-    /// level (this counter), not per-order — do not assume, for a given
-    /// order, that its own execution reports are contiguous in this
-    /// sequence; other orders' events may interleave between them.
+    /// #228 Q3: events can arrive **out of numeric <see cref="SeqNum"/>
+    /// order** — when a gap is detected, the post-gap frame is surfaced to
+    /// consumers immediately (not buffered), and the lower-numbered
+    /// gap-filling frames requested via <c>RetransmitRequest</c>
+    /// (<c>Retransmission</c> reply, schema message ids 12/13) are
+    /// delivered afterwards, once received. Do not implement dedup as a
+    /// single "highest SeqNum seen" watermark that treats any lower value
+    /// as an already-applied duplicate — that misclassifies the
+    /// legitimately-new retransmitted frames that arrive after a
+    /// higher-numbered frame as stale and silently drops them. Track
+    /// applied events per-<see cref="SeqNum"/> (e.g. a seen-set) instead, or
+    /// key idempotency off business identifiers (<c>ClOrdID</c>/<c>OrderId</c>)
+    /// where duplicate delivery is otherwise a concern.
+    /// Within a single reconnect-free session, gaps are always eventually
+    /// filled this way; however, a gap still outstanding when the session
+    /// terminates becomes permanently unrecoverable in-band — see
+    /// <see cref="EntryPointClient.InboundGapAtReconnect"/>, which fires
+    /// exactly once per reconnect in that case (the peer resets its
+    /// outbound counter, so the missing range can never be retransmitted;
+    /// consumers must reconcile out-of-band). Ordering is only meaningful
+    /// at the session level (this counter), not per-order — do not assume,
+    /// for a given order, that its own execution reports are contiguous in
+    /// this sequence; other orders' events may interleave between them.
     /// </summary>
     public required ulong SeqNum { get; init; }
 
@@ -134,13 +146,17 @@ public sealed record OrderModified : EntryPointEvent
 
 /// <summary>
 /// Maps to <c>ExecutionReport_Cancel</c>. Issue #228: this message has no
-/// <c>leavesQty</c>/<c>cumQty</c> field on the wire at all (a cancel is a
-/// terminal state with 0 remaining quantity by definition — there is
-/// nothing to reconcile), which is why this record exposes neither
-/// property. <c>ExecutionReport_Cancel</c> is also the message used for
-/// unsolicited administrative cancellations (Market Operations, Cancel On
-/// Disconnect, self-trade prevention, etc. — see <see cref="RestatementReason"/>
-/// / schema enum <c>ExecRestatementReason</c>), not only solicited
+/// <c>leavesQty</c> field on the wire (a cancel is a terminal state with
+/// 0 remaining quantity by definition — there is nothing to reconcile),
+/// which is why this record exposes no <c>LeavesQty</c> property. Note it
+/// does declare a required <c>cumQty</c> (tag 14) on the wire, same as
+/// <c>ExecutionReport_Modify</c>/<c>_Trade</c> — this record simply
+/// doesn't surface it (not currently needed by any consumer); it is not
+/// absent from the wire the way <c>leavesQty</c> is.
+/// <c>ExecutionReport_Cancel</c> is also the message used for unsolicited
+/// administrative cancellations (Market Operations, Cancel On Disconnect,
+/// self-trade prevention, etc. — see <see cref="RestatementReason"/> /
+/// schema enum <c>ExecRestatementReason</c>), not only solicited
 /// cancel-request acks.
 /// </summary>
 public sealed record OrderCancelled : EntryPointEvent
