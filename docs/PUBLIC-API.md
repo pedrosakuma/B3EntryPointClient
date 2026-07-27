@@ -73,6 +73,16 @@ string forms for backward compatibility with v0.13.0 deltas.
 Request/event records (`NewOrderRequest`, `OrderTrade`, `OrderCancelled`,
 …), enums, and the `ClOrdID` value type. Stable.
 
+Issue #228: `LeavesQty`/`CumQty` semantics differ by event type and are
+now documented via XML doc comments on each record in
+`EntryPointEvents.cs` — in short, `OrderAccepted.LeavesQty`/`CumQty` are
+**always** `null` (`ExecutionReport_New` has no such wire field), while
+`OrderModified`/`OrderTrade`'s `LeavesQty`/`CumQty` map to **required**
+schema fields and are never actually `null` in practice. Do not apply a
+uniform `?? 0UL` fallback across event types — see the XML docs for
+details before writing order-tracking/reconciliation logic against these
+events.
+
 ### Risk — `B3.EntryPoint.Client.Risk`
 
 `IRiskGate` and the built-in `MaxNotionalRiskGate` /

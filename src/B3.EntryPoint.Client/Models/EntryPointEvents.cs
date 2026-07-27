@@ -49,14 +49,55 @@ public enum ExecRestatementReason : byte
 /// </summary>
 public abstract record EntryPointEvent
 {
-    /// <summary>Sequence number assigned by the gateway.</summary>
+    /// <summary>
+    /// Sequence number assigned by the gateway on the Recoverable outbound
+    /// flow (FIXP session-protocol <c>Sequence</c> message family). Issue
+    /// #228 Q3: events can arrive **out of numeric <see cref="SeqNum"/>
+    /// order** — when a gap is detected, the post-gap frame is surfaced to
+    /// consumers immediately (not buffered), and the lower-numbered
+    /// gap-filling frames requested via <c>RetransmitRequest</c>
+    /// (<c>Retransmission</c> reply, schema message ids 12/13) are
+    /// delivered afterwards, once received. Do not implement dedup as a
+    /// single "highest SeqNum seen" watermark that treats any lower value
+    /// as an already-applied duplicate — that misclassifies the
+    /// legitimately-new retransmitted frames that arrive after a
+    /// higher-numbered frame as stale and silently drops them. Track
+    /// applied events per-<see cref="SeqNum"/> (e.g. a seen-set) instead, or
+    /// key idempotency off business identifiers (<c>ClOrdID</c>/<c>OrderId</c>)
+    /// where duplicate delivery is otherwise a concern.
+    /// Within a single reconnect-free session, gaps are always eventually
+    /// filled this way; however, a gap still outstanding when the session
+    /// terminates becomes permanently unrecoverable in-band — see
+    /// <see cref="EntryPointClient.InboundGapAtReconnect"/>, which fires
+    /// exactly once per reconnect in that case (the peer resets its
+    /// outbound counter, so the missing range can never be retransmitted;
+    /// consumers must reconcile out-of-band). Ordering is only meaningful
+    /// at the session level (this counter), not per-order — do not assume,
+    /// for a given order, that its own execution reports are contiguous in
+    /// this sequence; other orders' events may interleave between them.
+    /// </summary>
     public required ulong SeqNum { get; init; }
 
     /// <summary>Time the event was sent by the gateway.</summary>
     public required DateTimeOffset SendingTime { get; init; }
 }
 
-/// <summary>Maps to <c>ExecutionReport_New</c> — order acknowledged.</summary>
+/// <summary>
+/// Maps to <c>ExecutionReport_New</c> — order acknowledged. Issue #228:
+/// the vendored schema (<c>b3-entrypoint-messages-8.4.2.xml</c>, message id
+/// 200) does not define a <c>leavesQty</c> (tag 151) or <c>cumQty</c>
+/// (tag 14) field on this message at all — B3 does not report a resting
+/// quantity on the initial acknowledgment. <see cref="LeavesQty"/> and
+/// <see cref="CumQty"/> are therefore ALWAYS <c>null</c> here, by design,
+/// on every acceptance — this is not an intermittent/ambiguous condition.
+/// Consumers must derive the initially-resting quantity from the
+/// submitted order's own <c>OrderQty</c> (tracked client-side), never from
+/// this event. In particular, do not coalesce a null here to <c>0</c>
+/// (e.g. <c>LeavesQty ?? 0UL</c>) and treat the result as "no quantity
+/// remaining" — that misreads "field absent on this message type" as
+/// "order fully closed" and will incorrectly mark a just-accepted,
+/// fully-resting order as closed.
+/// </summary>
 public sealed record OrderAccepted : EntryPointEvent
 {
     public required ClOrdID ClOrdID { get; init; }
@@ -64,12 +105,34 @@ public sealed record OrderAccepted : EntryPointEvent
     public required OrderStatus OrderStatus { get; init; }
     public required ulong SecurityId { get; init; }
     public required Side Side { get; init; }
+    /// <summary>
+    /// Always <c>null</c> — see the type-level remarks. <c>ExecutionReport_New</c>
+    /// has no wire representation for this field.
+    /// </summary>
     public ulong? LeavesQty { get; init; }
+    /// <summary>
+    /// Always <c>null</c> — see the type-level remarks. <c>ExecutionReport_New</c>
+    /// has no wire representation for this field.
+    /// </summary>
     public ulong? CumQty { get; init; }
     public DateTimeOffset? TransactTime { get; init; }
 }
 
-/// <summary>Maps to <c>ExecutionReport_Modify</c>.</summary>
+/// <summary>
+/// Maps to <c>ExecutionReport_Modify</c>. Issue #228: unlike
+/// <see cref="OrderAccepted"/>, <see cref="LeavesQty"/> and
+/// <see cref="CumQty"/> map to schema fields (tags 151/14) that are
+/// <c>required</c> (type <c>Quantity</c>, not <c>QuantityOptional</c>,
+/// no <c>presence="optional"</c>, no null-value sentinel) — the venue
+/// always sends a real value for both on every <c>ExecutionReport_Modify</c>,
+/// including unsolicited restatements (e.g. iceberg replenishment). These
+/// properties are typed as nullable only for structural symmetry across
+/// the <see cref="EntryPointEvent"/> discriminated union; in practice they
+/// are never actually <c>null</c> for this event type, so a
+/// <c>?? 0UL</c> fallback is safe here (an always-dead branch) but should
+/// not be copy-pasted onto <see cref="OrderAccepted"/>, where the same
+/// fallback silently misreports "field never sent" as "fully filled".
+/// </summary>
 public sealed record OrderModified : EntryPointEvent
 {
     public required ClOrdID ClOrdID { get; init; }
@@ -81,7 +144,21 @@ public sealed record OrderModified : EntryPointEvent
     public DateTimeOffset? TransactTime { get; init; }
 }
 
-/// <summary>Maps to <c>ExecutionReport_Cancel</c>.</summary>
+/// <summary>
+/// Maps to <c>ExecutionReport_Cancel</c>. Issue #228: this message has no
+/// <c>leavesQty</c> field on the wire (a cancel is a terminal state with
+/// 0 remaining quantity by definition — there is nothing to reconcile),
+/// which is why this record exposes no <c>LeavesQty</c> property. Note it
+/// does declare a required <c>cumQty</c> (tag 14) on the wire, same as
+/// <c>ExecutionReport_Modify</c>/<c>_Trade</c> — this record simply
+/// doesn't surface it (not currently needed by any consumer); it is not
+/// absent from the wire the way <c>leavesQty</c> is.
+/// <c>ExecutionReport_Cancel</c> is also the message used for unsolicited
+/// administrative cancellations (Market Operations, Cancel On Disconnect,
+/// self-trade prevention, etc. — see <see cref="RestatementReason"/> /
+/// schema enum <c>ExecRestatementReason</c>), not only solicited
+/// cancel-request acks.
+/// </summary>
 public sealed record OrderCancelled : EntryPointEvent
 {
     public required ClOrdID ClOrdID { get; init; }
@@ -92,7 +169,14 @@ public sealed record OrderCancelled : EntryPointEvent
     public DateTimeOffset? TransactTime { get; init; }
 }
 
-/// <summary>Maps to <c>ExecutionReport_Trade</c>.</summary>
+/// <summary>
+/// Maps to <c>ExecutionReport_Trade</c>. Issue #228: like
+/// <see cref="OrderModified"/> (and unlike <see cref="OrderAccepted"/>),
+/// <see cref="LeavesQty"/>/<see cref="CumQty"/> map to schema fields that
+/// are <c>required</c> on the wire (type <c>Quantity</c>, no null-value
+/// sentinel) — always populated with the real post-trade remaining/filled
+/// quantity, never <c>null</c> in practice for this event type.
+/// </summary>
 public sealed record OrderTrade : EntryPointEvent
 {
     public required ClOrdID ClOrdID { get; init; }
