@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-07-30
+
+### Fixed
+- **fixp (#231)**: keepalive callback exceptions and liveness-budget
+  overruns now fault the active session through the transport-closed
+  lifecycle instead of silently stopping the heartbeat producer while the
+  client remains `Established`.
+- **lifecycle (#231)**: reconnect and teardown stop the keepalive scheduler
+  before replacing the session, avoiding false heartbeat faults during an
+  intentional session swap.
+- **observability (#231)**: structured error event 5003 identifies the
+  affected `SessionID`, `SessionVerID`, endpoint, failure kind and exception.
+  New metrics report scheduling delay, send duration and failures so hosts can
+  distinguish scheduler starvation from transport failure.
+
 ## [0.17.0] - 2026-07-17
 
 ### Added

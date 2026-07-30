@@ -196,4 +196,16 @@ internal static partial class LogMessages
     [LoggerMessage(EventId = 5002, Level = LogLevel.Error,
         Message = "Session terminated due to fault")]
     public static partial void SessionFaulted(this ILogger logger, Exception ex);
+
+    [LoggerMessage(EventId = 5003, Level = LogLevel.Error,
+        Message = "Keep-alive loop faulted for SessionID={SessionId} SessionVerID={SessionVerId} endpoint={Endpoint} kind={Kind} schedulingDelay={SchedulingDelay} sendDuration={SendDuration}")]
+    public static partial void KeepAliveFaulted(
+        this ILogger logger,
+        Exception ex,
+        uint sessionId,
+        uint sessionVerId,
+        EndPoint endpoint,
+        KeepAliveFailureKind kind,
+        TimeSpan schedulingDelay,
+        TimeSpan sendDuration);
 }

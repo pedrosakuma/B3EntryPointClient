@@ -30,6 +30,9 @@ public class EntryPointTelemetryTests
         Assert.Contains("entrypoint.risk.rejections", seen);
         Assert.Contains("entrypoint.session.terminations", seen);
         Assert.Contains("entrypoint.outbound.latency", seen);
+        Assert.Contains("entrypoint.keepalive.failures", seen);
+        Assert.Contains("entrypoint.keepalive.scheduling_delay", seen);
+        Assert.Contains("entrypoint.keepalive.send_duration", seen);
     }
 
     [Fact]
