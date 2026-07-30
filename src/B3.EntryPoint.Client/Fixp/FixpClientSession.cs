@@ -402,6 +402,16 @@ internal sealed class FixpClientSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Propagates an outbound transport failure through the same idempotent
+    /// lifecycle path used by the inbound loop.
+    /// </summary>
+    internal void FaultTransport(Exception reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+        RaiseTransportClosed(reason);
+    }
+
+    /// <summary>
     /// Test-only hook that drives the internal state machine from
     /// <see cref="FixpClientState.TcpConnected"/> straight to
     /// <see cref="FixpClientState.Established"/> without performing a real

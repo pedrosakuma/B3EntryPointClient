@@ -58,6 +58,21 @@ coverage. Concrete implementations `KeepAliveScheduler` and
 hosting scenarios but the typical consumer should code against the
 interfaces.
 
+`KeepAliveScheduler` treats each scheduled `Sequence` send as
+session-critical. The callback must complete before the following
+keepalive interval is due. A scheduling overrun, send timeout, or send
+exception stops the scheduler and enters the same idempotent
+transport-fault path as `FixpClientSession.OnTransportClosed`; the
+session transitions out of `Established` and `EntryPointClient.Terminated`
+fires so the host can invoke its normal reconnect policy. Teardown and
+explicit reconnect stop the scheduler before taking down the session,
+preventing deliberate session swaps from being reported as heartbeat
+starvation. Metrics `entrypoint.keepalive.scheduling_delay`,
+`entrypoint.keepalive.send_duration`, and
+`entrypoint.keepalive.failures` distinguish scheduler starvation from
+transport failure; error event 5003 includes the exception,
+`SessionID`, `SessionVerID`, and endpoint.
+
 ### State persistence — `B3.EntryPoint.Client.State`
 
 `ISessionStateStore`, `FileSessionStateStore`, `SessionSnapshot`,

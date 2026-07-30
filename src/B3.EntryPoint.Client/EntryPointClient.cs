@@ -311,15 +311,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
 
         _session!.OnInboundEvent = OnInboundEventForPersistence;
 
-        _keepAlive = new KeepAliveScheduler(
-            _options.KeepAliveInterval,
-            sendSequence: SendKeepAliveSequenceAsync);
+        var establishedSession = _session;
+        _keepAlive = CreateKeepAliveScheduler(establishedSession, SendKeepAliveSequenceAsync);
         _session.OnInboundSequence = nextSeq =>
         {
             _lastInboundUtc = DateTime.UtcNow;
             _keepAlive!.RaiseFrameReceived(nextSeq, DateTimeOffset.UtcNow);
         };
-        _keepAlive.Start();
 
         _retransmit = new RetransmitRequestHandler(
             sendRequest: (from, count, token) => _session.SendRetransmitRequestAsync(from, count, token));
@@ -418,9 +416,58 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         // `_gapRequestInFlight = true` without issuing a request, and
         // permanently suppress both the live and the cold-resume proactive
         // retransmit (#191 review).
+        //
+        // Start keep-alive only after OnTransportClosed is wired as well. A
+        // first-tick send failure must reach the outer Terminated event rather
+        // than only transitioning the inner session state.
+        _keepAlive.Start();
         _session.StartInboundLoop(_events.Writer);
 
         _lastInboundUtc = DateTime.UtcNow;
+    }
+
+    private KeepAliveScheduler CreateKeepAliveScheduler(
+        FixpClientSession session,
+        Func<CancellationToken, Task<ulong>> sendSequence)
+    {
+        var sessionId = _options.SessionId;
+        var sessionVerId = _options.SessionVerId;
+        var endpoint = _options.Endpoint;
+        return new KeepAliveScheduler(
+            _options.KeepAliveInterval,
+            sendSequence,
+            onTiming: timing =>
+            {
+                var tags = new TagList
+                {
+                    { "session.id", sessionId },
+                    { "session.ver_id", sessionVerId },
+                    { "server.address", endpoint.Address.ToString() },
+                    { "server.port", endpoint.Port },
+                };
+                EntryPointTelemetry.KeepAliveSchedulingDelay.Record(
+                    timing.SchedulingDelay.TotalMilliseconds, tags);
+                EntryPointTelemetry.KeepAliveSendDuration.Record(
+                    timing.SendDuration.TotalMilliseconds, tags);
+            },
+            onFailure: failure =>
+            {
+                _options.Logger.KeepAliveFaulted(
+                    failure.Exception,
+                    sessionId,
+                    sessionVerId,
+                    endpoint,
+                    failure.Kind,
+                    failure.SchedulingDelay,
+                    failure.SendDuration);
+                EntryPointTelemetry.KeepAliveFailures.Add(1,
+                    new KeyValuePair<string, object?>("session.id", sessionId),
+                    new KeyValuePair<string, object?>("session.ver_id", sessionVerId),
+                    new KeyValuePair<string, object?>("server.address", endpoint.Address.ToString()),
+                    new KeyValuePair<string, object?>("server.port", endpoint.Port),
+                    new KeyValuePair<string, object?>("kind", failure.Kind.ToString()));
+                session.FaultTransport(failure.Exception);
+            });
     }
 
     private async Task<System.IO.Stream> EstablishTransportStreamAsync(TcpClient tcp, CancellationToken ct)
@@ -889,6 +936,16 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
     internal ulong PeekNextOutboundSeqNumForTesting() => _session?.PeekNextOutboundSeqNum() ?? 0UL;
     internal Task<ulong> SendKeepAliveSequenceForTestingAsync(CancellationToken ct = default) =>
         SendKeepAliveSequenceAsync(ct);
+    internal void StartKeepAliveForTesting(Func<CancellationToken, Task<ulong>> sendSequence)
+    {
+        var session = _session ?? throw new InvalidOperationException("No test session is attached.");
+        _session.OnTransportClosed = ex => RaiseTerminated(
+            TerminationCode.Unspecified,
+            ex?.Message ?? "TCP transport closed.",
+            initiatedByClient: false);
+        _keepAlive = CreateKeepAliveScheduler(session, sendSequence);
+        _keepAlive.Start();
+    }
     internal void AttachEstablishedSessionForTesting(Stream stream)
     {
         _session = new FixpClientSession(stream, _options);
@@ -1625,6 +1682,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         await _sendLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            // Stop the heartbeat producer as soon as this deliberate session
+            // swap owns the outbound lock. In particular, do this before the
+            // best-effort Terminate write below so a queued heartbeat cannot
+            // consume its liveness budget waiting for this same lock and
+            // falsely report a transport fault during reconnect.
+            try { _keepAlive?.Stop(); } catch { }
+
             var selector = nextSessionVerIdSelector ?? (static prev => checked(prev + 1));
 
             // #138: capture an outstanding inbound gap from the prior session
@@ -2097,7 +2161,13 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         var timeout = _options.SessionTeardownTimeout;
         if (timeout <= TimeSpan.Zero) timeout = TimeSpan.FromSeconds(5);
 
-        // 0. Flush a final snapshot before tearing down. This must happen
+        // 0. Stop scheduling new heartbeats before teardown work. Reconnect
+        //    holds _sendLock while it calls this method; leaving the scheduler
+        //    active would make its queued send exceed the liveness budget and
+        //    falsely fault a session that is being deliberately replaced.
+        try { _keepAlive?.Stop(); } catch { }
+
+        // 1. Flush a final snapshot before tearing down. This must happen
         //    while `_session` is still live (BuildSnapshot reads
         //    `_session.LastAssignedOutboundSeqNum()`) and before the persist
         //    CTS below is cancelled. Guarantees the on-disk snapshot is
@@ -2111,12 +2181,12 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         if (persistSnapshot)
             await PersistSnapshotAsync(ct).ConfigureAwait(false);
 
-        // 1. Cancel session-scoped CTSs and complete the persistence channel
+        // 2. Cancel session-scoped CTSs and complete the persistence channel
         //    so its worker drains the in-flight queue and exits.
         try { _idleCts?.Cancel(); } catch { }
         _persistChannel?.Writer.TryComplete();
 
-        // 2. Await background tasks under a hard timeout. Timed-out tasks are
+        // 3. Await background tasks under a hard timeout. Timed-out tasks are
         //    logged and abandoned (the persistence CT is cancelled below to
         //    unblock any I/O it may still be holding).
         await AwaitWithTimeoutAsync("idle-watchdog", _idleWatchdog, timeout).ConfigureAwait(false);
@@ -2126,7 +2196,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         // still in flight after the timeout is force-cancelled.
         try { _persistCts?.Cancel(); } catch { }
 
-        // 3. Dispose transport-layer resources in order:
+        // 4. Dispose transport-layer resources in order:
         //    keep-alive scheduler -> FIXP session (awaits inbound loop) ->
         //    TCP socket. The retransmit handler holds no resources.
         try { _keepAlive?.Dispose(); } catch { }
@@ -2143,7 +2213,7 @@ public sealed class EntryPointClient : IEntryPointClient, ISubmitOrder, IReplace
         }
         try { _tcp?.Dispose(); } catch { }
 
-        // 4. Reset references so a subsequent Connect/Reconnect starts clean.
+        // 5. Reset references so a subsequent Connect/Reconnect starts clean.
         try { _idleCts?.Dispose(); } catch { }
         try { _persistCts?.Dispose(); } catch { }
         _idleCts = null;

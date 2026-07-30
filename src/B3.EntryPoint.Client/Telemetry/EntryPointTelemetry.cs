@@ -33,6 +33,18 @@ public static class EntryPointTelemetry
     public static readonly Histogram<double> OutboundLatency =
         Meter.CreateHistogram<double>("entrypoint.outbound.latency", unit: "ms",
             description: "Wall clock between Submit/Replace/Cancel entry and frame on the wire");
+
+    internal static readonly Counter<long> KeepAliveFailures =
+        Meter.CreateCounter<long>("entrypoint.keepalive.failures",
+            description: "Keep-alive loops faulted by scheduling delay, send timeout, or transport exception");
+
+    internal static readonly Histogram<double> KeepAliveSchedulingDelay =
+        Meter.CreateHistogram<double>("entrypoint.keepalive.scheduling_delay", unit: "ms",
+            description: "Delay between the scheduled keep-alive tick and callback execution");
+
+    internal static readonly Histogram<double> KeepAliveSendDuration =
+        Meter.CreateHistogram<double>("entrypoint.keepalive.send_duration", unit: "ms",
+            description: "Wall clock spent waiting for a keep-alive Sequence send");
 }
 
 /// <summary>

@@ -90,14 +90,9 @@ public class KeepAliveSchedulerPeriodicTests
                 twoTicks.TrySetResult();
             return Task.FromResult(seq);
         }
-        var ctorInfo = typeof(B3.EntryPoint.Client.Fixp.KeepAliveScheduler).GetConstructors(
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 2);
-        var scheduler = (B3.EntryPoint.Client.Fixp.KeepAliveScheduler)ctorInfo.Invoke(new object?[]
-        {
+        var scheduler = new KeepAliveScheduler(
             TimeSpan.FromMilliseconds(40),
-            (Func<CancellationToken, Task<ulong>>)SendAsync,
-        });
+            SendAsync);
         scheduler.Start();
         var completed = await Task.WhenAny(twoTicks.Task, Task.Delay(TimeSpan.FromSeconds(5)));
         scheduler.Stop();
@@ -106,5 +101,47 @@ public class KeepAliveSchedulerPeriodicTests
         int finalCount;
         lock (ticks) finalCount = ticks.Count;
         Assert.True(finalCount >= 2, $"expected >=2 ticks, got {finalCount}");
+    }
+
+    [Fact]
+    public async Task SendCallbackThrows_ReportsFailureWithOriginalException()
+    {
+        var expected = new IOException("write failed");
+        var failure = new TaskCompletionSource<KeepAliveFailure>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var scheduler = new KeepAliveScheduler(
+            TimeSpan.FromMilliseconds(200),
+            _ => Task.FromException<ulong>(expected),
+            onFailure: value => failure.TrySetResult(value));
+
+        scheduler.Start();
+        var observed = await failure.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        scheduler.Dispose();
+
+        Assert.Equal(KeepAliveFailureKind.SendException, observed.Kind);
+        Assert.Same(expected, observed.Exception);
+    }
+
+    [Fact]
+    public async Task SendExceedsLivenessBudget_ReportsTimeout()
+    {
+        var failure = new TaskCompletionSource<KeepAliveFailure>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var scheduler = new KeepAliveScheduler(
+            TimeSpan.FromMilliseconds(80),
+            async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return 1UL;
+            },
+            onFailure: value => failure.TrySetResult(value));
+
+        scheduler.Start();
+        var observed = await failure.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        scheduler.Dispose();
+
+        Assert.Equal(KeepAliveFailureKind.SendTimeout, observed.Kind);
+        Assert.IsType<TimeoutException>(observed.Exception);
+        Assert.True(observed.SendDuration >= TimeSpan.FromMilliseconds(40));
     }
 }

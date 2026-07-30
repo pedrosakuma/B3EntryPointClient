@@ -18,7 +18,11 @@ public interface IKeepAliveScheduler
     /// <summary>Raised when a peer <c>Sequence</c> frame is received.</summary>
     event EventHandler<SequenceFrameEventArgs>? SequenceFrameReceived;
 
-    /// <summary>Start the keep-alive loop.</summary>
+    /// <summary>
+    /// Start the keep-alive loop. A scheduled send must complete before the
+    /// next interval is due; callback exceptions or deadline overruns fault
+    /// the owning FIXP session through its transport-closed lifecycle.
+    /// </summary>
     void Start();
 
     /// <summary>Stop the keep-alive loop. Idempotent.</summary>

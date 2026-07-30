@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace B3.EntryPoint.Client.Fixp;
 
 /// <summary>
@@ -9,6 +11,8 @@ namespace B3.EntryPoint.Client.Fixp;
 public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
 {
     private readonly Func<CancellationToken, Task<ulong>>? _sendSequence;
+    private readonly Action<KeepAliveTiming>? _onTiming;
+    private readonly Action<KeepAliveFailure>? _onFailure;
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
@@ -23,13 +27,17 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
 
     internal KeepAliveScheduler(
         TimeSpan keepAliveInterval,
-        Func<CancellationToken, Task<ulong>>? sendSequence)
+        Func<CancellationToken, Task<ulong>>? sendSequence,
+        Action<KeepAliveTiming>? onTiming = null,
+        Action<KeepAliveFailure>? onFailure = null)
     {
         if (keepAliveInterval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(keepAliveInterval),
                 "Keep-alive interval must be positive.");
         KeepAliveInterval = keepAliveInterval;
         _sendSequence = sendSequence;
+        _onTiming = onTiming;
+        _onFailure = onFailure;
     }
 
     public TimeSpan KeepAliveInterval { get; }
@@ -63,20 +71,74 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
     private async Task RunAsync(CancellationToken ct)
     {
         using var timer = new PeriodicTimer(KeepAliveInterval);
+        var expectedTick = Stopwatch.GetTimestamp() +
+            (long)(KeepAliveInterval.TotalSeconds * Stopwatch.Frequency);
         try
         {
             while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
             {
+                var sendStarted = Stopwatch.GetTimestamp();
+                var schedulingDelay = sendStarted <= expectedTick
+                    ? TimeSpan.Zero
+                    : Stopwatch.GetElapsedTime(expectedTick, sendStarted);
+                expectedTick += (long)(KeepAliveInterval.TotalSeconds * Stopwatch.Frequency);
+
+                if (schedulingDelay >= KeepAliveInterval)
+                {
+                    var timeout = new TimeoutException(
+                        $"Keep-alive callback started {schedulingDelay} late, exceeding the {KeepAliveInterval} liveness budget.");
+                    _onTiming?.Invoke(new KeepAliveTiming(schedulingDelay, TimeSpan.Zero));
+                    _onFailure?.Invoke(new KeepAliveFailure(
+                        KeepAliveFailureKind.SchedulingDelay,
+                        timeout,
+                        schedulingDelay,
+                        TimeSpan.Zero));
+                    return;
+                }
+
+                var remainingBudget = KeepAliveInterval - schedulingDelay;
+                using var sendCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                sendCts.CancelAfter(remainingBudget);
                 try
                 {
-                    var seq = await _sendSequence!(ct).ConfigureAwait(false);
+                    var seq = await _sendSequence!(sendCts.Token).ConfigureAwait(false);
+                    var sendDuration = Stopwatch.GetElapsedTime(sendStarted);
+                    _onTiming?.Invoke(new KeepAliveTiming(schedulingDelay, sendDuration));
                     RaiseFrameSent(seq, DateTimeOffset.UtcNow);
                 }
-                catch (OperationCanceledException) { return; }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (OperationCanceledException ex) when (sendCts.IsCancellationRequested)
+                {
+                    var sendDuration = Stopwatch.GetElapsedTime(sendStarted);
+                    var timeout = new TimeoutException(
+                        $"Keep-alive send did not complete within the remaining {remainingBudget} liveness budget.",
+                        ex);
+                    _onTiming?.Invoke(new KeepAliveTiming(schedulingDelay, sendDuration));
+                    _onFailure?.Invoke(new KeepAliveFailure(
+                        KeepAliveFailureKind.SendTimeout,
+                        timeout,
+                        schedulingDelay,
+                        sendDuration));
+                    return;
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    var sendDuration = Stopwatch.GetElapsedTime(sendStarted);
+                    _onTiming?.Invoke(new KeepAliveTiming(schedulingDelay, sendDuration));
+                    _onFailure?.Invoke(new KeepAliveFailure(
+                        KeepAliveFailureKind.SendException,
+                        ex,
+                        schedulingDelay,
+                        sendDuration));
+                    return;
+                }
                 catch
                 {
-                    // Send failed (peer closed, IO error). Stop quietly; the
-                    // session-level error handling surfaces the disconnect.
+                    // Teardown won the race with a non-cancellation transport
+                    // exception. The owning session is already being stopped.
                     return;
                 }
             }
@@ -92,3 +154,20 @@ public sealed class KeepAliveScheduler : IKeepAliveScheduler, IDisposable
     internal void RaiseFrameReceived(ulong nextSeqNo, DateTimeOffset at) =>
         SequenceFrameReceived?.Invoke(this, new SequenceFrameEventArgs(nextSeqNo, at));
 }
+
+internal enum KeepAliveFailureKind
+{
+    SchedulingDelay,
+    SendTimeout,
+    SendException,
+}
+
+internal readonly record struct KeepAliveTiming(
+    TimeSpan SchedulingDelay,
+    TimeSpan SendDuration);
+
+internal readonly record struct KeepAliveFailure(
+    KeepAliveFailureKind Kind,
+    Exception Exception,
+    TimeSpan SchedulingDelay,
+    TimeSpan SendDuration);
