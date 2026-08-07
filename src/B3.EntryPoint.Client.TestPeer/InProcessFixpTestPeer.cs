@@ -26,6 +26,9 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
     private readonly List<Task> _connections = new();
     private readonly List<ActiveConnection> _activeConnections = new();
     private readonly TestPeerOptions _options;
+    private readonly SemaphoreSlim _replayGate = new(1, 1);
+    private readonly SemaphoreSlim _activeConnectionSignal = new(0, int.MaxValue);
+    private int _replayCursor;
     private int _establishAttempts;
     private Task? _acceptLoop;
 
@@ -51,6 +54,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
     /// <summary>Configured options for this peer.</summary>
     public TestPeerOptions Options => _options;
+
+    private bool IsReplayMode => _options.ReplayScript is not null;
 
     /// <summary>Loopback endpoint the peer is listening on. Only valid after <see cref="Start"/>.</summary>
     public IPEndPoint LocalEndpoint => (IPEndPoint)_listener.LocalEndpoint;
@@ -111,7 +116,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         public bool SawNegotiate;
     }
 
-    private sealed record ActiveConnection(Stream Stream, ConnectionState State, B3.Entrypoint.Fixp.Sbe.V6.SessionID SessionId);
+    private sealed record ActiveConnection(Stream Stream, ConnectionState State, B3.Entrypoint.Fixp.Sbe.V6.SessionID SessionId, B3.Entrypoint.Fixp.Sbe.V6.SessionVerID SessionVerId);
 
     /// <summary>
     /// Single point of egress for every outbound frame. Serializes writes per
@@ -173,6 +178,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                     switch (templateId)
                     {
                         case NegotiateData.MESSAGE_ID:
+                            if (await TrySendScriptedNegotiateAsync(stream, frame, state, ct).ConfigureAwait(false))
+                                break;
                             if (!ValidateNegotiate(frame))
                             {
                                 // Credentials map configured and firm not allowed → close cold.
@@ -182,6 +189,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
                             await SendNegotiateResponseAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case EstablishData.MESSAGE_ID:
+                            if (await TrySendScriptedEstablishAsync(stream, frame, state, ct).ConfigureAwait(false))
+                                break;
                             await SendEstablishAckAsync(stream, frame, state, ct).ConfigureAwait(false);
                             break;
                         case TerminateData.MESSAGE_ID:
@@ -339,6 +348,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
     private async Task ApplyLatencyAsync(CancellationToken ct)
     {
+        if (IsReplayMode)
+            return;
         var latency = _options.ResponseLatency;
         if (latency > TimeSpan.Zero)
             try { await Task.Delay(latency, ct).ConfigureAwait(false); } catch (OperationCanceledException) { }
@@ -363,6 +374,72 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             EnteringFirm = req.EnteringFirm,
         };
         if (!resp.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    private async Task<bool> TrySendScriptedNegotiateAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    {
+        if (await TryTakeReplayEventAsync<TestPeerNegotiateAcceptReplayEvent>(ct).ConfigureAwait(false) is { } accept)
+        {
+            await SendScriptedNegotiateAcceptAsync(stream, requestFrame, state, accept, ct).ConfigureAwait(false);
+            return true;
+        }
+        if (await TryTakeReplayEventAsync<TestPeerNegotiateRejectReplayEvent>(ct).ConfigureAwait(false) is { } reject)
+        {
+            await SendScriptedNegotiateRejectAsync(stream, requestFrame, state, reject, ct).ConfigureAwait(false);
+            return true;
+        }
+        return false;
+    }
+
+    private async Task SendScriptedNegotiateAcceptAsync(Stream stream, byte[] requestFrame, ConnectionState state, TestPeerNegotiateAcceptReplayEvent accept, CancellationToken ct)
+    {
+        if (!NegotiateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + NegotiateResponseData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        NegotiateResponseData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var resp = new NegotiateResponseData
+        {
+            SessionID = new SessionID(accept.SessionId ?? req.SessionID.Value),
+            SessionVerID = new SessionVerID(accept.SessionVerId ?? req.SessionVerID.Value),
+            RequestTimestamp = req.Timestamp,
+            EnteringFirm = new Firm(accept.EnteringFirm ?? req.EnteringFirm.Value),
+        };
+        if (!resp.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+
+        state.SawNegotiate = true;
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendScriptedNegotiateRejectAsync(Stream stream, byte[] requestFrame, ConnectionState state, TestPeerNegotiateRejectReplayEvent reject, CancellationToken ct)
+    {
+        if (!NegotiateData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + NegotiateRejectData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        NegotiateRejectData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var msg = new NegotiateRejectData
+        {
+            SessionID = new SessionID(reject.SessionId ?? req.SessionID.Value),
+            SessionVerID = new SessionVerID(reject.SessionVerId ?? req.SessionVerID.Value),
+            RequestTimestamp = req.Timestamp,
+            NegotiationRejectCode = reject.Code,
+        };
+        msg.SetEnteringFirm(reject.EnteringFirm ?? req.EnteringFirm.Value);
+        msg.SetCurrentSessionVerID(reject.CurrentSessionVerId);
+        if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
         await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
@@ -405,21 +482,96 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         };
         var keepAliveMs = req.KeepAliveInterval.Time;
         var sessionIdLocal = req.SessionID;
+        var sessionVerIdLocal = req.SessionVerID;
         if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
             return;
 
         await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
 
-        var entry = new ActiveConnection(stream, state, sessionIdLocal);
+        var entry = new ActiveConnection(stream, state, sessionIdLocal, sessionVerIdLocal);
         lock (_activeConnections) _activeConnections.Add(entry);
+        _activeConnectionSignal.Release();
 
         // Spec §4.6: peer-side keep-alive. Emit Sequence frames at the
         // negotiated interval so the client can observe inbound heartbeats.
-        if (keepAliveMs > 0 && state.KeepAliveCts is null)
+        if (!IsReplayMode && keepAliveMs > 0 && state.KeepAliveCts is null)
         {
             state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
         }
+    }
+
+    private async Task<bool> TrySendScriptedEstablishAsync(Stream stream, byte[] requestFrame, ConnectionState state, CancellationToken ct)
+    {
+        if (await TryTakeReplayEventAsync<TestPeerEstablishAckReplayEvent>(ct).ConfigureAwait(false) is { } ack)
+        {
+            await SendScriptedEstablishAckAsync(stream, requestFrame, state, ack, ct).ConfigureAwait(false);
+            return true;
+        }
+        if (await TryTakeReplayEventAsync<TestPeerEstablishRejectReplayEvent>(ct).ConfigureAwait(false) is { } reject)
+        {
+            await SendScriptedEstablishRejectAsync(stream, requestFrame, state, reject, ct).ConfigureAwait(false);
+            return true;
+        }
+        return false;
+    }
+
+    private async Task SendScriptedEstablishAckAsync(Stream stream, byte[] requestFrame, ConnectionState state, TestPeerEstablishAckReplayEvent ackEvent, CancellationToken ct)
+    {
+        if (!EstablishData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + EstablishAckData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        EstablishAckData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+
+        var nextSeq = ackEvent.NextSeqNo ?? 1u;
+        var lastIncoming = ackEvent.LastIncomingSeqNo
+            ?? (req.NextSeqNo.Value > 0u ? req.NextSeqNo.Value - 1u : 0u);
+        var keepAliveMs = ackEvent.KeepAliveIntervalMs ?? req.KeepAliveInterval.Time;
+        var sessionId = new SessionID(ackEvent.SessionId ?? req.SessionID.Value);
+        var sessionVerId = new SessionVerID(ackEvent.SessionVerId ?? req.SessionVerID.Value);
+        var ack = new EstablishAckData
+        {
+            SessionID = sessionId,
+            SessionVerID = sessionVerId,
+            RequestTimestamp = req.Timestamp,
+            KeepAliveInterval = new DeltaInMillis { Time = keepAliveMs },
+            NextSeqNo = new SeqNum(nextSeq),
+            LastIncomingSeqNo = new SeqNum(lastIncoming),
+        };
+        if (!ack.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+
+        state.OutSeq = nextSeq;
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
+
+        var entry = new ActiveConnection(stream, state, sessionId, sessionVerId);
+        lock (_activeConnections) _activeConnections.Add(entry);
+        _activeConnectionSignal.Release();
+
+        if (!IsReplayMode && keepAliveMs > 0 && state.KeepAliveCts is null)
+        {
+            state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
+        }
+    }
+
+    private async Task SendScriptedEstablishRejectAsync(Stream stream, byte[] requestFrame, ConnectionState state, TestPeerEstablishRejectReplayEvent rejectEvent, CancellationToken ct)
+    {
+        if (!EstablishData.TryParse(requestFrame.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var reader))
+            return;
+        ref readonly var req = ref reader.Data;
+        await SendEstablishRejectAsync(
+            stream,
+            state,
+            new SessionID(rejectEvent.SessionId ?? req.SessionID.Value),
+            new SessionVerID(rejectEvent.SessionVerId ?? req.SessionVerID.Value),
+            req.Timestamp,
+            rejectEvent.Code,
+            ct).ConfigureAwait(false);
     }
 
     private async Task SendEstablishRejectAsync(Stream stream, ConnectionState state, B3.Entrypoint.Fixp.Sbe.V6.SessionID sessionId, B3.Entrypoint.Fixp.Sbe.V6.SessionVerID sessionVerId, B3.Entrypoint.Fixp.Sbe.V6.UTCTimestampNanos requestTs, B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code, CancellationToken ct)
@@ -444,6 +596,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
     private async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
     {
+        if (IsReplayMode)
+            return;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -795,6 +949,234 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
             catch (ObjectDisposedException) { }
         }
         return sent;
+    }
+
+    /// <summary>
+    /// Releases up to <paramref name="frameCount"/> scripted outbound replay
+    /// events against the most recently-established connection. Handshake
+    /// script events are consumed automatically by inbound Negotiate /
+    /// Establish requests and therefore do not count here.
+    /// </summary>
+    public async Task<int> AdvanceReplayAsync(int frameCount = 1, CancellationToken ct = default)
+    {
+        if (frameCount < 1)
+            throw new ArgumentOutOfRangeException(nameof(frameCount), frameCount, "Replay advance count must be >= 1.");
+        if (_options.ReplayScript is null)
+            return 0;
+
+        var sent = 0;
+        while (sent < frameCount)
+        {
+            var scripted = await PeekReplayEventAsync(ct).ConfigureAwait(false);
+            if (scripted is null)
+                break;
+            if (scripted is TestPeerHandshakeReplayEvent)
+                throw new InvalidOperationException($"Replay cannot advance past pending handshake event {scripted.GetType().Name}; drive the matching client handshake first.");
+
+            var active = await GetLatestActiveConnectionAsync(ct).ConfigureAwait(false);
+            if (active is null)
+                throw new InvalidOperationException("Replay requires an established TestPeer connection.");
+
+            switch (scripted)
+            {
+                case TestPeerExecutionReportAcceptedReplayEvent:
+                    var accepted = await TryTakeReplayEventAsync<TestPeerExecutionReportAcceptedReplayEvent>(ct).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("Replay cursor moved while dispatching ExecutionReportAccepted.");
+                    await SendReplayExecutionReportAcceptedAsync(active, accepted, ct).ConfigureAwait(false);
+                    sent++;
+                    break;
+                case TestPeerExecutionReportTradeReplayEvent:
+                    var trade = await TryTakeReplayEventAsync<TestPeerExecutionReportTradeReplayEvent>(ct).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("Replay cursor moved while dispatching ExecutionReportTrade.");
+                    await SendReplayExecutionReportTradeAsync(active, trade, ct).ConfigureAwait(false);
+                    sent++;
+                    break;
+                case TestPeerNotAppliedReplayEvent:
+                    var notApplied = await TryTakeReplayEventAsync<TestPeerNotAppliedReplayEvent>(ct).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("Replay cursor moved while dispatching NotApplied.");
+                    await SendReplayNotAppliedAsync(active, notApplied, ct).ConfigureAwait(false);
+                    sent++;
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported replay event type {scripted.GetType().Name}.");
+            }
+        }
+
+        return sent;
+    }
+
+    private async Task<ActiveConnection?> GetLatestActiveConnectionAsync(CancellationToken ct)
+    {
+        while (true)
+        {
+            lock (_activeConnections)
+            {
+                if (_activeConnections.Count > 0)
+                    return _activeConnections[^1];
+            }
+
+            await _activeConnectionSignal.WaitAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<TReplay?> TryTakeReplayEventAsync<TReplay>(CancellationToken ct) where TReplay : TestPeerReplayEvent
+    {
+        var script = _options.ReplayScript;
+        if (script is null)
+            return null;
+
+        await _replayGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_replayCursor >= script.Events.Count)
+                return null;
+            if (script.Events[_replayCursor] is not TReplay replay)
+                return null;
+            _replayCursor++;
+            return replay;
+        }
+        finally
+        {
+            _replayGate.Release();
+        }
+    }
+
+    private async Task<TestPeerReplayEvent?> PeekReplayEventAsync(CancellationToken ct)
+    {
+        var script = _options.ReplayScript;
+        if (script is null)
+            return null;
+
+        await _replayGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return _replayCursor < script.Events.Count ? script.Events[_replayCursor] : null;
+        }
+        finally
+        {
+            _replayGate.Release();
+        }
+    }
+
+    private static uint ResolveReplaySeqNum(ConnectionState state, uint? explicitSeqNum)
+    {
+        var seqNum = explicitSeqNum ?? state.OutSeq;
+        if (seqNum >= state.OutSeq)
+            state.OutSeq = seqNum + 1u;
+        return seqNum;
+    }
+
+    private static UTCTimestampNanos ResolveTimestamp(DateTimeOffset? transactTime)
+        => new() { Time = (ulong)(transactTime ?? DateTimeOffset.UtcNow).ToUnixTimeMilliseconds() * 1_000_000UL };
+
+    private static void ValidateReplaySession(ActiveConnection active, TestPeerReplayEvent replay)
+    {
+        if (replay.SessionId is uint sessionId && sessionId != active.SessionId.Value)
+            throw new InvalidOperationException($"Replay event targets SessionID={sessionId}, but the active connection is SessionID={active.SessionId.Value}.");
+        if (replay.SessionVerId is ulong sessionVerId && sessionVerId != active.SessionVerId.Value)
+            throw new InvalidOperationException($"Replay event targets SessionVerID={sessionVerId}, but the active connection is SessionVerID={active.SessionVerId.Value}.");
+    }
+
+    private async Task SendReplayExecutionReportAcceptedAsync(ActiveConnection active, TestPeerExecutionReportAcceptedReplayEvent accepted, CancellationToken ct)
+    {
+        ValidateReplaySession(active, accepted);
+        var msg = new ExecutionReport_NewData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = new SessionID(accepted.SessionId ?? active.SessionId.Value),
+                MsgSeqNum = new SeqNum(ResolveReplaySeqNum(active.State, accepted.MsgSeqNum)),
+            },
+            Side = (Side)accepted.Side,
+            OrdStatus = (OrdStatus)accepted.OrderStatus,
+            ClOrdID = new B3.Entrypoint.Fixp.Sbe.V6.ClOrdID((ulong)accepted.ClOrdId),
+            OrderID = new OrderID(accepted.OrderId),
+            SecurityID = new SecurityID(accepted.SecurityId),
+            TransactTime = ResolveTimestamp(accepted.TransactTime),
+        };
+
+        await SendReplayAppFrameAsync(
+            active.Stream,
+            active.State,
+            ExecutionReport_NewData.MESSAGE_ID,
+            ExecutionReport_NewData.MESSAGE_SIZE,
+            (Span<byte> buf, out int bw) => ExecutionReport_NewData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
+            Array.Empty<ReadOnlyMemory<byte>>(),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task SendReplayExecutionReportTradeAsync(ActiveConnection active, TestPeerExecutionReportTradeReplayEvent trade, CancellationToken ct)
+    {
+        ValidateReplaySession(active, trade);
+        var leavesQty = trade.LeavesQty;
+        if (!leavesQty.HasValue)
+            leavesQty = trade.OrderStatus == B3.EntryPoint.Client.Models.OrderStatus.Filled ? 0UL : 0UL;
+        var cumQty = trade.CumQty ?? trade.LastQty;
+        var msg = new ExecutionReport_TradeData
+        {
+            BusinessHeader = new OutboundBusinessHeader
+            {
+                SessionID = new SessionID(trade.SessionId ?? active.SessionId.Value),
+                MsgSeqNum = new SeqNum(ResolveReplaySeqNum(active.State, trade.MsgSeqNum)),
+            },
+            Side = (Side)trade.Side,
+            OrdStatus = (OrdStatus)trade.OrderStatus,
+            SecurityID = new SecurityID(trade.SecurityId),
+            LastQty = new Quantity(trade.LastQty),
+            LastPx = new Price { Mantissa = (long)decimal.Round(trade.LastPx * 10000m) },
+            ExecID = new ExecID(trade.TradeId),
+            TransactTime = ResolveTimestamp(trade.TransactTime),
+            LeavesQty = new Quantity(leavesQty.GetValueOrDefault()),
+            CumQty = new Quantity(cumQty),
+            ExecType = ExecType.TRADE,
+            TradeID = new TradeID((uint)(trade.TradeId & 0xFFFFFFFFu)),
+            OrderID = new OrderID(trade.OrderId),
+        };
+        msg.SetClOrdID((ulong)trade.ClOrdId);
+
+        await SendReplayAppFrameAsync(
+            active.Stream,
+            active.State,
+            ExecutionReport_TradeData.MESSAGE_ID,
+            ExecutionReport_TradeData.MESSAGE_SIZE,
+            (Span<byte> buf, out int bw) => ExecutionReport_TradeData.TryEncode(msg, buf, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, out bw),
+            Array.Empty<ReadOnlyMemory<byte>>(),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task SendReplayNotAppliedAsync(ActiveConnection active, TestPeerNotAppliedReplayEvent notApplied, CancellationToken ct)
+    {
+        ValidateReplaySession(active, notApplied);
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + NotAppliedData.MESSAGE_SIZE;
+        var buffer = new byte[totalSize];
+        SofhFrameWriter.WriteHeader(buffer, checked((ushort)totalSize));
+        NotAppliedData.WriteHeader(buffer.AsSpan(SofhFrameReader.HeaderSize));
+        var msg = new NotAppliedData
+        {
+            FromSeqNo = new SeqNum(notApplied.FromSeqNo),
+            Count = new MessageCounter(notApplied.Count),
+        };
+        if (!msg.TryEncode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out _))
+            return;
+        await SendFrameAsync(active.Stream, active.State, buffer, totalSize, ct).ConfigureAwait(false);
+    }
+
+    private async Task SendReplayAppFrameAsync(Stream stream, ConnectionState state, ushort templateId, int payloadSize, EncodeDelegate encode,
+        ReadOnlyMemory<byte>[] varDataSections, CancellationToken ct)
+    {
+        var varTotal = 0;
+        for (int i = 0; i < varDataSections.Length; i++)
+            varTotal += 1 + varDataSections[i].Length;
+        var varReserve = Math.Max(varTotal, 4);
+        var maxTotal = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + payloadSize + varReserve;
+        var buffer = new byte[maxTotal];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(SofhFrameReader.HeaderSize), (ushort)payloadSize);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(SofhFrameReader.HeaderSize + 2), templateId);
+        if (!encode(buffer.AsSpan(SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE), out var bytesWritten))
+            return;
+        var totalSize = SofhFrameReader.HeaderSize + MessageHeader.MESSAGE_SIZE + bytesWritten;
+        SofhFrameWriter.WriteHeader(buffer.AsSpan(0, totalSize), checked((ushort)totalSize));
+        await SendFrameAsync(stream, state, buffer, totalSize, ct).ConfigureAwait(false);
     }
 
     private static long _orderIdSeq;

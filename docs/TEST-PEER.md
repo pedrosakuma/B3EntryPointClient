@@ -167,6 +167,42 @@ await using var peer = new InProcessFixpTestPeer(
 Use this to drive `IRetransmitRequestHandler` and `KeepAliveScheduler`
 under realistic loss conditions without touching transport code.
 
+## Deterministic replay scripts
+
+For incident-style regressions where you need the peer to emit an exact,
+pre-baked FIXP sequence, use `TestPeerReplayScript` plus
+`AdvanceReplayAsync()`. Handshake responses are consumed in order during
+`ConnectAsync()`; outbound replay frames are only released when the test
+explicitly advances the script, so no `Task.Delay` / wall-clock timing is
+required:
+
+```csharp
+var replay = TestPeerReplayScript.Create(defaultSessionId: 42u, defaultSessionVerId: 1u)
+    .NegotiateAccept()
+    .EstablishAck(nextSeqNo: 1u, lastIncomingSeqNo: 0u)
+    .ExecutionReportAccepted((ClOrdID)1001UL, orderId: 9001UL, securityId: 4321UL, side: Side.Buy, msgSeqNum: 1u)
+    .ExecutionReportTrade((ClOrdID)1001UL, orderId: 9001UL, tradeId: 9101UL, securityId: 4321UL, side: Side.Buy, lastPx: 10.25m, lastQty: 100UL, msgSeqNum: 2u, leavesQty: 0UL, cumQty: 100UL)
+    .NotApplied(fromSeqNo: 1u, count: 2u)
+    .Build();
+
+await using var peer = new InProcessFixpTestPeer(new TestPeerOptions
+{
+    ReplayScript = replay,
+});
+peer.Start();
+
+await using var client = new EntryPointClient(options);
+await client.ConnectAsync();
+
+await peer.AdvanceReplayAsync(); // ExecutionReport_New
+await peer.AdvanceReplayAsync(); // ExecutionReport_Trade
+await peer.AdvanceReplayAsync(); // NotApplied
+```
+
+`NegotiateReject(...)` and `EstablishReject(...)` let tests drive the
+handshake negative paths with explicit FIXP reject codes without falling back
+to transport failures or real peer infrastructure.
+
 ## Limitations
 
 - Inbound sequence-gap injection (forcing the peer to *receive* with gaps)

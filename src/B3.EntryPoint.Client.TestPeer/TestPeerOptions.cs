@@ -37,6 +37,15 @@ public sealed class TestPeerOptions
     public ITestPeerScenario Scenario { get; set; } = TestPeerScenarios.AcceptAll;
 
     /// <summary>
+    /// Optional deterministic replay script. When set, scripted handshake
+    /// responses are consumed in order and scripted outbound frames are
+    /// released explicitly via <see cref="InProcessFixpTestPeer.AdvanceReplayAsync"/>.
+    /// Normal scenario-based behaviour remains in place for requests not
+    /// covered by the script.
+    /// </summary>
+    public TestPeerReplayScript? ReplayScript { get; set; }
+
+    /// <summary>
     /// Optional per-firm credential map (firm id → expected access-key bytes).
     /// When non-null the peer rejects Negotiate frames whose
     /// <c>EnteringFirm</c> is not in the map. When null (default) every firm
