@@ -263,6 +263,50 @@ public class TestPeerScenarioTests
     }
 
     [Fact]
+    public async Task ReplayScript_DisablesPeerTimers_And_ResponseLatency()
+    {
+        var replay = TestPeerReplayScript.Create(defaultSessionId: 42u, defaultSessionVerId: 1u)
+            .NegotiateAccept()
+            .EstablishAck(nextSeqNo: 1u, lastIncomingSeqNo: 0u, keepAliveIntervalMs: 50u)
+            .ExecutionReportAccepted((ClOrdID)2001UL, orderId: 9201UL, securityId: 4321UL, side: Side.Buy, msgSeqNum: 1u)
+            .Build();
+
+        await using var peer = new InProcessFixpTestPeer(new TestPeerOptions
+        {
+            ReplayScript = replay,
+            ResponseLatency = TimeSpan.FromMilliseconds(300),
+        });
+        peer.Start();
+
+        var options = ClientOptions(peer);
+        options.KeepAliveIntervalMs = 50u;
+
+        await using var client = new EntryPointClient(options);
+        var connectSw = Stopwatch.StartNew();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await client.ConnectAsync(cts.Token);
+        connectSw.Stop();
+
+        Assert.True(connectSw.Elapsed < TimeSpan.FromMilliseconds(250),
+            $"Replay-mode ConnectAsync should ignore configured ResponseLatency; got {connectSw.ElapsedMilliseconds}ms.");
+
+        var inboundPeerSequenceFrames = 0;
+        client.KeepAlive!.SequenceFrameReceived += (_, _) => Interlocked.Increment(ref inboundPeerSequenceFrames);
+
+        var advanceSw = Stopwatch.StartNew();
+        Assert.Equal(1, await peer.AdvanceReplayAsync(ct: cts.Token));
+        var accepted = Assert.IsType<OrderAccepted>((await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2))).Single());
+        advanceSw.Stop();
+
+        Assert.Equal(1UL, accepted.SeqNum);
+        Assert.True(advanceSw.Elapsed < TimeSpan.FromMilliseconds(250),
+            $"Replay-mode frame advance should ignore configured ResponseLatency; got {advanceSw.ElapsedMilliseconds}ms.");
+
+        await Task.Delay(TimeSpan.FromMilliseconds(200), cts.Token);
+        Assert.Equal(0, Volatile.Read(ref inboundPeerSequenceFrames));
+    }
+
+    [Fact]
     public async Task RejectAll_EmitsBusinessRejectWithText()
     {
         const string Reason = "test peer rejecting NewOrder";

@@ -55,6 +55,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
     /// <summary>Configured options for this peer.</summary>
     public TestPeerOptions Options => _options;
 
+    private bool IsReplayMode => _options.ReplayScript is not null;
+
     /// <summary>Loopback endpoint the peer is listening on. Only valid after <see cref="Start"/>.</summary>
     public IPEndPoint LocalEndpoint => (IPEndPoint)_listener.LocalEndpoint;
 
@@ -346,6 +348,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
     private async Task ApplyLatencyAsync(CancellationToken ct)
     {
+        if (IsReplayMode)
+            return;
         var latency = _options.ResponseLatency;
         if (latency > TimeSpan.Zero)
             try { await Task.Delay(latency, ct).ConfigureAwait(false); } catch (OperationCanceledException) { }
@@ -490,7 +494,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
         // Spec §4.6: peer-side keep-alive. Emit Sequence frames at the
         // negotiated interval so the client can observe inbound heartbeats.
-        if (keepAliveMs > 0 && state.KeepAliveCts is null)
+        if (!IsReplayMode && keepAliveMs > 0 && state.KeepAliveCts is null)
         {
             state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
@@ -548,7 +552,7 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
         lock (_activeConnections) _activeConnections.Add(entry);
         _activeConnectionSignal.Release();
 
-        if (keepAliveMs > 0 && state.KeepAliveCts is null)
+        if (!IsReplayMode && keepAliveMs > 0 && state.KeepAliveCts is null)
         {
             state.KeepAliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _ = Task.Run(() => PeerSequenceLoopAsync(stream, state, TimeSpan.FromMilliseconds(keepAliveMs), state.KeepAliveCts.Token));
@@ -592,6 +596,8 @@ public sealed class InProcessFixpTestPeer : IAsyncDisposable
 
     private async Task PeerSequenceLoopAsync(Stream stream, ConnectionState state, TimeSpan interval, CancellationToken ct)
     {
+        if (IsReplayMode)
+            return;
         try
         {
             while (!ct.IsCancellationRequested)
