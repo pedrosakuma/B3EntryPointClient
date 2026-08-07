@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq;
 using B3.EntryPoint.Client.Auth;
+using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.Models;
 using B3.EntryPoint.Client.TestPeer;
 
@@ -184,6 +185,81 @@ public class TestPeerScenarioTests
         Assert.Equal(6UL, trade.LeavesQty);
         Assert.Equal(4UL, trade.CumQty);
         Assert.Equal(11.0m, trade.LastPx);
+    }
+
+    [Fact]
+    public async Task ReplayScript_ReplaysTerminalSequence_AndLateNotApplied_Deterministically()
+    {
+        var replay = TestPeerReplayScript.Create(defaultSessionId: 42u, defaultSessionVerId: 1u)
+            .NegotiateAccept()
+            .EstablishAck(nextSeqNo: 1u, lastIncomingSeqNo: 0u)
+            .ExecutionReportAccepted((ClOrdID)1001UL, orderId: 9001UL, securityId: 4321UL, side: Side.Buy, msgSeqNum: 1u)
+            .ExecutionReportTrade((ClOrdID)1001UL, orderId: 9001UL, tradeId: 9101UL, securityId: 4321UL, side: Side.Buy, lastPx: 10.25m, lastQty: 100UL, msgSeqNum: 2u, leavesQty: 0UL, cumQty: 100UL)
+            .NotApplied(fromSeqNo: 1u, count: 2u)
+            .Build();
+
+        await using var peer = new InProcessFixpTestPeer(new TestPeerOptions { ReplayScript = replay });
+        peer.Start();
+
+        await using var client = new EntryPointClient(ClientOptions(peer));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await client.ConnectAsync(cts.Token);
+
+        var notApplied = new TaskCompletionSource<NotAppliedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Retransmit!.NotAppliedReceived += (_, args) => notApplied.TrySetResult(args);
+
+        Assert.Equal(1, await peer.AdvanceReplayAsync(ct: cts.Token));
+        var accepted = Assert.IsType<OrderAccepted>((await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2))).Single());
+        Assert.Equal(1UL, accepted.SeqNum);
+        Assert.Equal((ClOrdID)1001UL, accepted.ClOrdID);
+        Assert.Equal(9001UL, accepted.OrderId);
+        Assert.Equal(OrderStatus.New, accepted.OrderStatus);
+
+        Assert.Equal(1, await peer.AdvanceReplayAsync(ct: cts.Token));
+        var trade = Assert.IsType<OrderTrade>((await DrainAsync(client, expected: 1, TimeSpan.FromSeconds(2))).Single());
+        Assert.Equal(2UL, trade.SeqNum);
+        Assert.Equal((ClOrdID)1001UL, trade.ClOrdID);
+        Assert.Equal(OrderStatus.Filled, trade.OrderStatus);
+        Assert.Equal(100UL, trade.LastQty);
+        Assert.Equal(10.25m, trade.LastPx);
+        Assert.Equal(0UL, trade.LeavesQty);
+        Assert.Equal(100UL, trade.CumQty);
+
+        Assert.Equal(1, await peer.AdvanceReplayAsync(ct: cts.Token));
+        var lateNotApplied = await notApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1UL, lateNotApplied.FromSeqNo);
+        Assert.Equal(2u, lateNotApplied.Count);
+        Assert.Equal(0, await peer.AdvanceReplayAsync(ct: cts.Token));
+    }
+
+    [Fact]
+    public async Task ReplayScript_EstablishReject_UsesScriptedCode()
+    {
+        var replay = TestPeerReplayScript.Create(defaultSessionId: 42u, defaultSessionVerId: 9u)
+            .NegotiateAccept()
+            .EstablishReject(B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.INVALID_SESSIONVERID)
+            .Build();
+
+        await using var peer = new InProcessFixpTestPeer(new TestPeerOptions { ReplayScript = replay });
+        peer.Start();
+
+        await using var client = new EntryPointClient(ClientOptions(peer));
+        var ex = await Assert.ThrowsAsync<FixpEstablishRejectedException>(() => client.ConnectAsync());
+        Assert.Equal(B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode.INVALID_SESSIONVERID, ex.Code);
+    }
+
+    [Fact]
+    public async Task ReplayScript_NegotiateReject_FailsConnect()
+    {
+        var replay = TestPeerReplayScript.Create(defaultSessionId: 42u, defaultSessionVerId: 7u)
+            .NegotiateReject(B3.Entrypoint.Fixp.Sbe.V6.NegotiationRejectCode.INVALID_SESSIONVERID, currentSessionVerId: 6u)
+            .Build();
+
+        await using var peer = new InProcessFixpTestPeer(new TestPeerOptions { ReplayScript = replay });
+        peer.Start();
+
+        await using var client = new EntryPointClient(ClientOptions(peer));
+        await Assert.ThrowsAsync<FixpRejectedException>(() => client.ConnectAsync());
     }
 
     [Fact]

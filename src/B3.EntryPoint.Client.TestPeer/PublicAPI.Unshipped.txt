@@ -1,7 +1,21 @@
 #nullable enable
-B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.get -> bool
-B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.set -> void
-B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.get -> uint?
-B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.set -> void
+B3.EntryPoint.Client.TestPeer.InProcessFixpTestPeer.AdvanceReplayAsync(int frameCount = 1, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckLastIncomingSeqNoOverride.get -> uint?
 B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckLastIncomingSeqNoOverride.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.get -> uint?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.EstablishAckNextSeqNoOverride.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.get -> bool
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.RejectEstablishWithoutPriorNegotiate.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ReplayScript.get -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScript?
+B3.EntryPoint.Client.TestPeer.TestPeerOptions.ReplayScript.set -> void
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScript
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.Build() -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScript!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.EstablishAck(uint? sessionId = null, ulong? sessionVerId = null, uint? nextSeqNo = null, uint? lastIncomingSeqNo = null, uint? keepAliveIntervalMs = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.EstablishReject(B3.Entrypoint.Fixp.Sbe.V6.EstablishRejectCode code, uint? sessionId = null, ulong? sessionVerId = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.ExecutionReportAccepted(B3.EntryPoint.Client.Models.ClOrdID clOrdId, ulong orderId, ulong securityId, B3.EntryPoint.Client.Models.Side side, uint? msgSeqNum = null, uint? sessionId = null, ulong? sessionVerId = null, B3.EntryPoint.Client.Models.OrderStatus orderStatus = B3.EntryPoint.Client.Models.OrderStatus.New, System.DateTimeOffset? transactTime = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.ExecutionReportTrade(B3.EntryPoint.Client.Models.ClOrdID clOrdId, ulong orderId, ulong tradeId, ulong securityId, B3.EntryPoint.Client.Models.Side side, decimal lastPx, ulong lastQty, uint? msgSeqNum = null, uint? sessionId = null, ulong? sessionVerId = null, B3.EntryPoint.Client.Models.OrderStatus orderStatus = B3.EntryPoint.Client.Models.OrderStatus.Filled, ulong? leavesQty = null, ulong? cumQty = null, System.DateTimeOffset? transactTime = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.NegotiateAccept(uint? sessionId = null, ulong? sessionVerId = null, uint? enteringFirm = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.NegotiateReject(B3.Entrypoint.Fixp.Sbe.V6.NegotiationRejectCode code, uint? sessionId = null, ulong? sessionVerId = null, uint? enteringFirm = null, ulong? currentSessionVerId = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder.NotApplied(uint fromSeqNo, uint count, uint? sessionId = null, ulong? sessionVerId = null) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
+static B3.EntryPoint.Client.TestPeer.TestPeerReplayScript.Create(uint defaultSessionId, ulong defaultSessionVerId) -> B3.EntryPoint.Client.TestPeer.TestPeerReplayScriptBuilder!
