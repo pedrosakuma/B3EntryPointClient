@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-07
+
+### Added
+- **test (#233)**: `B3.EntryPoint.Client.TestPeer` gained a deterministic
+  replay API (`TestPeerReplayScript` + `InProcessFixpTestPeer.AdvanceReplayAsync`)
+  to script an ordered sequence of FIXP frames (Negotiate/Establish
+  accept-or-reject, ExecutionReport, NotApplied) against a client under
+  test without real sockets or wall-clock timers, enabling downstream
+  consumers to reproduce production incident scenarios as fast, repeatable
+  unit tests. Replay mode also suppresses automatic keepalive/response-latency
+  timers so scripted sequences stay fully deterministic.
+
 ## [0.17.1] - 2026-07-30
 
 ### Fixed
