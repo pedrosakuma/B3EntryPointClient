@@ -1,4 +1,5 @@
 using B3.EntryPoint.Client.Fixp;
+using B3.EntryPoint.Client.Tests.TestSupport;
 
 namespace B3.EntryPoint.Client.Tests.Fixp;
 
@@ -94,10 +95,17 @@ public class KeepAliveSchedulerPeriodicTests
             TimeSpan.FromMilliseconds(40),
             SendAsync);
         scheduler.Start();
-        var completed = await Task.WhenAny(twoTicks.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        scheduler.Stop();
-        scheduler.Dispose();
-        Assert.Same(twoTicks.Task, completed);
+        try
+        {
+            // Widened from 5s to 10s (see #245): under CI-runner contention,
+            // even a 40ms tick interval can starve past a tight timeout.
+            await AsyncAssert.CompletesWithinAsync(twoTicks.Task, TimeSpan.FromSeconds(10), "expected two keep-alive ticks");
+        }
+        finally
+        {
+            scheduler.Stop();
+            scheduler.Dispose();
+        }
         int finalCount;
         lock (ticks) finalCount = ticks.Count;
         Assert.True(finalCount >= 2, $"expected >=2 ticks, got {finalCount}");

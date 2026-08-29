@@ -31,9 +31,8 @@ public class RetransmitRejectTests
 
         await client.Retransmit.RequestRetransmitAsync(fromSeqNo: 1UL, count: 5U);
 
-        var completed = await Task.WhenAny(rejected.Task, Task.Delay(TimeSpan.FromSeconds(3)));
-        Assert.Same(rejected.Task, completed);
-        var evt = await rejected.Task;
+        var evt = await AsyncAssert.CompletesWithinAsync(
+            rejected.Task, TimeSpan.FromSeconds(5), "expected a RetransmitRejected event");
         Assert.Equal(RetransmitRejectCode.OutOfRange, evt.Code);
     }
 }

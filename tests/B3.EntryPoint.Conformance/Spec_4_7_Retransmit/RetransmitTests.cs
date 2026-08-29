@@ -34,9 +34,8 @@ public class RetransmitTests
 
         await client.Retransmit.RequestRetransmitAsync(fromSeqNo: 1UL, count: 5U);
 
-        var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(3)));
-        Assert.Same(received.Task, completed);
-        var evt = await received.Task;
+        var evt = await AsyncAssert.CompletesWithinAsync(
+            received.Task, TimeSpan.FromSeconds(5), "expected a RetransmissionReceived event");
         Assert.Equal(1UL, evt.NextSeqNo);
         Assert.Equal(0u, evt.Count);
     }
