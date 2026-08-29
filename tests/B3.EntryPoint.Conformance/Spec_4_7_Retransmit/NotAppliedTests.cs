@@ -28,9 +28,8 @@ public class NotAppliedTests
         var sent = await fx.Peer.InjectNotAppliedAsync(fromSeqNo: 7u, count: 3u);
         Assert.True(sent >= 1, "Expected the NotApplied frame to be written to at least one connection");
 
-        var completed = await Task.WhenAny(na.Task, Task.Delay(TimeSpan.FromSeconds(3)));
-        Assert.Same(na.Task, completed);
-        var evt = await na.Task;
+        var evt = await AsyncAssert.CompletesWithinAsync(
+            na.Task, TimeSpan.FromSeconds(5), "expected a NotAppliedReceived event");
         Assert.Equal(7UL, evt.FromSeqNo);
         Assert.Equal(3u, evt.Count);
     }

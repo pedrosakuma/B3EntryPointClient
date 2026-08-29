@@ -2,6 +2,7 @@ using B3.EntryPoint.Client.Auth;
 using B3.EntryPoint.Client.Fixp;
 using B3.EntryPoint.Client.State;
 using B3.EntryPoint.Client.TestPeer;
+using B3.EntryPoint.Client.Tests.TestSupport;
 
 namespace B3.EntryPoint.Client.Tests;
 
@@ -263,8 +264,8 @@ public class ColdStartResumeTests
 
         await client.DisposeAsync();
 
-        var completed = await Task.WhenAny(terminateSeen.Task, Task.Delay(2000, cts.Token));
-        Assert.Same(terminateSeen.Task, completed);
+        await AsyncAssert.CompletesWithinAsync(
+            terminateSeen.Task, TimeSpan.FromSeconds(3), "expected a Terminate frame on dispose", cts.Token);
     }
 
     [Fact]

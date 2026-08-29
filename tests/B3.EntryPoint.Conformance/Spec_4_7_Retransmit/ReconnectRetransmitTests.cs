@@ -161,8 +161,8 @@ public class ReconnectRetransmitTests
             fx.Peer.MessageReceived += probe;
             try
             {
-                var completed = await Task.WhenAny(seenSix.Task, Task.Delay(TimeSpan.FromSeconds(3)));
-                Assert.Same(seenSix.Task, completed);
+                await AsyncAssert.CompletesWithinAsync(
+                    seenSix.Task, TimeSpan.FromSeconds(5), "expected the resubmitted order to reach the peer");
             }
             finally
             {

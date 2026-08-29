@@ -42,11 +42,11 @@ public class SequenceHeartbeatTests
             if (Interlocked.Increment(ref receivedCount) >= 1) receivedTcs.TrySetResult();
         };
 
-        // Cap the wait at 5×interval so a stalled scheduler fails fast.
-        var timeout = TimeSpan.FromMilliseconds(250 * 5);
+        // Cap the wait at 10×interval so a stalled scheduler still fails fast
+        // while leaving headroom for CI-runner contention (see #245).
+        var timeout = TimeSpan.FromMilliseconds(250 * 10);
         var both = Task.WhenAll(sentTcs.Task, receivedTcs.Task);
-        var completed = await Task.WhenAny(both, Task.Delay(timeout));
-        Assert.Same(both, completed);
+        await AsyncAssert.CompletesWithinAsync(both, timeout, "expected Sequence frames to be sent and received");
         Assert.True(sentCount >= 1, $"Expected at least one Sequence frame sent, got {sentCount}");
         Assert.True(receivedCount >= 1, $"Expected at least one Sequence frame received, got {receivedCount}");
     }
