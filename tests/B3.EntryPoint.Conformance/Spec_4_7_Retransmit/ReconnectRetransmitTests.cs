@@ -132,18 +132,14 @@ public class ReconnectRetransmitTests
 
         // 7. Submit one more order; assert the peer sees it on the wire with
         //    MsgSeqNum = 6, proving the outbound counter resumed contiguously.
-        await client.SubmitAsync(new NewOrderRequest
-        {
-            ClOrdID = (ClOrdID)6,
-            SecurityId = 4321UL,
-            Side = Side.Buy,
-            OrderType = OrderType.Limit,
-            Price = 10.0m,
-            OrderQty = 100UL,
-        });
-
-        // Wait briefly for the peer to read the frame off the wire (TCS via
-        // a one-shot signal on the MessageReceived event).
+        //
+        // Subscribe the probe BEFORE submitting (previously it was
+        // subscribed only after SubmitAsync returned, with a TryPeek
+        // fallback for anything already enqueued — but the peer could
+        // process the frame and raise MessageReceived in the window
+        // between that TryPeek check and the += subscription, which is
+        // lost forever and made the test hang for the full timeout; see
+        // #245 CI failure). Subscribing first closes that race.
         var seenSix = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler<TestPeerMessageEventArgs> probe = (_, args) =>
         {
@@ -151,23 +147,25 @@ public class ReconnectRetransmitTests
             if (!NewOrderSingleData.TryParse(args.Payload.Span, out var reader)) return;
             seenSix.TrySetResult(reader.Data.BusinessHeader.MsgSeqNum.Value);
         };
-        // Drain anything already enqueued from the resubmitted order.
-        if (peerInboundNosSeqs.TryPeek(out var first))
+        fx.Peer.MessageReceived += probe;
+        try
         {
-            seenSix.TrySetResult(first);
+            await client.SubmitAsync(new NewOrderRequest
+            {
+                ClOrdID = (ClOrdID)6,
+                SecurityId = 4321UL,
+                Side = Side.Buy,
+                OrderType = OrderType.Limit,
+                Price = 10.0m,
+                OrderQty = 100UL,
+            });
+
+            await AsyncAssert.CompletesWithinAsync(
+                seenSix.Task, TimeSpan.FromSeconds(5), "expected the resubmitted order to reach the peer");
         }
-        else
+        finally
         {
-            fx.Peer.MessageReceived += probe;
-            try
-            {
-                await AsyncAssert.CompletesWithinAsync(
-                    seenSix.Task, TimeSpan.FromSeconds(5), "expected the resubmitted order to reach the peer");
-            }
-            finally
-            {
-                fx.Peer.MessageReceived -= probe;
-            }
+            fx.Peer.MessageReceived -= probe;
         }
         Assert.Equal(6u, await seenSix.Task);
 
